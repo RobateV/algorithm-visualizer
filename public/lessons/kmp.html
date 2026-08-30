@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>白学在线 - KMP前缀函数全景演练 (直击本质版)</title>
+    <style>
+        :root {
+            --primary-color: #0284c7;
+            --secondary-color: #0ea5e9;
+            --neon-blue: #0ea5e9;
+            --neon-orange: #f59e0b;
+            --neon-red: #ef4444;
+            --neon-green: #10b981;
+            --neon-purple: #8b5cf6;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --pointer-red: #ef4444;
+            --pointer-blue: #3b82f6;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            color: var(--text-main);
+            margin: 0; padding: 0; 
+            height: 100vh; overflow: hidden; 
+            user-select: none;
+        }
+
+        .wrapper { display: flex; justify-content: center; padding: 16px 24px 20px 24px; height: 100%; width: 100%; }
+        .main-container { max-width: 1600px; width: 100%; height: 100%; display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 1; }
+        .glass-card { background: var(--bg-glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 16px; box-shadow: 0 8px 24px rgba(31, 38, 135, 0.08); }
+
+        /* 顶部标题栏 */
+        .header-card {
+            flex: 0 0 auto; background: linear-gradient(135deg, rgba(2, 132, 199, 0.95), rgba(14, 165, 233, 0.95));
+            color: white; padding: 12px 24px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .header-text span { font-size: 14px; font-weight: 400; opacity: 0.9; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 100px;}
+        
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        
+        /* 模式切换按钮核心样式 */
+        .mode-btn { background: #f59e0b; border: 2px solid #fbbf24; color: white; padding: 8px 16px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+        .mode-btn:hover { background: #d97706; transform: translateY(-2px); }
+        .mode-btn.code-active { background: #10b981; border-color: #34d399; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+        .mode-btn.code-active:hover { background: #059669; }
+
+        .fullscreen-btn { background: transparent; border: 2px solid rgba(255, 255, 255, 0.6); color: white; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+        .fullscreen-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: white; }
+
+        /* 核心布局区：增加 PPT 模式平滑过渡 */
+        .content-wrapper { display: flex; flex: 1; gap: 16px; min-height: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .left-panel { flex: 0 0 38%; min-width: 380px; display: flex; flex-direction: column; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); opacity: 1; transform: translateX(0); }
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+
+        /* PPT 模式下的隐藏状态 */
+        .left-panel.ppt-hidden { flex: 0 0 0%; min-width: 0; opacity: 0; overflow: hidden; padding: 0; margin-right: -16px; transform: translateX(-20px); }
+
+        .code-window { background-color: #1e1e1e; border-radius: 16px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
+        .code-header { background-color: #2d2d2d; padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto;}
+        .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .mac-dot.red { background-color: #ef4444; } .mac-dot.yellow { background-color: #f59e0b; } .mac-dot.green { background-color: #10b981; }
+        .code-title { margin-left: 10px; color: #858585; font-size: 13px; font-family: sans-serif; }
+        .code-card { flex: 1; overflow-y: auto; color: #d4d4d4; font-family: "Consolas", monospace; font-size: 15px; line-height: 1.6; padding: 15px 0; scroll-behavior: smooth; counter-reset: line-number;}
+        .code-line { padding: 2px 20px 2px 55px; border-left: 4px solid transparent; white-space: pre; transition: background 0.2s; position: relative; }
+        .code-line.highlight { background-color: rgba(245, 158, 11, 0.15); border-left-color: var(--neon-orange); color: #ffffff; }
+        .code-line::before { counter-increment: line-number; content: counter(line-number); position: absolute; left: 4px; top: 0; bottom: 0; width: 35px; text-align: right; color: #475569; font-size: 13px; padding-top: 2px; border-right: 1px solid #334155; padding-right: 8px; }
+        .code-comment { color: #6A9955; } .code-number { color: #b5cea8; } .code-keyword { color: #c586c0; } .code-variable { color: #9cdcfe; }
+
+        /* 右侧 可视化布局 */
+        .visual-card { flex: 0.65; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 15px 20px; position: relative;}
+        .fs-layout { display: flex; flex-direction: row; width: 100%; flex: 1; border-bottom: 2px dashed #cbd5e1; margin-bottom: 10px; padding: 0 10px 15px 10px; min-height: 0; }
+        .fs-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative; min-width: 0; overflow-y: hidden; overflow-x: auto; padding: 20px 0 20px 40px;}
+
+        /* KMP 专属动画轨道 - 放大适应PPT */
+        .kmp-board { width: max-content; display: flex; flex-direction: column; align-items: flex-start; position: relative; transform: scale(1.1); transform-origin: left center; }
+        .kmp-track { display: flex; flex-direction: row; position: relative; margin-bottom: 75px; height: 50px;}
+        .kmp-track.sliding { transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+        
+        .kmp-cell { width: 50px; height: 50px; margin-right: 8px; border: 2px solid var(--neon-blue); border-radius: 8px; background: rgba(255,255,255,0.9); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; position: relative; transition: all 0.3s; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); flex-shrink: 0; color: var(--text-main);}
+        .kmp-cell.matched { background: rgba(16, 185, 129, 0.15); border-color: var(--neon-green); color: var(--neon-green); }
+        .kmp-cell.comparing { background: rgba(245, 158, 11, 0.15); border-color: var(--neon-orange); color: var(--neon-orange); box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); transform: translateY(-4px) scale(1.05); z-index: 10;}
+        .kmp-cell.mismatch { background: rgba(148, 163, 184, 0.2); border-color: #94a3b8; color: #64748b; animation: shake 0.4s; }
+        .kmp-cell.invisible { opacity: 0; pointer-events: none; border: none; box-shadow: none; background: transparent;}
+        
+        @keyframes pulseBorder { 0% { box-shadow: 0 0 10px rgba(139,92,246,0.3); } 50% { box-shadow: 0 0 20px rgba(139,92,246,0.8); } 100% { box-shadow: 0 0 10px rgba(139,92,246,0.3); } }
+        .kmp-cell.border-highlight { animation: pulseBorder 1.5s infinite; background: rgba(139, 92, 246, 0.15); border-color: var(--neon-purple); color: var(--neon-purple); z-index: 5; font-weight: 900;}
+
+        .idx-label { position: absolute; font-size: 13px; color: #94a3b8; font-family: Consolas; font-weight: bold;}
+        .idx-label.top { top: -24px; }
+        .idx-label.bottom { bottom: -24px; }
+
+        .ne-row { display: flex; flex-direction: row; position: absolute; bottom: -55px; left: 0; }
+        .ne-cell { width: 50px; height: 35px; margin-right: 8px; border: 2px solid rgba(139, 92, 246, 0.3); border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-family: Consolas; color: var(--neon-purple); background: rgba(139, 92, 246, 0.05); transition: all 0.3s; flex-shrink: 0; font-weight: bold;}
+        .ne-cell.updated { background: var(--neon-purple); color: white; transform: translateY(4px) scale(1.1); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); border-color: var(--neon-purple);}
+        .ne-cell.border-highlight { background: var(--neon-purple); color: white; transform: translateY(4px); box-shadow: 0 4px 15px rgba(139, 92, 246, 0.5); animation: pulseBorder 1.5s infinite;}
+        
+        .ne-label { position: absolute; left: -100px; top: 6px; font-size: 14px; color: var(--neon-purple); font-weight: bold; line-height: 1.2; text-align: right; }
+        .string-label { position: absolute; left: -50px; top: 12px; font-size: 18px; color: var(--primary-color); font-weight: bold; font-family: Consolas; }
+
+        .kmp-ptr { position: absolute; width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; transition: left 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 20; }
+        .kmp-ptr.red { border-top: 12px solid var(--pointer-red); top: -38px; }
+        .kmp-ptr.blue { border-top: 12px solid var(--pointer-blue); top: -38px; box-shadow: 0 0 0 transparent; }
+
+        @keyframes shake { 0%, 100% {transform: translateX(0);} 25% {transform: translateX(-4px);} 75% {transform: translateX(4px);} }
+
+        /* 控制流面板 */
+        .fs-sidebar { flex: 0 0 200px; width: 200px; display: flex; flex-direction: column; align-items: center; gap: 10px; border-left: 2px dashed #cbd5e1; margin-left: 10px; padding-left: 10px; padding-right: 5px; justify-content: flex-start; height: 100%; overflow-y: auto; box-sizing: border-box; }
+        .sidebar-title { font-family: Consolas; font-weight: bold; color: var(--primary-color); font-size: 16px; margin-bottom: 5px; text-align: center; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px; width: 100%; }
+        .sidebar-list { width: 100%; display: flex; flex-direction: column; gap: 10px; padding-top: 4px; padding-bottom: 20px; overflow-x: hidden; }
+        .sidebar-item { width: 100%; padding: 12px 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-weight: bold; transition: all 0.3s; position: relative; background: rgba(255,255,255,0.5); font-size: 14px; text-align: center; color: var(--text-muted); cursor: pointer; }
+        .sidebar-item:hover { border-color: var(--neon-orange); color: var(--neon-orange); background: rgba(245, 158, 11, 0.05); transform: translateX(-3px); }
+        .sidebar-item.active { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.1); color: var(--neon-orange); transform: translateX(-6px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
+        .sidebar-item.active::before { content: '▶'; position: absolute; left: -16px; color: var(--neon-orange); font-size: 14px; top: 50%; transform: translateY(-50%); }
+
+        .control-panel { display: flex; gap: 12px; background: rgba(255, 255, 255, 0.9); padding: 10px 24px; border-radius: 100px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 5px; border: 2px solid #e2e8f0; align-items: center; }
+        .btn { padding: 10px 28px; font-size: 15px; font-weight: 700; border-radius: 100px; cursor: pointer; transition: all 0.2s ease; background: transparent; }
+        .btn-primary { border: 2px solid var(--neon-blue); color: var(--neon-blue); }
+        .btn-primary:hover { background: var(--neon-blue); color: white; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
+        .btn-secondary { border: 2px solid #94a3b8; color: #64748b; }
+        .btn-secondary:hover { background: #f1f5f9; color: #334155; border-color: #64748b; }
+        .btn:disabled { border-color: #cbd5e1; color: #cbd5e1; cursor: not-allowed; background: transparent; box-shadow: none; }
+        
+        .stage-select { padding: 8px 16px; font-size: 14px; border-radius: 8px; border: 2px solid #cbd5e1; color: #334155; font-weight: bold; outline: none; cursor: pointer; background: white; }
+        .stage-select:focus { border-color: var(--neon-blue); }
+
+        /* 下部解析区 */
+        .explanation-row { flex: 0.35; display: flex; gap: 16px; width: 100%; min-height: 0; }
+        .step-box { background: rgba(255, 255, 255, 0.8); border: 2px solid var(--neon-blue); padding: 16px 20px; border-radius: 12px; flex: 0 0 38%; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); overflow-y: auto;}
+        .step-box h4 { margin: 0 0 8px 0; color: var(--neon-blue); font-size: 18px; }
+        .step-box p { margin: 0; font-size: 16px; line-height: 1.6; font-weight: 600; color: #1e293b;}
+        .logic-box { background: rgba(255, 255, 255, 0.6); border: 1px solid #cbd5e1; padding: 16px 20px; border-radius: 12px; flex: 1; overflow-y: auto;}
+        .logic-box h3 { margin: 0 0 8px 0; font-size: 17px; border-bottom: 2px dashed #cbd5e1; padding-bottom: 6px; }
+        .logic-box div { font-size: 15px; color: #334155; line-height: 1.8; }
+        code { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-family: "Consolas", monospace; font-weight: bold;}
+
+        /* 白板系统精简版保留 */
+        #draw-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
+        #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
+        .draw-toolbar { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 100px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; display: flex; flex-direction: row; align-items: center; gap: 10px; width: max-content;}
+        .tool-btn { background: none; border: 2px solid transparent; font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer; padding: 6px 14px; border-radius: 100px; transition: 0.2s;}
+        .tool-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .tool-btn.active { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
+    </style>
+</head>
+<body>
+
+<canvas id="draw-canvas"></canvas>
+<div class="draw-toolbar">
+    <button class="tool-btn" id="toggle-draw-btn" onclick="toggleDrawingMode()">🖌️ 开启标注白板</button>
+    <button class="tool-btn" style="color: #ef4444; display:none;" id="clear-draw-btn" onclick="clearCanvas()">🗑️ 清屏</button>
+</div>
+
+<div class="wrapper">
+    <div class="main-container">
+        <div class="header-card">
+            <div class="header-text">
+                <h1>✨ 白学在线 - KMP前缀函数全景演练 <span>(直击本质版：ATAAGA的图解推导)</span></h1>
+            </div>
+            <div class="header-controls">
+                <button class="mode-btn" id="mode-toggle-btn" onclick="toggleViewMode()">
+                    📊 当前: PPT图解模式 (点击显示代码)
+                </button>
+                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
+            </div>
+        </div>
+
+        <div class="content-wrapper" id="main-content-wrapper">
+            <div class="left-panel ppt-hidden" id="code-panel">
+                <div class="code-window">
+                    <div class="code-header">
+                        <div class="mac-dot red"></div><div class="mac-dot yellow"></div><div class="mac-dot green"></div>
+                        <span class="code-title">kmp_algorithm.cpp</span>
+                    </div>
+                    <div class="code-card" id="code-content"></div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="glass-card visual-card">
+                    <div class="fs-layout">
+                        <div class="fs-main">
+                            <div class="kmp-board">
+                                <div class="kmp-track" id="top-track">
+                                    <div class="string-label" id="top-label">P</div>
+                                    <div class="kmp-ptr red" id="pointer-i"></div>
+                                    <div id="top-char-row" style="display: flex;"></div>
+                                </div>
+
+                                <div class="kmp-track sliding" id="bot-track">
+                                    <div class="string-label" id="bot-label">P</div>
+                                    <div class="kmp-ptr blue" id="pointer-j"></div>
+                                    <div id="bot-char-row" style="display: flex;"></div>
+                                    
+                                    <div class="ne-row" id="bot-ne-row"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="fs-sidebar" id="sidebar-panel">
+                            <div class="sidebar-title">教学流程</div>
+                            <div class="sidebar-list" id="sidebar-list">
+                                <div class="sidebar-item active" id="sidebar-0" onclick="switchToFlow(0)">0. 暴力匹配弊端<br>(无代码演示)</div>
+                                <div class="sidebar-item" id="sidebar-1" onclick="switchToFlow(1)">1. 认识前缀函数<br>(求 ne 数组)</div>
+                                <div class="sidebar-item" id="sidebar-2" onclick="switchToFlow(2)">2. KMP 魔法滑动<br>(主串匹配)</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-panel">
+                        <button class="btn btn-secondary" id="btn-prev" onclick="step(-1)">← 上一步</button>
+
+                        <button class="btn btn-secondary" id="btn-reset" onclick="resetCurrent()">🔄 重置</button>
+
+                        <button class="btn btn-primary" id="btn-next" onclick="step(1)">下一步 →</button>
+                    </div>
+                </div>
+
+                <div class="explanation-row">
+                    <div class="step-box">
+                        <h4 id="step-title">实时推导追踪</h4>
+                        <p id="step-desc">准备就绪。点击「下一步」开始，右侧教学流程可随时切换阶段。</p>
+                    </div>
+                    <div class="logic-box" id="logic-desc">
+                        <h3>💡 前缀函数 π：字符串的自相似指纹</h3>
+                        <div>
+                            <code>π[i]</code> = <code>P[1..i]</code> 这个前缀里，<b>最长的相等真前后缀</b>的长度。<br>
+                            所谓"真"前后缀——不能等于整个串本身，所以 <code>π[1]</code> 恒为 0。<br>
+                            直觉：把字符串复制一份向右滑动，直到<b>头部和尾部图案完全重合</b>——重合的长度就是 <code>π[i]</code>。<br>
+                            比如 <code>ATAAGA</code>：前 3 个字符 <code>ATA</code>，开头 <code>A</code> = 结尾 <code>A</code> → <code>π[3]=1</code>。<br>
+                            我们将一步步推导出 <code>π = [0, 0, 1, 1, 0, 1]</code>。紫色高亮就是 border 两端。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================= 视图模式控制 (PPT / 源码) =================
+    let isPPTMode = true;
+    function toggleViewMode() {
+        isPPTMode = !isPPTMode;
+        const panel = document.getElementById('code-panel');
+        const btn = document.getElementById('mode-toggle-btn');
+        if(isPPTMode) {
+            panel.classList.add('ppt-hidden');
+            btn.innerHTML = "📊 当前: PPT图解模式 (点击显示代码)";
+            btn.classList.remove('code-active');
+            document.getElementById('logic-desc').innerHTML = `
+                <h3>💡 先建直觉，再看代码</h3>
+                <div>
+                    <b>前缀函数是字符串自身的结构信息</b>，与主串无关。<br>
+                    当匹配成功的部分存在"头 = 尾"的结构时，失配后不需要回退主串，<br>
+                    直接把前缀滑到后缀的位置继续匹配——这就是 <b>KMP O(N+M) 的秘密</b>。
+                </div>`;
+        } else {
+            panel.classList.remove('ppt-hidden');
+            btn.innerHTML = "💻 当前: 代码结合模式 (点击隐藏代码)";
+            btn.classList.add('code-active');
+            document.getElementById('logic-desc').innerHTML = `
+                <h3>💻 三行核心代码</h3>
+                <div>
+                    1. <b><code>while (p[i] != p[j+1]) j = ne[j];</code></b> → 失配时查表跳跃，就是动画里的紫色滑动<br>
+                    2. <b><code>if (p[i] == p[j+1]) j++;</code></b> → 匹配成功，border 延伸一个字符<br>
+                    3. <b><code>ne[i] = j;</code></b> → 存档当前 π 值<br>
+                    <b>精髓</b>：<code>j = ne[j]</code> 利用了自相似性的传递——当前 border 不匹配，就找 border 的 border。
+                </div>`;
+        }
+        setTimeout(() => renderState(currentStateIndex), 100); 
+    }
+
+    // ================= 全屏与简单白板 =================
+    function toggleFullScreen() { if (!document.fullscreenElement) document.documentElement.requestFullscreen(); else if (document.exitFullscreen) document.exitFullscreen(); }
+    window.addEventListener('keydown', (e) => { 
+        if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); 
+        else if (e.key === 'ArrowLeft') document.getElementById('btn-prev').click(); 
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'z')) {
+            if (isDrawingMode) { e.preventDefault(); undoDraw(); }
+        }
+    });
+    
+    const canvas = document.getElementById('draw-canvas'); const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let isDrawingMode = false; let isDrawing = false; let drawHistory = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; ctx.lineCap = 'round'; if(drawHistory.length === 0) saveDrawState(); }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function toggleDrawingMode() { 
+        isDrawingMode = !isDrawingMode; 
+        const btn = document.getElementById('toggle-draw-btn');
+        if (isDrawingMode) { canvas.classList.add('drawing-mode'); btn.innerHTML = "❌ 关闭白板"; document.getElementById('clear-draw-btn').style.display='block'; } 
+        else { canvas.classList.remove('drawing-mode'); btn.innerHTML = "🖌️ 开启标注白板"; document.getElementById('clear-draw-btn').style.display='none'; } 
+    }
+    canvas.addEventListener('mousedown', (e) => { if (!isDrawingMode) return; isDrawing = true; ctx.beginPath(); ctx.moveTo(e.clientX, e.clientY); });
+    canvas.addEventListener('mousemove', (e) => { if (!isDrawing) return; ctx.lineTo(e.clientX, e.clientY); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { if(isDrawing){ isDrawing = false; saveDrawState();} });
+    function saveDrawState() { if (drawHistory.length > 20) drawHistory.shift(); drawHistory.push(canvas.toDataURL()); }
+    function undoDraw() { if (drawHistory.length > 1) { drawHistory.pop(); let img = new Image(); img.src = drawHistory[drawHistory.length - 1]; img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); let prevMode = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(img, 0, 0); ctx.globalCompositeOperation = prevMode; }; } else if (drawHistory.length === 1) clearCanvas(); }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); drawHistory = []; saveDrawState(); }
+
+    // ================= 核心代码生成 =================
+    const codeLines = [
+        "// KMP 字符串匹配 (1-based 索引体系)",
+        "// ne 数组即为视频中的前缀函数 π",
+        "int ne[N]; ",
+        "",
+        "void KMP(char s[], char p[], int n, int m) {",
+        "    // 1. 求 ne 数组 (计算前缀函数 π)",
+        "    for (int i = 2, j = 0; i <= m; i++) {",
+        "        while (j > 0 && p[i] != p[j + 1]) ",
+        "            j = ne[j];  // 失配：利用已有 π 值智能滑动",
+        "        if (p[i] == p[j + 1]) ",
+        "            j++;        // 匹配：Border 长度增加",
+        "        ne[i] = j;      // 记录前缀函数值 π[i]",
+        "    }",
+        "",
+        "    // 2. 主串与模式串匹配",
+        "    for (int i = 1, j = 0; i <= n; i++) {",
+        "        while (j > 0 && s[i] != p[j + 1]) ",
+        "            j = ne[j];  // 核心：模式串魔法向右滑动",
+        "        if (s[i] == p[j + 1]) ",
+        "            j++;        ",
+        "        if (j == m) {",
+        "            printf(\"Match at %d\\n\", i - m + 1);",
+        "            j = ne[j];  // 继续寻找下一个匹配点",
+        "        }",
+        "    }",
+        "}"
+    ];
+
+    let states = [];
+    let currentStateIndex = 0;
+    let buildStartIndex = 0;
+    let matchStartIndex = 0;
+    const CELL_WIDTH = 58;
+
+    function generateKMPStates() {
+        states = [];
+        // 【核心定制】使用 ATAAGA 演示
+        let P = " " + "ATAAGA";         // 模式串 (长度6)
+        let S = " " + "ATAATAAGATA";    // 主串 (长度11)
+        let ne = new Array(P.length).fill(0);
+
+       // 1. 修改原有的 push 函数，增加对 'brute' 阶段指令高亮的支持
+        function push(phase, line, desc, i, j, topStr, botStr, status, borderLen = 0) {
+            let activeCmd = phase === 'brute' ? 0 : (phase === 'build' ? 1 : 2);
+            // match/record(j>0) 需对齐匹配位置，shift=i-j；其余 i-j-1
+            let useMatchShift = (status === 'match' || status === 'full_match' || (status === 'record' && j > 0));
+            let actualShift = useMatchShift ? (i - j) : (i - j - 1);
+            states.push({ phase, activeCmd: activeCmd, line, desc, i, j, topStr, botStr, ne: [...ne], status, shift: actualShift, borderLen });
+        }
+
+        // 2. 紧接着在此处插入【阶段 0: 暴力匹配】的逻辑
+        let S_brute = " " + "ATAATAAGATA";
+        let P_brute = " " + "ATAAGA";
+
+        push('brute', null, `<b>【朴素算法 (暴力匹配)】</b><br>在学习 KMP 之前，先看普通遍历的致命弊端。<br>主串是 <code>ATAATAAGATA</code>，子串是 <code>ATAAGA</code>。`, 1, 0, S_brute, P_brute, 'init');
+
+        for (let start = 1; start <= S_brute.length - P_brute.length + 1; start++) {
+            let j = 0; let i = start;
+            push('brute', null, `⚡ 尝试从主串第 <b>${start}</b> 位开始，与子串逐字符比对。`, i, j, S_brute, P_brute, 'comparing');
+
+            while (j < P_brute.length - 1 && S_brute[i] === P_brute[j + 1]) {
+                j++;
+                push('brute', null, `<b>✅ 匹配：</b> 主串 <code>'${S_brute[i]}'</code> == 子串 <code>'${P_brute[j]}'</code>。`, i, j, S_brute, P_brute, 'match');
+                if (j === P_brute.length - 1) {
+                    push('brute', null, `<b>🎉 完全匹配！</b> 终于找到了目标！`, i, j, S_brute, P_brute, 'full_match');
+                    break;
+                }
+                i++;
+                push('brute', null, `继续向后比较...`, i, j, S_brute, P_brute, 'comparing');
+            }
+
+            if (j < P_brute.length - 1) {
+                push('brute', null, `<b>💥 失配！</b> 主串 <code>'${S_brute[i]}'</code> ≠ 子串 <code>'${P_brute[j+1]}'</code>。`, i, j, S_brute, P_brute, 'mismatch');
+                if (start < S_brute.length - P_brute.length + 1) {
+                    push('brute', null, `<b>⚠️ 致命弊端：</b> 前面匹配的全部作废！<br>主串指针倒退回 <b>${start + 1}</b>，子串右移一位，一切从头再来。<br>这就是 <code>O(N×M)</code> 的灾难！`, start + 1, 0, S_brute, P_brute, 'sliding');
+                }
+            } else {
+                break;
+            }
+        }
+        
+        buildStartIndex = states.length; // 记录阶段1开始的索引
+
+        // --- 阶段 1: KMP 算法核心——推导前缀函数 π (ne数组) ---
+        // P = " ATAAGA", 索引 1..6
+        ne[1] = 0;
+        push('build', 7, `<b>【前缀函数 π】</b> 目标串：<code>ATAAGA</code><br>π[1] 恒为 0（单字符无真前后缀），从 i=2 开始计算。`, 2, 0, P, P, 'init');
+
+        let j = 0;
+        for (let i = 2; i < P.length; i++) {
+            // 该轮开始：比较 P[i] vs P[j+1]
+            push('build', 8, `<b>i=${i}</b>：比较 <code>P[${i}]='${P[i]}'</code> 与 <code>P[${j+1}]='${P[j+1]}'</code>，尝试将 border 从 ${j} 延伸到 ${j+1}。`, i, j, P, P, 'comparing');
+
+            // 失配回退循环
+            while (j > 0 && P[i] !== P[j + 1]) {
+                let oldJ = j;
+                push('build', 9, `<b>💥 失配</b>：<code>'${P[i]}' ≠ '${P[j+1]}'</code>，border 无法延伸到 ${j+1}。<br>查 π[${j}]=${ne[j]}，找更短的 border。`, i, j, P, P, 'mismatch');
+                if (ne[j] > 0) {
+                    push('build', 9, `当前已匹配的 ${j} 个字符，存在长度为 ${ne[j]} 的 border（紫色高亮）。`, i, j, P, P, 'show_border', ne[j]);
+                }
+                j = ne[j];
+                push('build', 9, `🔄 <b>j 回退</b>：${oldJ} → ${j}，模式串前缀右滑，准备重新比对。`, i, j, P, P, 'sliding');
+                push('build', 8, `重新比较 <code>P[${i}]</code> 与 <code>P[${j+1}]</code>。`, i, j, P, P, 'comparing');
+            }
+
+            // 匹配或彻底不匹配
+            if (P[i] === P[j + 1]) {
+                j++;
+                push('build', 11, `<b>✅ 匹配</b>：<code>P[${i}] = P[${j}]</code>，border 长度延伸到 ${j}。`, i, j, P, P, 'match');
+            } else {
+                push('build', 11, `<b>❌ j=0 仍不匹配</b>：border 长度为 0。`, i, j, P, P, 'mismatch');
+            }
+
+            // 记录 ne[i]
+            ne[i] = j;
+            let prefixText = P.slice(1, i + 1).trim();
+            let borderInfo = j > 0 ? `，border "<code>${P.slice(1, j + 1).trim()}</code>" = "<code>${P.slice(i - j + 1, i + 1).trim()}</code>"` : '，无相等真前后缀';
+            push('build', 12, `<b>📝 π[${i}] = ${j}</b>：前 ${i} 个字符 "<code>${prefixText}</code>"${borderInfo}。`, i, j, P, P, 'record');
+        }
+
+        push('build', 13, `<b>【✅ 前缀函数构建完成】</b> π = <code>[${ne.slice(1).join(', ')}]</code><br>这组数字记录了 ATAAGA 每个前缀的自相似结构，是 KMP 魔法的核心数据。`, P.length - 1, 0, P, P, 'init');
+        
+        matchStartIndex = states.length; 
+
+        // --- 阶段 2: KMP 主串匹配 ---
+        push('match', 16, `<b>【🚀 阶段二：利用前缀函数进行匹配】</b> <br>S 变为主串，P 仍在下方滑动。`, 1, 0, S, P, 'init');
+
+        for (let i = 1, j = 0; i < S.length; i++) {
+            push('match', 17, `比较主串 S[${i}] 和 模式串 P[${j+1}]。`, i, j, S, P, 'comparing');
+            while (j > 0 && S[i] !== P[j + 1]) {
+                push('match', 18, `<b>💥 失配！</b> 主串字符 ≠ 模式串字符。`, i, j, S, P, 'mismatch');
+                if (ne[j] > 0) push('match', 18, `<b>🔍 查表：</b> 已完美匹配 ${j} 个字符，它们存在长度为 <code>ne[${j}] = ${ne[j]}</code> 的 Border (紫框高亮)。`, i, j, S, P, 'show_border', ne[j]);
+                j = ne[j];
+                push('match', 19, `<b>⚡ 魔法滑动：</b> 将前缀直接平移对齐到原后缀的位置，这正是 KMP 极速的核心！`, i, j, S, P, 'sliding');
+                push('match', 17, `滑动就位。继续比较。`, i, j, S, P, 'comparing');
+            }
+            if (S[i] === P[j + 1]) {
+                j++;
+                push('match', 20, `<b>✅ 匹配！</b> 继续向后看。`, i, j, S, P, 'match');
+            } else {
+                push('match', 20, `<b>❌ 彻底无法匹配</b>，主串指针前进。`, i, j, S, P, 'mismatch');
+            }
+
+            if (j === P.length - 1) {
+                push('match', 22, `<b>🎉 完全匹配！</b> 在主串中成功找到模式串。`, i, j, S, P, 'full_match');
+                j = ne[j];
+                push('match', 24, `<b>🔄 继续探寻：</b> 自动查表 <code>j = ne[j]</code> 并滑动，寻找下一个可能位置。`, i, j, S, P, 'sliding');
+            }
+        }
+    }
+
+    // ================= 渲染系统 =================
+    function renderCode(lines) {
+        const container = document.getElementById('code-content'); container.innerHTML = '';
+        lines.forEach((lineText, idx) => {
+            const div = document.createElement('div'); div.className = 'code-line'; div.id = `line-${idx + 1}`;
+            let html = lineText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            html = html.replace(/\/\/.*/g, match => `<span class='code-comment'>${match}</span>`);
+            html = html.replace(/\b(\-1|\d+)\b/g, "<span class='code-number'>$1</span>");
+            html = html.replace(/\b(void|int|char|if|else|return|while|for|printf)\b/g, "<span class='code-keyword'>$1</span>");
+            html = html.replace(/\b(ne|s|p|n|m|i|j|N)\b/g, "<span class='code-variable'>$1</span>");
+            div.innerHTML = html; container.appendChild(div);
+        });
+    }
+
+    function renderState(idx) {
+        const state = states[idx];
+        
+        // 更新侧边栏高亮
+        const activeFlowIdx = state.phase === 'brute' ? 0 : (state.phase === 'build' ? 1 : 2);
+        document.querySelectorAll('.sidebar-item').forEach((el, i) => { el.className = `sidebar-item ${i === activeFlowIdx ? 'active' : ''}`; });
+        // 流程0隐藏PPT模式按钮，流程1、2才显示
+        document.getElementById('mode-toggle-btn').style.display = activeFlowIdx === 0 ? 'none' : 'flex';
+        // 流程0显示暴力匹配讲解，流程1、2显示前缀函数讲解
+        const logicBox = document.getElementById('logic-desc');
+        if (activeFlowIdx === 0) {
+            logicBox.innerHTML = `
+                <h3>💡 暴力匹配：最直观但最昂贵</h3>
+                <div>
+                    <b>做法</b>：主串每个位置都当起点，逐字符与模式串比对。<br>
+                    <b>优点</b>：思路简单，不需要额外预处理，任何场景都能直接用。<br>
+                    <b>缺点</b>：一旦失配，已匹配的进度<b>全部作废</b>，主串指针必须<b>回退</b>。<br>
+                    这个例子中每次失配都要回退主串指针，复杂度可能退化到 <code>O(N×M)</code>。<br>
+                    <b>KMP 的突破</b>：利用模式串自身的"自相似性"（前缀函数 π），<br>
+                    失配时不回退主串，只滑动模式串——把复杂度降到 <code>O(N+M)</code>。
+                </div>`;
+        } else if (activeFlowIdx === 1) {
+            logicBox.innerHTML = `
+                <h3>💡 前缀函数 π：字符串的自相似指纹</h3>
+                <div>
+                    <code>π[i]</code> = <code>P[1..i]</code> 这个前缀里，<b>最长的相等真前后缀</b>的长度。<br>
+                    所谓"真"前后缀——不能等于整个串本身，所以 <code>π[1]</code> 恒为 0。<br>
+                    直觉：把字符串复制一份向右滑动，直到<b>头部和尾部图案完全重合</b>——重合的长度就是 <code>π[i]</code>。<br>
+                    比如 <code>ATAAGA</code>：前 3 个字符 <code>ATA</code>，开头 <code>A</code> = 结尾 <code>A</code> → <code>π[3]=1</code>。<br>
+                    我们将一步步推导出 <code>π = [0, 0, 1, 1, 0, 1]</code>。紫色高亮就是 border 两端。
+                </div>`;
+        } else {
+            logicBox.innerHTML = `
+                <h3>💡 用 π 表驱动匹配，主串永不回退</h3>
+                <div>
+                    主串指针 i <b>只前进不后退</b>，模式串用 π 表"跳跃"对齐。<br>
+                    失配时查 π[j]：已匹配的 j 个字符存在长度为 π[j] 的 border，<br>
+                    直接把前缀滑到后缀的位置继续比——这就是 O(N+M) 的秘密。
+                </div>`;
+        }
+
+        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight'));
+        if (state.line && !isPPTMode) { 
+            const lineEl = document.getElementById(`line-${state.line}`); 
+            if(lineEl) { lineEl.classList.add('highlight'); lineEl.scrollIntoView({ behavior: "smooth", block: "center" }); } 
+        }
+
+        document.getElementById('step-desc').innerHTML = state.desc;
+        if (state.phase === 'brute') {
+            document.getElementById('top-label').innerText = '主串';
+            document.getElementById('bot-label').innerText = '子串';
+            document.getElementById('bot-ne-row').style.display = 'none'; // 暴力模式隐藏 ne 数组
+        } else {
+            document.getElementById('top-label').innerText = state.phase === 'build' ? 'P(主)' : 'S(主)';
+            document.getElementById('bot-label').innerText = 'P(模)';
+            document.getElementById('bot-ne-row').style.display = 'flex'; // KMP 模式显示 ne 数组
+        }
+        document.getElementById('bot-label').innerText = 'P(模)';
+
+        // Render Top String S
+        let topHtml = '';
+        for (let k = 1; k < state.topStr.length; k++) {
+            let cls = 'kmp-cell';
+            // match时 j 刚递增，本轮之前已匹配数为 j-1；其他状态已匹配数为 j
+            let matchedLen = (state.status === 'match' || state.status === 'full_match') ? state.j - 1 : state.j;
+            if (k >= state.i - matchedLen && k <= state.i - 1 && state.status !== 'init') {
+                cls += ' matched';
+            }
+            if (k === state.i) {
+                if (state.status === 'comparing') cls += ' comparing';
+                else if (state.status === 'mismatch') cls += ' mismatch';
+                else if (state.status === 'match' || state.status === 'full_match') cls += ' matched';
+            }
+            if (state.status === 'show_border' && k >= state.i - state.borderLen && k <= state.i - 1) cls += ' border-highlight';
+            topHtml += `<div class="${cls}">${state.topStr[k]}<div class="idx-label top">${k}</div></div>`;
+        }
+        document.getElementById('top-char-row').innerHTML = topHtml;
+
+        const pI = document.getElementById('pointer-i');
+        pI.style.left = ((state.i - 1) * CELL_WIDTH + 17) + 'px';
+
+        // Render Bottom String P + NE Array
+        let botHtml = '';
+        let neHtml = `<div class="ne-label">前缀函数 π<br>(ne数组)</div>`;
+        const maxLen = Math.max(state.botStr.length - 1, state.j + 1);
+        
+        for (let k = 1; k <= maxLen; k++) {
+            let char = state.botStr[k] || '';
+            let cls = 'kmp-cell';
+            if (char === '') cls += ' invisible';
+            
+            if (k === state.j + 1) {
+                if (state.status === 'comparing') cls += ' comparing';
+                else if (state.status === 'mismatch') cls += ' mismatch';
+            }
+            if (k <= state.j && char !== '') cls += ' matched';
+            
+            if (state.status === 'show_border' && k >= 1 && k <= state.borderLen) cls += ' border-highlight';
+            botHtml += `<div class="${cls}">${char}<div class="idx-label bottom" style="${char === '' ? 'display:none' : ''}">${k}</div></div>`;
+
+            if (k < state.botStr.length) {
+                let neCls = 'ne-cell';
+                if (state.status === 'record' && k === state.i && state.phase === 'build') neCls += ' updated';
+                if (state.status === 'show_border' && k === state.j) neCls += ' border-highlight';
+                
+                let neVal = (state.phase === 'build' && k > state.i && state.status !== 'init' && state.status !== 'end') ? '' : state.ne[k];
+                if(state.phase === 'build' && state.status === 'init' && k > 1) neVal = '';
+
+                neHtml += `<div class="${neCls}">${neVal}</div>`;
+            }
+        }
+        document.getElementById('bot-char-row').innerHTML = botHtml;
+        document.getElementById('bot-ne-row').innerHTML = neHtml;
+
+        document.getElementById('bot-track').style.transform = `translateX(${state.shift * CELL_WIDTH}px)`;
+
+        const pJ = document.getElementById('pointer-j');
+        // match/full_match 时 j 已递增，蓝箭头应停在刚匹配完的字符上，与红箭头同步
+        const blueJ = (state.status === 'match' || state.status === 'full_match') ? (state.j - 1) : state.j;
+        pJ.style.left = (blueJ * CELL_WIDTH + 17) + 'px';
+
+        document.getElementById('btn-prev').disabled = (idx === 0); 
+        document.getElementById('btn-next').disabled = (idx === states.length - 1);
+    }
+
+    function step(direction) {
+        let targetIndex = currentStateIndex + direction;
+        if (targetIndex >= 0 && targetIndex < states.length) {
+            currentStateIndex = targetIndex;
+            renderState(currentStateIndex);
+        }
+    }
+
+    function resetCurrent() {
+        const state = states[currentStateIndex];
+        if (state.phase === 'brute') currentStateIndex = 0;
+        else if (state.phase === 'build') currentStateIndex = buildStartIndex;
+        else if (state.phase === 'match') currentStateIndex = matchStartIndex;
+        renderState(currentStateIndex);
+    }
+
+    function switchToFlow(index) {
+        if (index === 0) currentStateIndex = 0;
+        else if (index === 1) currentStateIndex = buildStartIndex;
+        else if (index === 2) currentStateIndex = matchStartIndex;
+        renderState(currentStateIndex);
+    }
+window.onload = () => { 
+        renderCode(codeLines); 
+        generateKMPStates();
+        renderState(0); 
+    };
+</script>
+</body>
+</html>

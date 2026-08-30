@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>白学在线 - 链表数据结构全景演练 (终极融合版)</title>
+    <style>
+        :root {
+            --primary-color: #0284c7;
+            --secondary-color: #0ea5e9;
+            --neon-blue: #0ea5e9;
+            --neon-orange: #f59e0b;
+            --neon-red: #ef4444;
+            --neon-green: #10b981;
+            --neon-purple: #8b5cf6;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --pointer-red: #ef4444;
+            --pointer-blue: #3b82f6;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            color: var(--text-main);
+            margin: 0; padding: 0; 
+            height: 100vh; overflow: hidden; 
+            user-select: none;
+        }
+
+        .wrapper { display: flex; justify-content: center; padding: 16px 24px 20px 24px; height: 100%; width: 100%; }
+        .main-container { max-width: 1600px; width: 100%; height: 100%; display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 1; }
+        .glass-card { background: var(--bg-glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 16px; box-shadow: 0 8px 24px rgba(31, 38, 135, 0.08); }
+
+        /* 顶部标题栏 */
+        .header-card {
+            flex: 0 0 auto; background: linear-gradient(135deg, rgba(2, 132, 199, 0.95), rgba(14, 165, 233, 0.95));
+            color: white; padding: 12px 24px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .header-text span { font-size: 14px; font-weight: 400; opacity: 0.9; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 100px;}
+        
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .algo-selector {
+            background: transparent; border: 2px solid rgba(255, 255, 255, 0.6);
+            color: white; padding: 8px 16px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; outline: none;
+            appearance: none; padding-right: 35px;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 12px auto; transition: 0.3s;
+        }
+        .algo-selector option { color: #333; background: white; }
+        .algo-selector:hover { border-color: white; background: rgba(255,255,255,0.1); }
+        .fullscreen-btn { background: transparent; border: 2px solid rgba(255, 255, 255, 0.6); color: white; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+        .fullscreen-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: white; }
+
+        /* 左侧 IDE 代码区 */
+        .content-wrapper { display: flex; flex: 1; gap: 16px; min-height: 0; }
+        .left-panel { flex: 0 0 38%; min-width: 380px; display: flex; flex-direction: column; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+        .code-window { background-color: #1e1e1e; border-radius: 16px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
+        .code-header { background-color: #2d2d2d; padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto;}
+        .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .mac-dot.red { background-color: #ef4444; } .mac-dot.yellow { background-color: #f59e0b; } .mac-dot.green { background-color: #10b981; }
+        .code-title { margin-left: 10px; color: #858585; font-size: 13px; font-family: sans-serif; }
+        .code-card { flex: 1; overflow-y: auto; color: #d4d4d4; font-family: "Consolas", monospace; font-size: 14.5px; line-height: 1.6; padding: 15px 0; scroll-behavior: smooth; counter-reset: line-number;}
+        .code-line { padding: 2px 20px 2px 55px; border-left: 4px solid transparent; white-space: pre; transition: background 0.2s; position: relative; }
+        .code-line.highlight { background-color: rgba(245, 158, 11, 0.15); border-left-color: var(--neon-orange); color: #ffffff; }
+        .code-line::before { counter-increment: line-number; content: counter(line-number); position: absolute; left: 4px; top: 0; bottom: 0; width: 35px; text-align: right; color: #475569; font-size: 13px; padding-top: 2px; border-right: 1px solid #334155; padding-right: 8px; }
+
+        .code-comment { color: #6A9955; } .code-number { color: #b5cea8; } .code-keyword { color: #c586c0; } .code-variable { color: #9cdcfe; }
+
+        /* 右侧 核心布局 */
+        .visual-card { flex: 0.62; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 15px 20px; position: relative;}
+        .fs-layout { display: flex; flex-direction: row; width: 100%; flex: 1; border-bottom: 2px dashed #cbd5e1; margin-bottom: 10px; padding: 0 10px 15px 10px; min-height: 0; }
+        .fs-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; position: relative; min-width: 0; overflow-y: auto; overflow-x: hidden; padding-top: 10px;}
+
+        /* 画布区域：统一兼容单双轨与动态指针排版 */
+        .graph-area { width: 100%; display: flex; position: relative; margin-bottom: 15px; padding-bottom: 10px; padding-top: 15px; transition: all 0.3s;}
+        /* 数组模式：横排居中 */
+        .graph-area.array-mode { flex: 0 0 140px; justify-content: center; align-items: center; border-bottom: 1px dashed #cbd5e1; }
+        /* 指针模式：纵排（主链表+Temp Heap），去底边框 */
+        .graph-area.pointer-mode { flex-direction: column; align-items: center; border-bottom: none; gap: 40px; flex: 1; justify-content: center; }
+
+        .graph-title { position:absolute; top: 10px; left: 10px; font-family: Consolas; font-weight: bold; font-size: 12px; color: var(--primary-color); }
+        .ll-row { display: flex; align-items: center; justify-content: center; height: auto; width: 100%; overflow-x: auto; padding: 55px 20px 25px 20px; position: relative; z-index: 2;}
+        
+        /* 动态指针版的 Heap 暂存区 */
+        .temp-area { display: none; padding: 20px 40px; border-radius: 12px; border: 2px dashed var(--neon-purple); background: rgba(139, 92, 246, 0.05); position: relative; z-index: 2; }
+        .temp-area::before { content: 'Heap / 新节点暂存区'; position: absolute; top: -12px; left: 20px; background: rgba(255,255,255,0.9); padding: 2px 10px; border-radius: 6px; font-size: 12px; font-weight: bold; color: var(--neon-purple); }
+
+        .ll-node-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .ll-node { display: flex; height: 42px; background: rgba(14, 165, 233, 0.05); border: 2px solid var(--neon-blue); border-radius: 8px; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.15); transition: all 0.3s; }
+        
+        /* 兼容不同高度：动态指针高度更大一些 */
+        .pointer-mode .ll-node { height: 50px; }
+        .pointer-mode .ll-val { font-size: 20px; width: 55px; }
+        .pointer-mode .ll-next { font-size: 24px; width: 45px; }
+
+        .ll-val { width: 45px; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 800; border-right: 2px solid var(--neon-blue); color: var(--text-main); }
+        .ll-next { width: 35px; display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--neon-blue); font-weight: bold; padding-bottom: 4px; }
+        .ll-next.null-ptr { font-size: 18px; color: var(--text-muted); padding-bottom: 0; }
+        .ll-next.text-ptr { font-size: 12px; font-family: "Consolas", monospace; font-weight: bold; color: var(--neon-purple); letter-spacing: 0px;}
+        .ll-prev { width: 35px; display: flex; align-items: center; justify-content: center; font-size: 26px; color: var(--neon-blue); font-weight: bold; border-right: 2px solid var(--neon-blue); padding-bottom: 4px; }
+        .ll-prev.null-ptr { font-size: 18px; color: var(--text-muted); padding-bottom: 0; }
+        
+        .ll-node-idx { position: absolute; bottom: -24px; font-size: 12px; color: var(--neon-blue); font-family: Consolas; font-weight: bold; background: rgba(255,255,255,0.8); padding: 0 6px; border-radius: 6px;}
+
+        /* 高级状态高亮 (支持数组和指针的样式) */
+        .ll-node.active { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.08); box-shadow: 0 4px 15px rgba(245, 158, 11, 0.25); transform: translateY(-4px); }
+        .ll-node.active .ll-val { border-color: var(--neon-orange); color: var(--neon-orange); }
+        .ll-node.active .ll-next { color: var(--neon-orange); }
+        .ll-node.swap { border-color: var(--neon-red); background: rgba(239, 68, 68, 0.08); box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25); transform: translateY(-8px); }
+        .ll-node.swap .ll-val { border-color: var(--neon-red); color: var(--neon-red); }
+        .ll-node.swap .ll-next { color: var(--neon-red); }
+        .ll-node.pivot { border-color: var(--neon-purple); background: rgba(139, 92, 246, 0.08); box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15); }
+        .ll-node.pivot .ll-val { border-color: var(--neon-purple); color: var(--neon-purple); }
+
+        /* 消失动画 */
+        .node-fade-out { animation: ghostFadeOut 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+        @keyframes ghostFadeOut { 0% { opacity: 1; transform: scale(1); } 40% { opacity: 0; transform: scale(0.6); } 100% { opacity: 0; transform: scale(0); } }
+        .arrow-fade-out { animation: ghostArrowFade 0.8s cubic-bezier(0.4, 0, 0.2, 1) forwards; transform-origin: left center; }
+        @keyframes ghostArrowFade { 0% { opacity: 1; transform: scaleX(1); } 40% { opacity: 0; transform: scaleX(0.5); } 100% { opacity: 0; transform: scaleX(0); } }
+
+        /* CSS 原生光剑箭头 (隔离单双与指针模式颜色的冲突) */
+        .css-arrow-container { display: flex; align-items: center; width: 45px; margin: 0 5px; opacity: 1; transition: opacity 0.3s; }
+        .css-arrow-container.hidden { opacity: 0; }
+        .css-arrow { position: relative; width: 100%; height: 4px; border-radius: 2px; transition: all 0.3s; background-color: var(--neon-blue); }
+        .css-arrow::after { content: ''; position: absolute; right: -2px; top: -4.5px; border-top: 6px solid transparent; border-bottom: 6px solid transparent; transition: all 0.3s; border-left: 11px solid var(--neon-blue); }
+        .css-arrow.double-arrow::before { content: ''; position: absolute; left: -2px; top: -4.5px; border-top: 6px solid transparent; border-bottom: 6px solid transparent; transition: all 0.3s; border-right: 11px solid var(--neon-blue); }
+        .css-arrow.no-right-arrow::after { display: none !important; }
+
+        /* 数组模式下激活变绿 */
+        .array-mode .css-arrow.active { background-color: var(--neon-green); box-shadow: 0 0 8px rgba(16,185,129,0.6); }
+        .array-mode .css-arrow.active::after { border-left-color: var(--neon-green); }
+        .array-mode .css-arrow.active.double-arrow::before { border-right-color: var(--neon-green); }
+        
+        .array-mode .css-arrow.anim-draw {
+            background-color: var(--neon-green); box-shadow: 0 0 8px rgba(16,185,129,0.6);
+            clip-path: inset(-15px 100% -15px -15px); animation: drawArrowAnim 0.5s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+        }
+        .array-mode .css-arrow.anim-draw::after { border-left-color: var(--neon-green); }
+        .array-mode .css-arrow.anim-draw.double-arrow::before { border-right-color: var(--neon-green); }
+
+        /* 指针模式下保持蓝色拔出 */
+        .pointer-mode .css-arrow.anim-draw { clip-path: inset(-15px 100% -15px -15px); animation: drawArrowAnim 0.6s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; }
+        
+        @keyframes drawArrowAnim { to { clip-path: inset(-15px -15px -15px -15px); } }
+
+        /* 悬浮指针 */
+        .pointer-flip-wrapper { position: absolute; top: -38px; width: 100%; z-index: 10; display: flex; justify-content: center; will-change: transform; }
+       
+        .pointer-container { display: flex; flex-direction: column; align-items: center; animation: floatUpDown 1.5s ease-in-out infinite; }
+        @keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .pointer-label { font-family: "Consolas", monospace; font-weight: 800; font-size: 13px; color: white; background: var(--pointer-red); padding: 2px 8px; border-radius: 6px; white-space: nowrap; box-shadow: 0 4px 10px rgba(239,68,68,0.3);}
+        .pointer-arrow { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 6px solid var(--pointer-red); }
+        .pointer-label.blue-bg { background: var(--pointer-blue); box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);}
+        .pointer-arrow.blue-bg { border-top-color: var(--pointer-blue); }
+
+        /* 静态数组区域 (仅数组模式) */
+        .vars-area { display: flex; justify-content: center; align-items: center; gap: 40px; margin-bottom: 25px; }
+        .var-group { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .var-box { width: 70px; height: 50px; background: rgba(139, 92, 246, 0.05); border: 2px solid var(--neon-purple); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; color: var(--text-main); transition: all 0.3s; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.15); }
+        .var-label { margin-top: 8px; font-size: 14px; font-family: Consolas; font-weight: bold; color: var(--neon-purple); background: rgba(255,255,255,0.8); padding: 2px 10px; border-radius: 10px;}
+
+        .edges-area { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%;}
+        .array-title { font-family: Consolas; font-weight: bold; font-size: 16px; color: var(--primary-color); margin-bottom: 10px;}
+        .edge-list { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;}
+        .edge-struct { display: flex; flex-direction: column; background: rgba(14, 165, 233, 0.04); border: 2px solid var(--neon-blue); border-radius: 10px; padding: 6px 8px; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.12); transition: all 0.3s; width: 85px; position: relative; }
+        .edge-struct.empty { border: 2px dashed #94a3b8; background: transparent; box-shadow: none; opacity: 0.6; }
+        .edge-struct.deleted { opacity: 0.3; filter: grayscale(1); }
+        .edge-struct-index { text-align: center; font-family: Consolas; font-size: 13px; font-weight: bold; color: var(--neon-blue); margin-bottom: 6px; border-bottom: 1px dashed var(--neon-blue); padding-bottom: 4px;}
+        .edge-struct.empty .edge-struct-index { border-color: #94a3b8; color: #64748b; }
+        .edge-field { display: flex; justify-content: space-between; font-family: Consolas; font-size: 14px; margin-bottom: 4px; }
+        .edge-field span { color: #64748b; font-weight: bold; }
+        .edge-field .val { color: var(--text-main); font-weight: bold; transition: color 0.3s; }
+
+        /* 指令流 */
+        .fs-sidebar { flex: 0 0 190px; width: 190px; display: flex; flex-direction: column; align-items: center; gap: 10px; border-left: 2px dashed #cbd5e1; margin-left: 10px; padding-left: 10px; padding-right: 5px; justify-content: flex-start; height: 100%; overflow-y: auto; box-sizing: border-box; }
+        .sidebar-title { font-family: Consolas; font-weight: bold; color: var(--primary-color); font-size: 16px; margin-bottom: 5px; text-align: center; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px; width: 100%; }
+        .sidebar-list { width: 100%; display: flex; flex-direction: column; gap: 10px; padding-top: 4px; padding-bottom: 20px; overflow-x: hidden; }
+        .sidebar-item { width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-family: Consolas; font-weight: bold; transition: all 0.3s; position: relative; background: rgba(255,255,255,0.5); font-size: 13px; word-break: break-all; text-align: center; color: var(--text-muted); }
+        .sidebar-item.active { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.1); color: var(--neon-orange); transform: translateX(-6px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
+        .sidebar-item.active::before { content: '▶'; position: absolute; left: -16px; color: var(--neon-orange); font-size: 14px; top: 50%; transform: translateY(-50%); }
+
+        /* 高亮 */
+        .highlight-write { border-color: var(--neon-orange) !important; background: rgba(245, 158, 11, 0.1) !important; transform: translateY(-4px); box-shadow: 0 8px 15px rgba(245, 158, 11, 0.25) !important; }
+        .highlight-write .val, .highlight-write .var-val { color: var(--neon-orange) !important; }
+        .highlight-read { border-color: var(--neon-green) !important; background: rgba(16, 185, 129, 0.1) !important; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25) !important; }
+        .highlight-next { border-color: var(--neon-red) !important; background: rgba(239, 68, 68, 0.08) !important; box-shadow: 0 4px 15px rgba(239, 68, 68, 0.25) !important;}
+        .highlight-next .edge-field:last-child .val { color: var(--neon-red) !important; font-size: 16px; }
+
+        .control-panel { display: flex; gap: 16px; background: rgba(255, 255, 255, 0.9); padding: 10px 24px; border-radius: 100px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 5px; border: 2px solid #e2e8f0; }
+        .btn { padding: 8px 28px; font-size: 15px; font-weight: 700; border-radius: 100px; cursor: pointer; transition: all 0.2s ease; background: transparent; }
+        .btn-primary { border: 2px solid var(--neon-blue); color: var(--neon-blue); }
+        .btn-primary:hover { background: var(--neon-blue); color: white; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
+        .btn-secondary { border: 2px solid #94a3b8; color: #64748b; }
+        .btn-secondary:hover { background: #f1f5f9; color: #334155; border-color: #64748b; }
+        .btn:disabled { border-color: #cbd5e1; color: #cbd5e1; cursor: not-allowed; background: transparent; box-shadow: none; }
+
+        /* 下部解析区 */
+        .explanation-row { flex: 0.38; display: flex; gap: 16px; width: 100%; min-height: 0; }
+        .step-box { background: rgba(255, 255, 255, 0.8); border: 2px solid var(--neon-blue); padding: 16px 20px; border-radius: 12px; flex: 0 0 35%; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); overflow-y: auto;}
+        .step-box h4 { margin: 0 0 6px 0; color: var(--neon-blue); font-size: 16px; }
+        .step-box p { margin: 0; font-size: 14.5px; line-height: 1.6; font-weight: 600; color: #1e293b;}
+        .logic-box { background: rgba(255, 255, 255, 0.6); border: 1px solid #cbd5e1; padding: 16px 20px; border-radius: 12px; flex: 1; overflow-y: auto;}
+        .logic-box h3 { margin: 0 0 8px 0; font-size: 16px; border-bottom: 2px dashed #cbd5e1; padding-bottom: 6px; }
+        .logic-box div { font-size: 14.5px; color: #334155; line-height: 1.8; }
+        code { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-family: "Consolas", monospace; font-weight: bold;}
+
+        /* 白板系统 */
+        #draw-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
+        #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
+        #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
+        .draw-toolbar { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 100px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; display: flex; flex-direction: row; align-items: center; gap: 10px; width: max-content; transition: all 0.3s; }
+        .tool-btn { background: none; border: 2px solid transparent; font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer; padding: 6px 14px; border-radius: 100px; display: flex; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap;}
+        .tool-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .tool-btn.active { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
+        .color-dot { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s;}
+        .color-dot:hover { transform: scale(1.2); } .color-dot.active { border-color: #1e293b; transform: scale(1.2); }
+        .draw-tools-panel { display: none; flex-direction: row; align-items: center; gap: 12px; border-left: 2px solid #e2e8f0; padding-left: 12px; margin-left: 2px; }
+        .draw-tools-panel.show { display: flex; }
+
+        /* SVG 多通道连线追踪层 */
+        .svg-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; overflow: visible; }
+        .connection-path { 
+            fill: transparent; stroke: var(--neon-red); stroke-width: 2; stroke-dasharray: 6, 4; opacity: 0; 
+            transition: opacity 0.3s ease; animation: flowDash 0.8s linear infinite; 
+        }
+        @keyframes flowDash { from { stroke-dashoffset: 10; } to { stroke-dashoffset: 0; } }
+
+    </style>
+</head>
+<body>
+
+<canvas id="draw-canvas"></canvas>
+
+<div class="draw-toolbar">
+    <button class="tool-btn" id="toggle-draw-btn" onclick="toggleDrawingMode()">🖌️ 开启白板</button>
+    <div class="draw-tools-panel" id="draw-tools-panel">
+        <div class="color-dot active tool-item" style="background: #ef4444;" onclick="setBrushMode(this, 'draw', '#ef4444')"></div>
+        <div class="color-dot tool-item" style="background: #0ea5e9;" onclick="setBrushMode(this, 'draw', '#0ea5e9')"></div>
+        <div class="color-dot tool-item" style="background: #10b981;" onclick="setBrushMode(this, 'draw', '#10b981')"></div>
+        <button class="tool-btn tool-item" style="color: #f59e0b;" onclick="setBrushMode(this, 'erase')">🧽 橡皮</button>
+        <button class="tool-btn" onclick="undoDraw()">↩️ 撤销</button>
+        <button class="tool-btn" style="color: #ef4444; border-color: #fca5a5;" onclick="clearCanvas()">🗑️ 清屏</button>
+    </div>
+</div>
+
+<div class="wrapper">
+    <div class="main-container">
+        <div class="header-card">
+            <div class="header-text">
+                <h1>✨ 白学在线 - 数据结构全景演练 <span>PPT放映模式：可按 ← / → 键控制</span></h1>
+            </div>
+            <div class="header-controls">
+                <select class="algo-selector" id="algo-select" onchange="changeAlgorithm()">
+                    <option value="pointer">动态指针链表 (Dynamic Pointer Linked List)</option>
+                    <option value="single">数组模拟单链表 (Array Single Linked List)</option>
+                    <option value="double">数组模拟双链表 (Array Doubly Linked List)</option>
+                </select>
+                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="left-panel">
+                <div class="code-window">
+                    <div class="code-header">
+                        <div class="mac-dot red"></div><div class="mac-dot yellow"></div><div class="mac-dot green"></div>
+                        <span class="code-title" id="code-title">linked_list_operations.cpp</span>
+                    </div>
+                    <div class="code-card" id="code-content"></div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="glass-card visual-card">
+                    <div class="fs-layout">
+                        <div class="fs-main">
+                            <div class="graph-area array-mode" id="chart-container">
+                                <svg class="svg-overlay" id="arrow-svg">
+                                    <defs>
+                                        <marker id="marker-red" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                            <path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
+                                        </marker>
+                                        <marker id="marker-green" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                                            <path d="M 0 0 L 6 3 L 0 6 z" fill="#10b981" />
+                                        </marker>
+                                        <marker id="marker-red-start" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto-start-reverse">
+                                            <path d="M 0 0 L 6 3 L 0 6 z" fill="#ef4444" />
+                                        </marker>
+                                        <marker id="marker-green-start" markerWidth="6" markerHeight="6" refX="1" refY="3" orient="auto-start-reverse">
+                                            <path d="M 0 0 L 6 3 L 0 6 z" fill="#10b981" />
+                                        </marker>
+                                        <filter id="glow-red">
+                                            <feGaussianBlur stdDeviation="1.5" result="blur" />
+                                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                        </filter>
+                                        <filter id="glow-green">
+                                            <feGaussianBlur stdDeviation="1.5" result="blur" />
+                                            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                        </filter>
+                                    </defs>
+                                    <path id="temp-to-head-path" class="connection-path" d="" marker-end="url(#marker-red)" filter="url(#glow-red)" />
+                                    <path id="svg-path-0" class="connection-path" d=""/>
+                                    <path id="svg-path-1" class="connection-path" d=""/>
+                                    <path id="svg-path-2" class="connection-path" d=""/>
+                                    <path id="svg-path-3" class="connection-path" d=""/>
+                                </svg>
+                                
+                                <div class="graph-title" id="graph-title">逻辑链表视图</div>
+                                
+                                <div class="ll-row" id="main-list" style="display:none;"></div>
+                                <div class="temp-area" id="temp-area" style="display:none;">
+                                    <div class="ll-row" id="temp-list"></div>
+                                </div>
+
+                                <div class="ll-row" id="logical-list" style="display:none;"></div>
+                            </div>
+                            
+                            <div class="vars-area" id="vars-area" style="display:none;"></div>
+                            <div class="edges-area" id="edges-area" style="display:none;">
+                                <div class="array-title">静态内存池 node[N]</div>
+                                <div class="edge-list" id="array-list"></div>
+                            </div>
+                        </div>
+
+                        <div class="fs-sidebar" id="sidebar-panel">
+                            <div class="sidebar-title">指令流</div>
+                            <div class="sidebar-list" id="sidebar-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-panel">
+                        <button class="btn btn-secondary" id="btn-prev" onclick="step(-1)">← 上一步</button>
+                        <button class="btn btn-secondary" id="btn-reset" onclick="reset()">重置状态</button>
+                        <button class="btn btn-primary" id="btn-next" onclick="step(1)">下一步 →</button>
+                    </div>
+                </div>
+
+                <div class="explanation-row">
+                    <div class="step-box">
+                        <h4 id="step-title">实时追踪</h4>
+                        <p id="step-desc">点击“下一步”启动程序单步调试模拟。</p>
+                    </div>
+                    <div class="logic-box">
+                        <h3 id="logic-title">💡 核心解析</h3>
+                        <div id="logic-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================= 全屏与白板系统 (共享) =================
+    function toggleFullScreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
+    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; });
+    
+    /* 替换为这段新代码：新增了对 Ctrl+Z 的拦截和撤销触发 */
+    window.addEventListener('keydown', (e) => { 
+        // 1. 左右方向键控制上下一步
+        if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); 
+        else if (e.key === 'ArrowLeft') document.getElementById('btn-prev').click(); 
+        
+        // 2. Ctrl+Z (Win) 或 Cmd+Z (Mac) 撤销白板操作
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'z')) {
+            // 只有在白板开启的状态下才触发，防止误触
+            if (isDrawingMode) { 
+                e.preventDefault(); // 阻止浏览器默认的撤销快捷键行为
+                undoDraw();         // 调用我们的白板撤销函数
+            }
+        }
+    });
+
+    const canvas = document.getElementById('draw-canvas'); const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let isDrawingMode = false; let isDrawing = false; let currentMode = 'draw'; let drawHistory = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; if(drawHistory.length === 0) saveDrawState(); }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function toggleDrawingMode() { isDrawingMode = !isDrawingMode; const btn = document.getElementById('toggle-draw-btn'); const panel = document.getElementById('draw-tools-panel'); if (isDrawingMode) { canvas.className = currentMode === 'erase' ? 'eraser-mode' : 'drawing-mode'; btn.classList.add('active'); btn.innerHTML = "❌ 退出白板"; panel.classList.add('show'); } else { canvas.className = ''; btn.classList.remove('active'); btn.innerHTML = "🖌️ 开启白板"; panel.classList.remove('show'); } }
+    function setBrushMode(element, mode, color = null) { currentMode = mode; document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active')); element.classList.add('active'); if (mode === 'erase') { canvas.className = 'eraser-mode'; ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 30; } else { canvas.className = 'drawing-mode'; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 4; if (color) ctx.strokeStyle = color; } }
+    function saveDrawState() { if (drawHistory.length > 20) drawHistory.shift(); drawHistory.push(canvas.toDataURL()); }
+    function undoDraw() { if (drawHistory.length > 1) { drawHistory.pop(); let img = new Image(); img.src = drawHistory[drawHistory.length - 1]; img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); let prevMode = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(img, 0, 0); ctx.globalCompositeOperation = prevMode; }; } else if (drawHistory.length === 1) clearCanvas(); }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); drawHistory = []; saveDrawState(); }
+
+    /* 修改后：把 saveDrawState() 从 mousedown 移到了 mouseup 里面 */
+    canvas.addEventListener('mousedown', (e) => { 
+        if (!isDrawingMode) return; 
+        isDrawing = true; 
+        ctx.beginPath(); 
+        ctx.moveTo(e.clientX, e.clientY); 
+    });
+    canvas.addEventListener('mousemove', (e) => { 
+        if (!isDrawing || !isDrawingMode) return; 
+        ctx.lineTo(e.clientX, e.clientY); 
+        ctx.stroke(); 
+    });
+    canvas.addEventListener('mouseup', () => { 
+        if (isDrawing) {
+            isDrawing = false; 
+            saveDrawState(); // 关键修复：在画完一笔、鼠标抬起时，再把画面存入历史栈
+        }
+    });
+
+
+    // ================= 状态压栈函数分离 =================
+    // 动态指针专用压栈
+    function pushPointerState(nodes, tempNode, pointers, highlights, activeCmd, line, desc, svgLink = null) {
+        states.push({ type: 'pointer', nodes: JSON.parse(JSON.stringify(nodes)), tempNode: tempNode ? JSON.parse(JSON.stringify(tempNode)) : null, pointers: {...pointers}, highlights: {...highlights}, activeCmd: activeCmd, line: line, desc: desc, svgLink: svgLink });
+    }
+    // 数组单双链专用压栈
+    function pushArrayState(headVal, idxVal, nodes, tempNodeIdx, activeCmd, highlights, line, desc, triggerAnim = false, options = {}) { 
+        states.push({ type: 'array', head: headVal, idx: idxVal, nodes: JSON.parse(JSON.stringify(nodes)), tempNodeIdx: tempNodeIdx, activeCmd: activeCmd, highlights: {...highlights}, line: line, desc: desc, triggerAnim: triggerAnim, overrideLinks: options.overrideLinks, hideArrowFrom: options.hideArrowFrom, drawArrow: options.drawArrow, fadingNodeIdx: options.fadingNodeIdx, svgLinks: options.svgLinks }); 
+    }
+
+    // ================= 核心算法字典库 =================
+    const ALGORITHMS = {
+        // --- 1. 动态指针链表 ---
+        pointer: {
+            title: "linked_list_operations.cpp",
+            stepTitle: "实时指针追踪",
+            logicTitle: "💡 核心操作解析与避坑指南",
+            logic: "<b>指针实现链表的增删查改：</b><br>本次演示将综合展示：<b>头插法</b> ➡️ <b>尾插法</b> ➡️ <b>链表遍历查找</b> ➡️ <b>节点物理删除</b> 的全流程。<br>重点关注：当执行诸如 <code>head = newNode</code> 这样的关键连线语句时，节点是如何<b>一气呵成</b>地升入主链表并完成标准连线的！",
+            inputCmds: ["init()", "insertHead(10)", "insertTail(20)", "insertHead(30)", "findNode(20)", "deleteNode(10)"],
+            code: [
+                "struct Node {",
+                "    int val;       // 数据域：存储节点实际的值",
+                "    Node* next;    // 指针域：指向下一个节点的内存地址",
+                "    // 构造函数：初始化节点值并将 next 指针置为空",
+                "    Node(int x) : val(x), next(NULL) {}",
+                "};",
+                "Node* head = NULL; // 初始头指针",
+                "",
+                "// 1. 头插法",
+                "void insertHead(int val) {",
+                "    Node* newNode = new Node(val);",
+                "    newNode->next = head;",
+                "    head = newNode;",
+                "}",
+                "",
+                "// 2. 尾插法",
+                "void insertTail(int val) {",
+                "    Node* newNode = new Node(val);",
+                "    if (head == NULL) { head = newNode; return; }",
+                "    Node* p = head;",
+                "    while (p->next != NULL) p = p->next;",
+                "    p->next = newNode;",
+                "}",
+                "",
+                "// 3. 查找节点",
+                "Node* findNode(int val) {",
+                "    Node* p = head;",
+                "    while (p != NULL) {",
+                "        if (p->val == val) return p;",
+                "        p = p->next;",
+                "    }",
+                "    return NULL;",
+                "}",
+                "",
+                "// 4. 删除节点",
+                "void deleteNode(int val) {",
+                "    if (head == NULL) return;",
+                "    if (head->val == val) {",
+                "        Node* temp = head;",
+                "        head = head->next;",
+                "        delete temp; return;",
+                "    }",
+                "    Node* p = head;",
+                "    while (p->next != NULL && p->next->val != val) {",
+                "        p = p->next;",
+                "    }",
+                "    if (p->next != NULL) {",
+                "        Node* temp = p->next;",
+                "        p->next = temp->next;",
+                "        delete temp;",
+                "    }",
+                "}"
+            ],
+            run: function() {
+                states = [];
+                let nodes = [ {id: 100, val: 5, nextId: 101}, {id: 101, val: 8, nextId: null} ]; 
+                pushPointerState(nodes, null, {100: ['head']}, {}, 0, 7, `【初始化】 为了更好演示，预先构建一个包含 5 和 8 的初始链表。`);
+                pushPointerState(nodes, null, {100: ['head']}, {}, 1, 10, `>>> 指令 1：执行 <code>insertHead(10)</code>。`);
+                let newNode1 = {id: 1, val: 10, nextId: null};
+                pushPointerState(nodes, newNode1, {100: ['head'], 'temp': ['newNode']}, {'temp':'pivot'}, 1, 11, `执行 <code>new Node(val)</code>：在 Heap 暂存区创建独立节点 10。`);
+                newNode1.nextId = 'head_ptr'; 
+                pushPointerState(nodes, newNode1, {100: ['head'], 'temp': ['newNode']}, {'temp':'swap'}, 1, 12, `执行 <code>newNode->next = head</code>：生成临时红色追踪线。`, {from: 1, to: 100, color: 'red'});
+                newNode1.nextId = 100; nodes.unshift(newNode1);
+                pushPointerState(nodes, null, {1: ['head']}, {'drawArrow': 1}, 1, 13, `执行 <code>head = newNode</code>。<br><b>新节点直接升入主链表，颜色统一，蓝色光剑顺滑拔出！</b>`);
+
+                pushPointerState(nodes, null, {1: ['head']}, {}, 2, 17, `>>> 指令 2：执行 <code>insertTail(20)</code>。`);
+                let newNode2 = {id: 2, val: 20, nextId: null};
+                pushPointerState(nodes, newNode2, {1: ['head'], 'temp': ['newNode']}, {'temp':'pivot'}, 2, 18, `执行 <code>new Node(val)</code>：开辟新节点 20。`);
+                pushPointerState(nodes, newNode2, {1: ['head', 'p'], 'temp': ['newNode']}, {}, 2, 20, `声明指针 <code>p = head</code>。`);
+                pushPointerState(nodes, newNode2, {1: ['head', 'p'], 'temp': ['newNode']}, {1:'compare'}, 2, 21, `检查 <code>p->next</code>。向后移动。`);
+                pushPointerState(nodes, newNode2, {1: ['head'], 100: ['p'], 'temp': ['newNode']}, {100:'compare'}, 2, 21, `<code>p = p->next</code>。继续向后移动。`);
+                pushPointerState(nodes, newNode2, {1: ['head'], 101: ['p'], 'temp': ['newNode']}, {101:'compare'}, 2, 21, `<code>p = p->next</code>。指向尾节点 8，跳出循环！`);
+                newNode2.nextId = null; nodes[2].nextId = 2; nodes.push(newNode2);
+                pushPointerState(nodes, null, {1: ['head']}, {'drawArrow': 101}, 2, 22, `执行 <code>p->next = newNode</code>。<br><b>新节点平滑升入末尾，并建立标准蓝色连接。</b>`);
+
+                pushPointerState(nodes, null, {1: ['head']}, {}, 3, 10, `>>> 指令 3：执行 <code>insertHead(30)</code>。`);
+                let newNode3 = {id: 3, val: 30, nextId: null};
+                pushPointerState(nodes, newNode3, {1: ['head'], 'temp': ['newNode']}, {'temp':'pivot'}, 3, 11, `创建节点 30。`);
+                newNode3.nextId = 'head_ptr';
+                pushPointerState(nodes, newNode3, {1: ['head'], 'temp': ['newNode']}, {'temp':'swap'}, 3, 12, `<code>newNode->next = head</code>：生成临时红色追踪线。`, {from: 3, to: 1, color: 'red'});
+                newNode3.nextId = 1; nodes.unshift(newNode3);
+                pushPointerState(nodes, null, {3: ['head']}, {'drawArrow': 3}, 3, 13, `执行 <code>head = newNode</code>。<br>新节点成功入列头部。`);
+
+                pushPointerState(nodes, null, {3: ['head']}, {}, 4, 26, `>>> 指令 4：执行 <code>findNode(20)</code>。`);
+                pushPointerState(nodes, null, {3: ['head', 'p']}, {}, 4, 27, `<code>p = head</code>。`);
+                pushPointerState(nodes, null, {3: ['head', 'p']}, {3:'compare'}, 4, 29, `匹配 30? No.`);
+                pushPointerState(nodes, null, {3: ['head'], 1: ['p']}, {1:'compare'}, 4, 29, `匹配 10? No.`);
+                pushPointerState(nodes, null, {3: ['head'], 100: ['p']}, {100:'compare'}, 4, 29, `匹配 5? No.`);
+                pushPointerState(nodes, null, {3: ['head'], 101: ['p']}, {101:'compare'}, 4, 29, `匹配 8? No.`);
+                pushPointerState(nodes, null, {3: ['head'], 2: ['p']}, {2:'swap'}, 4, 29, `匹配 20? 🎉 成功找到，返回该节点。`);
+
+                pushPointerState(nodes, null, {3: ['head']}, {}, 5, 36, `>>> 指令 5：执行 <code>deleteNode(10)</code>。`);
+                pushPointerState(nodes, null, {3: ['head', 'p']}, {}, 5, 43, `<code>p = head</code> (指向30)。`);
+                pushPointerState(nodes, null, {3: ['head', 'p']}, {3:'compare'}, 5, 44, `<code>p->next->val</code> 是 10，匹配！`);
+                pushPointerState(nodes, null, {3: ['head', 'p'], 1: ['temp']}, {1:'swap'}, 5, 48, `锁定待删节点 <code>temp = p->next</code>。`);
+                nodes[0].nextId = 100; nodes[0].hideArrow = true; 
+                pushPointerState(nodes, null, {3: ['head', 'p'], 1: ['temp']}, {1:'swap'}, 5, 49, `<code>p->next = temp->next</code>：物理跨越，红色虚线表示越过了即将删除的目标节点。`, {from: 3, to: 100, color: 'red', arc: true});
+                nodes[1].isDeleted = true;
+                pushPointerState(nodes, null, {3: ['head']}, {}, 5, 50, `<code>delete temp</code>。节点内存被彻底释放。`, {from: 3, to: 100, color: 'red', arc: true});
+                nodes.splice(1, 1); nodes[0].hideArrow = false;
+                pushPointerState(nodes, null, {3: ['head']}, {'drawArrow': 3}, 5, 52, `全部执行结束！链表重新恢复紧密相连。`);
+            }
+        },
+
+        // --- 2. 数组模拟单链表 ---
+        single: {
+            title: "array_single_list.cpp",
+            stepTitle: "内存联动追踪",
+            logicTitle: "💡 核心底层逻辑与考点提炼",
+            logic: "<b>为何用数组模拟链表？</b><br>在算法竞赛中，动态 <code>new Node()</code> 极慢且易引起 MLE。预先开辟静态大数组 <code>node[N]</code>，用 <code>idx</code> 作为游标充当分配器，将时间复杂度压到极致！<br><br><b>核心考点：</b><br>1. <b>头插法：</b><code>node[idx].nxt = head; head = idx++;</code>，新节点的指针拉住老头，然后自己上位当新头。<br>2. <b>逻辑删除：</b><code>head = node[head].nxt;</code>，直接让头指针跨过第一个元素。注意：<b>物理数组中的旧元素并没有消失</b>，它变成了无法被遍历到的“幽灵节点”。",
+            inputCmds: ["init()", "insert(10)", "insert(20)", "insert(30)", "remove()", "insert(40)"],
+            code: [
+                "// 静态数组模拟单链表 (AcWing 模板)",
+                "int head; // 指向链表真实的物理首节点在数组中的下标",
+                "int idx;  // 内存分配器，指向物理数组中下一个可用的空闲坑位",
+                "",
+                "struct Node {",
+                "    int val; // 数据域",
+                "    int nxt; // 指针域，存储下一个节点的下标",
+                "} node[N];",
+                "",
+                "// 1. 初始化",
+                "void init() {",
+                "    head = -1;",
+                "    idx = 0;",
+                "}",
+                "",
+                "// 2. 将 x 插入到头节点 (头插法)",
+                "void insert(int x) {",
+                "    node[idx].val = x;",
+                "    node[idx].nxt = head;",
+                "    head = idx++;",
+                "}",
+                "",
+                "// 3. 删除头节点 (物理内存不断，逻辑跳过)",
+                "void remove() {",
+                "    if (head != -1)",
+                "        head = node[head].nxt;",
+                "}"
+            ],
+            run: function() {
+                states = []; let headVal = -1; let idxVal = 0; let nodes = []; 
+                pushArrayState(headVal, idxVal, nodes, null, 0, {}, 11, `【初始化】 执行 <code>init()</code>。准备初始化指针。`);
+                headVal = -1; idxVal = 0;
+                pushArrayState(headVal, idxVal, nodes, null, 0, {'var-head':'highlight-write', 'var-idx':'highlight-write'}, 13, `头指针 <code>head</code> 置为 -1（代表空集），内存分配器 <code>idx</code> 置为 0。`);
+
+                pushArrayState(headVal, idxVal, nodes, null, 1, {}, 17, `>>> 指令 1：执行 <code>insert(10)</code>，准备在链表头部插入元素 10。`);
+                nodes.push({val: 10, nxt: "", isGhost: false});
+                pushArrayState(headVal, idxVal, nodes, idxVal, 1, {'node0':'highlight-write'}, 18, `【分配内存】 <code>node[idx].val = x</code>。在物理数组 <code>idx (0)</code> 存入 10。`);
+                nodes[0].nxt = headVal;
+                pushArrayState(headVal, idxVal, nodes, idxVal, 1, {'node0':'highlight-next', 'var-head':'highlight-read'}, 19, `【记录前驱】 <code>node[idx].nxt = head</code>。新节点的 nxt 获取当前 head 的值 (-1)。`, false);
+                headVal = idxVal; idxVal++;
+                pushArrayState(headVal, idxVal, nodes, null, 1, {'var-head':'highlight-write', 'var-idx':'highlight-write'}, 20, `【头首移交】 <code>head = idx++</code>。头指针 <code>head</code> 移向新节点，idx 分配下个坑位。`, true);
+
+                pushArrayState(headVal, idxVal, nodes, null, 2, {}, 17, `>>> 指令 2：执行 <code>insert(20)</code>，将 20 插入链表头部。`);
+                nodes.push({val: 20, nxt: "", isGhost: false});
+                pushArrayState(headVal, idxVal, nodes, idxVal, 2, {'node1':'highlight-write'}, 18, `【分配内存】 在物理数组 <code>idx (1)</code> 处存入值 20。新节点独立悬浮。`);
+                nodes[1].nxt = headVal;
+                pushArrayState(headVal, idxVal, nodes, idxVal, 2, {'node1':'highlight-next', 'var-head':'highlight-read'}, 19, `【记录前驱】 节点 20 的 nxt 指针获取旧头节点下标 (0)。`);
+                headVal = idxVal; idxVal++;
+                pushArrayState(headVal, idxVal, nodes, null, 2, {'var-head':'highlight-write', 'var-idx':'highlight-write'}, 20, `【头首移交】 <code>head</code> 更新为下标 1。节点 20 正式成为新头节点。`, true);
+
+                pushArrayState(headVal, idxVal, nodes, null, 3, {}, 17, `>>> 指令 3：执行 <code>insert(30)</code>。`);
+                nodes.push({val: 30, nxt: "", isGhost: false});
+                pushArrayState(headVal, idxVal, nodes, idxVal, 3, {'node2':'highlight-write'}, 18, `【分配内存】 物理数组 <code>idx (2)</code> 处存入 30。新节点独立悬浮。`);
+                nodes[2].nxt = headVal;
+                pushArrayState(headVal, idxVal, nodes, idxVal, 3, {'node2':'highlight-next', 'var-head':'highlight-read'}, 19, `【记录前驱】 节点 30 的 nxt 指针获取旧头节点下标 (1)。向后连线。`);
+                headVal = idxVal; idxVal++;
+                pushArrayState(headVal, idxVal, nodes, null, 3, {'var-head':'highlight-write', 'var-idx':'highlight-write'}, 20, `【头首移交】 <code>head</code> 更新为 2。链表逻辑变为：30 &rarr; 20 &rarr; 10。`, true);
+
+                pushArrayState(headVal, idxVal, nodes, null, 4, {}, 24, `>>> 指令 4：执行 <code>remove()</code>，删除当前的头节点。`);
+                pushArrayState(headVal, idxVal, nodes, null, 4, {'var-head':'highlight-read'}, 25, `检测 <code>head != -1</code> (当前为 2)，链表不为空，允许执行删除。`);
+                let oldHead = headVal; headVal = nodes[headVal].nxt; nodes[oldHead].isGhost = true; 
+                pushArrayState(headVal, idxVal, nodes, null, 4, {'var-head':'highlight-write', 'node2':'highlight-read'}, 26, `【逻辑跨越】 <code>head = node[head].nxt</code>。头指针 <code>head</code> 丝滑飞跃到节点 20 上！<br><span style="color:var(--neon-red)">旧节点 30 与其连线会分段同步消散，且数组中的 30 变成了不可达的“幽灵节点”。</span>`, false, {fadingNodeIdx: oldHead});
+
+                pushArrayState(headVal, idxVal, nodes, null, 5, {}, 17, `>>> 指令 5：执行 <code>insert(40)</code>。重点观察 idx 指针的流向！`);
+                nodes.push({val: 40, nxt: "", isGhost: false}); 
+                pushArrayState(headVal, idxVal, nodes, idxVal, 5, {'node3':'highlight-write'}, 18, `【分配内存】 物理数组 <code>idx (3)</code> 处存入 40。即使前面有被删除的节点，idx 依旧向后分配，这就叫<b>“空间换时间”</b>！`);
+                nodes[3].nxt = headVal;
+                pushArrayState(headVal, idxVal, nodes, idxVal, 5, {'node3':'highlight-next', 'var-head':'highlight-read'}, 19, `【记录前驱】 节点 40 的 nxt 指针获取当前头节点下标 (1)。`, false);
+                headVal = idxVal; idxVal++;
+                pushArrayState(headVal, idxVal, nodes, null, 5, {'var-head':'highlight-write', 'var-idx':'highlight-write'}, 20, `【头首移交】 <code>head</code> 更新为 3。链表重组为：40 &rarr; 20 &rarr; 10。被删除的 30 彻底被遗忘。连线！`, true);
+
+                pushArrayState(headVal, idxVal, nodes, null, -1, {}, null, `🎉 所有指令执行完毕！完美揭示静态数组模拟链表的原理。`);
+            }
+        },
+
+        // --- 3. 数组模拟双链表 ---
+        double: {
+            title: "array_double_list.cpp",
+            stepTitle: "内存联动追踪",
+            logicTitle: "💡 核心底层逻辑与考点提炼",
+            logic: "<b>双链表精髓：</b><br>1. <b>虚拟头尾：</b>强行占用 <code>0</code> 和 <code>1</code> 号点作为两端护法。真实数据从 <code>idx=2</code> 开始。<br>2. <b>完美插入 (左右逢源)：</b>新节点先“认亲”（记录左右邻居），然后让旧右邻“认新左”，最后让旧左邻“认新右”。<br>3. <b>物理删除：</b>只需把要删除节点的左右邻居“互相牵手”，直接跨越即可，孤儿节点物理保留。",
+            inputCmds: ["init()", "insert(0, 10)", "insert(2, 20)", "remove(2)", "insert(3, 30)"],
+            code: [
+                "// 静态数组模拟双链表 (AcWing 结构体版模板)",
+                "int idx; // 内存分配器，指向下一个可用的空闲坑位",
+                "",
+                "struct Node {",
+                "    int val;  // 数据域",
+                "    int l, r; // l: 左指针, r: 右指针",
+                "} node[N];",
+                "",
+                "// 1. 初始化",
+                "void init() {",
+                "    node[0].r = 1; // 0 是虚拟左端点(Head)",
+                "    node[1].l = 0; // 1 是虚拟右端点(Tail)",
+                "    idx = 2;       // 业务节点从 2 开始分配",
+                "}",
+                "",
+                "// 2. 在节点 a 的右边插入一个数 x",
+                "void insert(int a, int x) {",
+                "    node[idx].val = x;",
+                "    node[idx].l = a; node[idx].r = node[a].r;",
+                "    node[node[a].r].l = idx; node[a].r = idx++;",
+                "}",
+                "",
+                "// 3. 删除节点 a",
+                "void remove(int a) {",
+                "    node[node[a].r].l = node[a].l;",
+                "    node[node[a].l].r = node[a].r;",
+                "}"
+            ],
+            run: function() {
+                states = []; let idxVal = 0; let nodes = []; 
+
+                pushArrayState(-1, idxVal, nodes, null, 0, {}, 10, `【初始化】 准备执行双链表初始化。`);
+                nodes[0] = {val: 'Head', l: -1, r: 1, isGhost: false}; nodes[1] = {val: 'Tail', l: 0, r: -1, isGhost: false}; idxVal = 2;
+                pushArrayState(-1, idxVal, nodes, null, 0, {'node0':'highlight-write', 'node1':'highlight-write', 'var-idx':'highlight-write'}, 11, `【建立哨兵】 <code>0</code> 号左端点与 <code>1</code> 号右端点互指。真实节点从 <code>idx=2</code> 开始。`);
+
+                pushArrayState(-1, idxVal, nodes, null, 1, {}, 17, `>>> 指令 1：在 <code>0</code> 号端点右侧插入 10。`);
+                nodes[2] = {val: 10, l: "", r: "", isGhost: false};
+                pushArrayState(-1, idxVal, nodes, 2, 1, {'node2':'highlight-write'}, 18, `【分配内存】 在物理数组 <code>idx (2)</code> 处存入 10。新节点悬浮出列。`);
+                nodes[2].l = 0; nodes[2].r = 1;
+                pushArrayState(-1, idxVal, nodes, 2, 1, {'node2':'highlight-next'}, 19, `【新节点认亲】 新节点的左指针锁定 0，右指针锁定 1。<br><em>(红色单向虚线表示只是单方面指向，旧邻居尚未感知)</em>`, false, { svgLinks: [{from: 2, to: 0, color: 'red', type: 'temp-out-left'}, {from: 2, to: 1, color: 'red', type: 'temp-out-right'}] });
+                nodes[1].l = 2; nodes[0].r = 2; idxVal = 3;
+                pushArrayState(-1, idxVal, nodes, 2, 1, {'node0':'highlight-write', 'node1':'highlight-write'}, 20, `【旧邻居接纳新节点】 左右邻居的指针同时修改，虚线化为<span style="color:var(--neon-green);font-weight:bold">绿色双向连接</span>！(请点击下一步)`, false, { overrideLinks: {0: 1}, hideArrowFrom: 0, svgLinks: [{from: 2, to: 0, color: 'green', type: 'temp-out-left', double: true}, {from: 2, to: 1, color: 'green', type: 'temp-out-right', double: true}] });
+                pushArrayState(-1, idxVal, nodes, null, 1, {'node2':'highlight-write', 'var-idx':'highlight-write'}, 21, `【入列完成】 新节点平滑飞入主链表中间，原生指针完美缝合！`, true, { drawArrow: 0 });
+
+                pushArrayState(-1, idxVal, nodes, null, 2, {}, 17, `>>> 指令 2：在节点 <code>2</code> 右侧插入 20。`);
+                nodes[3] = {val: 20, l: "", r: "", isGhost: false};
+                pushArrayState(-1, idxVal, nodes, 3, 2, {'node3':'highlight-write'}, 18, `【分配内存】 在 <code>idx (3)</code> 处存入 20。`);
+                nodes[3].l = 2; nodes[3].r = 1;
+                pushArrayState(-1, idxVal, nodes, 3, 2, {'node3':'highlight-next'}, 19, `【新节点认亲】 新节点左指 2，右指 1。`, false, { svgLinks: [{from: 3, to: 2, color: 'red', type: 'temp-out-left'}, {from: 3, to: 1, color: 'red', type: 'temp-out-right'}] });
+                nodes[1].l = 3; nodes[2].r = 3; idxVal = 4;
+                pushArrayState(-1, idxVal, nodes, 3, 2, {'node2':'highlight-write', 'node1':'highlight-write'}, 20, `【旧邻居接纳新节点】 节点 1 和节点 2 的指针修改，双向绿色连接建立！`, false, { overrideLinks: {2: 1}, hideArrowFrom: 2, svgLinks: [{from: 3, to: 2, color: 'green', type: 'temp-out-left', double: true}, {from: 3, to: 1, color: 'green', type: 'temp-out-right', double: true}] });
+                pushArrayState(-1, idxVal, nodes, null, 2, {'node3':'highlight-write', 'var-idx':'highlight-write'}, 21, `【入列完成】 节点 20 成功并入末尾。`, true, { drawArrow: 2 });
+
+                pushArrayState(-1, idxVal, nodes, null, 3, {}, 24, `>>> 指令 3：执行 <code>remove(2)</code>，准备删除节点 2。`);
+                let oldNode = 2;
+                nodes[3].l = 0; 
+                pushArrayState(-1, idxVal, nodes, null, 3, {'node3':'highlight-write'}, 25, `【解右重连】 首先，节点 2 的右邻 (节点 3) 将左指针跨过 2，直接指向 0。<br><em>(见下方红色连线，表示 3 的左指针绕过了目标)</em>`, false, { overrideLinks: { 0: 2 }, svgLinks: [{ from: 3, to: 0, color: 'red', type: 'arc-bottom' }] });
+                nodes[0].r = 3; nodes[0].hideArrow = true; 
+                pushArrayState(-1, idxVal, nodes, null, 3, {'node0':'highlight-write'}, 26, `【解左重连】 接着，节点 2 的左邻 (节点 0) 将右指针跨越 2，直接指向 3。<br><em>(见上方红色连线，节点 2 已被架空，点击下一步观察物理回收！)</em>`, false, { overrideLinks: { 0: 2 }, hideArrowFrom: 0, svgLinks: [{ from: 3, to: 0, color: 'red', type: 'arc-bottom' }, { from: 0, to: 3, color: 'red', type: 'arc-top' }] });
+                nodes[2].isGhost = true; nodes[0].hideArrow = false; 
+                pushArrayState(-1, idxVal, nodes, null, 3, {'node0':'highlight-write', 'node3':'highlight-write'}, 27, `<b>【物理脱离与靠拢】</b><br>节点 2 彻底被架空，化作幽灵消散。<br>两侧节点向中间收缩靠拢，原生双向指针重新缝合！`, false, { fadingNodeIdx: oldNode, triggerAnim: true, drawArrow: 0 });
+
+                pushArrayState(-1, idxVal, nodes, null, 4, {}, 17, `>>> 指令 4：在节点 <code>3</code> 右侧追加 30。`);
+                nodes[4] = {val: 30, l: "", r: "", isGhost: false};
+                pushArrayState(-1, idxVal, nodes, 4, 4, {'node4':'highlight-write'}, 18, `【分配内存】 在 <code>idx (4)</code> 处存入 30。`);
+                nodes[4].l = 3; nodes[4].r = 1;
+                pushArrayState(-1, idxVal, nodes, 4, 4, {'node4':'highlight-next'}, 19, `【新节点认亲】 左指 3，右指 1。`, false, { svgLinks: [{from: 4, to: 3, color: 'red', type: 'temp-out-left'}, {from: 4, to: 1, color: 'red', type: 'temp-out-right'}] });
+                nodes[1].l = 4; nodes[3].r = 4; idxVal = 5;
+                pushArrayState(-1, idxVal, nodes, 4, 4, {'node3':'highlight-write', 'node1':'highlight-write'}, 20, `【旧邻居接纳新节点】 指针重置，确认绿色双向连接。`, false, { overrideLinks: {3: 1}, hideArrowFrom: 3, svgLinks: [{from: 4, to: 3, color: 'green', type: 'temp-out-left', double: true}, {from: 4, to: 1, color: 'green', type: 'temp-out-right', double: true}] });
+                pushArrayState(-1, idxVal, nodes, null, 4, {'node4':'highlight-write', 'var-idx':'highlight-write'}, 21, `【入列完成】 新节点完美接入末端！`, true, { drawArrow: 3 });
+
+                pushArrayState(-1, idxVal, nodes, null, -1, {}, null, `🎉 双链表全部指令执行完毕！`);
+            }
+        }
+    };
+
+    let states = []; let currentStateIndex = 0; let currentAlgoKey = 'pointer';
+    
+    // ================= 统一代码高亮渲染 =================
+    function renderCode(codeLines) {
+        const container = document.getElementById('code-content'); container.innerHTML = '';
+        codeLines.forEach((lineText, idx) => {
+            const div = document.createElement('div'); div.className = 'code-line'; div.id = `line-${idx + 1}`;
+            let html = lineText.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            let commentText = "";
+            html = html.replace(/\/\/.*/g, match => { commentText = `<span class='code-comment'>${match}</span>`; return "%%COMMENT%%"; });
+            html = html.replace(/\b(\-1|\d+)\b/g, "<span class='code-number'>$1</span>");
+            html = html.replace(/\b(void|int|struct|if|else|return|new|delete)\b/g, "<span class='code-keyword'>$1</span>");
+            html = html.replace(/\b(head|Node|node|val|nxt|idx|x|a|N|e|l|r|p|temp|newNode|NULL)\b/g, "<span class='code-variable'>$1</span>");
+            html = html.replace("%%COMMENT%%", commentText);
+            div.innerHTML = html; container.appendChild(div);
+        });
+    }
+
+    // 动态指针版的 Node 构建辅助函数
+    function buildPointerNodeHTML(node, pointersObj, highlightStyle, isTemp = false) {
+        let ptrs = [];
+        for (const [nodeId, labels] of Object.entries(pointersObj)) { if ((!isTemp && nodeId == node.id) || (isTemp && nodeId === 'temp')) ptrs = labels; }
+        
+        let ptrHTML = '';
+        if (ptrs.length > 0) ptrHTML = `<div class="pointer-flip-wrapper flip-item" data-id="ptr-${node.id}"><div class="pointer-container"><div class="pointer-label">${ptrs.join(', ')}</div><div class="pointer-arrow"></div></div></div>`;
+
+        let nextSymbol = '•'; let nextClass = '';
+        if (node.nextId === null) { nextSymbol = '∅'; nextClass = 'null-ptr'; } 
+        else if (node.nextId === 'head_ptr') { nextSymbol = '&amp;head'; nextClass = 'text-ptr'; }
+
+        let extraClass = highlightStyle[isTemp ? 'temp' : node.id] || '';
+        if (node.isDeleted) extraClass = 'deleted'; 
+
+        return `
+        <div class="ll-node-wrapper flip-item" data-id="wrapper-ptr-${node.id}" data-node-id="${node.id}">
+            ${ptrHTML}
+            <div class="ll-node ${extraClass}" style="${node.isDeleted ? 'opacity:0;' : ''}">
+                <div class="ll-val">${node.val}</div>
+                <div class="ll-next ${nextClass}">${nextSymbol}</div>
+            </div>
+        </div>`;
+    }
+
+    // ================= 核心状态渲染引擎 =================
+    function renderState(index) {
+        const state = states[index]; 
+
+        // 1. 侧边栏指令更新
+        let inputHtml = '';
+        ALGORITHMS[currentAlgoKey].inputCmds.forEach((text, i) => {
+            let activeClass = (state.activeCmd === i) ? 'active' : '';
+            inputHtml += `<div class="sidebar-item ${activeClass}">${i}. ${text}</div>`;
+        });
+        const sidebarList = document.getElementById('sidebar-list'); sidebarList.innerHTML = inputHtml;
+        if(state.activeCmd >= 0 && sidebarList.children[state.activeCmd]) sidebarList.children[state.activeCmd].scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+        // 2. 隔离动画并重置SVG
+        if (window.svgAnimFrame) { cancelAnimationFrame(window.svgAnimFrame); window.svgAnimFrame = null; }
+        document.getElementById('temp-to-head-path').style.opacity = '0';
+        for (let i = 0; i < 4; i++) { let p = document.getElementById(`svg-path-${i}`); if (p) p.style.opacity = '0'; }
+
+        const oldPositions = {};
+        document.querySelectorAll('.flip-item').forEach(el => { const rect = el.getBoundingClientRect(); oldPositions[el.dataset.id] = { x: rect.left, y: rect.top }; });
+
+        // =============== 指针链表渲染 ===============
+        if (state.type === 'pointer') {
+            document.getElementById('chart-container').className = 'graph-area pointer-mode';
+            document.getElementById('main-list').style.display = 'flex';
+            document.getElementById('logical-list').style.display = 'none';
+            document.getElementById('vars-area').style.display = 'none';
+            document.getElementById('edges-area').style.display = 'none';
+            document.getElementById('graph-title').style.display = 'none';
+
+            let mainHTML = '';
+            if (state.nodes.length === 0) {
+                mainHTML = `<div class="ll-node-wrapper"><div class="pointer-flip-wrapper flip-item" data-id="ptr-head"><div class="pointer-container"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div><div class="ll-node" style="border:none; box-shadow:none; background:transparent;"><div class="ll-val" style="border:none; color:#94a3b8; width: 40px; font-size:24px;">∅</div></div></div>`;
+            } else {
+                for (let i = 0; i < state.nodes.length; i++) {
+                    let node = state.nodes[i];
+                    mainHTML += buildPointerNodeHTML(node, state.pointers, state.highlights, false);
+                    if (i < state.nodes.length - 1) {
+                        let nextNode = state.nodes[i+1];
+                        if (node.nextId === nextNode.id && !node.isDeleted && !node.hideArrow) {
+                            let isDraw = state.highlights['drawArrow'] == node.id;
+                            mainHTML += `<div class="css-arrow-container flip-item" data-id="arrow-ptr-${node.id}"><div class="css-arrow ${isDraw ? 'anim-draw' : ''}"></div></div>`;
+                        } else {
+                            mainHTML += `<div class="css-arrow-container hidden"><div class="css-arrow"></div></div>`; 
+                        }
+                    }
+                }
+            }
+            document.getElementById('main-list').innerHTML = mainHTML;
+
+            if (state.tempNode) {
+                document.getElementById('temp-area').style.display = 'block';
+                document.getElementById('temp-list').innerHTML = buildPointerNodeHTML(state.tempNode, state.pointers, state.highlights, true);
+            } else {
+                document.getElementById('temp-area').style.display = 'none';
+                document.getElementById('temp-list').innerHTML = '';
+            }
+
+            // SVG 曲线(指针特供)
+            if (state.svgLink) {
+                let pathEl = document.getElementById('temp-to-head-path');
+                let link = state.svgLink;
+                let startTime = performance.now();
+                function drawPtrFrame(now) {
+                    // Scope 到具体区域，防止跨模式报错
+                    let startEl = document.querySelector(`#chart-container > div:not([style*="display: none"]) .ll-node-wrapper[data-node-id="${link.from}"] .ll-next`);
+                    let endEl = document.querySelector(`#chart-container > div:not([style*="display: none"]) .ll-node-wrapper[data-node-id="${link.to}"] .ll-node`);
+                    if (startEl && endEl) {
+                        const cRect = document.getElementById('chart-container').getBoundingClientRect();
+                        const sRect = startEl.getBoundingClientRect(); const eRect = endEl.getBoundingClientRect();
+                        const sX = sRect.left + sRect.width/2 - cRect.left; const sY = sRect.top + sRect.height/2 - cRect.top;
+                        const eX = eRect.left - cRect.left - 5; const eY = eRect.top + eRect.height/2 - cRect.top;
+                        let cp1X, cp1Y, cp2X, cp2Y;
+                        if (link.arc) { cp1X = sX+(eX-sX)/4; cp1Y = sY-70; cp2X = eX-(eX-sX)/4; cp2Y = eY-70; } 
+                        else {
+                            if (sY > eY + 30) { cp1X = sX+10; cp1Y = sY-60; cp2X = eX-40; cp2Y = eY+20; } 
+                            else if (sY < eY - 30) { cp1X = sX+40; cp1Y = sY+20; cp2X = eX-10; cp2Y = eY-60; } 
+                            else { cp1X = sX+(eX-sX)/3; cp1Y = sY; cp2X = eX-(eX-sX)/3; cp2Y = eY; }
+                        }
+                        pathEl.setAttribute('d', `M ${sX} ${sY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${eX} ${eY}`);
+                        pathEl.style.opacity = '1';
+                    }
+                    if (now - startTime < 850) window.svgAnimFrame = requestAnimationFrame(drawPtrFrame);
+                }
+                window.svgAnimFrame = requestAnimationFrame(drawPtrFrame);
+            }
+        } 
+        // =============== 数组链表渲染 ===============
+        else {
+            const isDouble = (currentAlgoKey === 'double');
+            document.getElementById('chart-container').className = 'graph-area array-mode';
+            document.getElementById('main-list').style.display = 'none';
+            document.getElementById('temp-area').style.display = 'none';
+            document.getElementById('logical-list').style.display = 'flex';
+            document.getElementById('vars-area').style.display = 'flex';
+            document.getElementById('edges-area').style.display = 'flex';
+            document.getElementById('graph-title').style.display = 'block';
+
+            // 1. Vars Area
+            const varsArea = document.getElementById('vars-area');
+            if (isDouble) {
+                varsArea.innerHTML = `<div class="var-group"><div class="var-box" style="border-color:#94a3b8; color:#94a3b8">0</div><div class="var-label" style="color:#94a3b8">head</div></div><div class="var-group"><div class="var-box ${state.highlights['var-idx'] || ''}">${state.idx}</div><div class="var-label">idx</div></div><div class="var-group"><div class="var-box" style="border-color:#94a3b8; color:#94a3b8">1</div><div class="var-label" style="color:#94a3b8">tail</div></div>`;
+            } else {
+                varsArea.innerHTML = `<div class="var-group"><div class="var-box ${state.highlights['var-head'] || ''}">${state.head}</div><div class="var-label">head</div></div><div class="var-group"><div class="var-box ${state.highlights['var-idx'] || ''}">${state.idx}</div><div class="var-label">idx</div></div>`;
+            }
+
+            // 2. Physical Array
+            const arrayList = document.getElementById('array-list'); arrayList.innerHTML = '';
+            let slotCount = isDouble ? 5 : 4;
+            for (let i = 0; i < slotCount; i++) {
+                let node = state.nodes[i]; let hl = state.highlights[`node${i}`] || ''; let html = '';
+                if (node) {
+                    let ghost = node.isGhost ? 'deleted' : '';
+                    if (isDouble) html = `<div class="edge-struct ${hl} ${ghost}"><div class="edge-struct-index">node[${i}]</div><div class="edge-field"><span>val</span><span class="var-val">${node.val}</span></div><div class="edge-field"><span>l</span><span class="var-val">${node.l}</span></div><div class="edge-field"><span>r</span><span class="var-val">${node.r}</span></div></div>`;
+                    else html = `<div class="edge-struct ${hl} ${ghost}"><div class="edge-struct-index">node[${i}]</div><div class="edge-field"><span>val</span><span class="var-val">${node.val}</span></div><div class="edge-field"><span>nxt</span><span class="var-val">${node.nxt}</span></div></div>`;
+                } else {
+                    if (isDouble) html = `<div class="edge-struct empty"><div class="edge-struct-index">node[${i}]</div><div class="edge-field"><span>val</span><span class="var-val"></span></div><div class="edge-field"><span>l</span><span class="var-val"></span></div><div class="edge-field"><span>r</span><span class="var-val"></span></div></div>`;
+                    else html = `<div class="edge-struct empty"><div class="edge-struct-index">node[${i}]</div><div class="edge-field"><span>val</span><span class="var-val"></span></div><div class="edge-field"><span>nxt</span><span class="var-val"></span></div></div>`;
+                }
+                arrayList.innerHTML += html;
+            }
+
+            // 3. Logical Graph
+            const logicalList = document.getElementById('logical-list'); let html = '';
+
+            if (isDouble) {
+                if (state.tempNodeIdx !== null) {
+                    let tN = state.nodes[state.tempNodeIdx];
+                    let lT = tN.l === "" ? " " : (tN.l === -1 ? '∅' : tN.l); let rT = tN.r === "" ? " " : (tN.r === -1 ? '∅' : tN.r);
+                    html += `<div class="ll-node-wrapper flip-item" data-id="wrapper-${state.tempNodeIdx}" data-node-id="${state.tempNodeIdx}"><div class="pointer-flip-wrapper"><div class="pointer-container" style="opacity:0;"><div class="pointer-label">X</div><div class="pointer-arrow"></div></div></div><div class="ll-node double ${state.highlights[`node${state.tempNodeIdx}`]||''}"><div class="ll-prev ${tN.l===-1?'null-ptr':''}">${lT}</div><div class="ll-val">${tN.val}</div><div class="ll-next ${tN.r===-1?'null-ptr':''}">${rT}</div></div><div class="ll-node-idx">[${state.tempNodeIdx}]</div></div><div class="css-arrow-container" style="opacity:0;"></div>`;
+                }
+                let curr = 0; let count = 0;
+                if (!state.nodes[0] && !state.nodes[1]) {
+                    html += `<div class="ll-node-wrapper"><div class="pointer-flip-wrapper flip-item" data-id="head-pointer"><div class="pointer-container"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div><div class="ll-node" style="border:none; box-shadow:none; background:transparent;"><div class="ll-val" style="border:none; color:#94a3b8; font-size: 20px; width: 30px;">∅</div></div></div>`;
+                } else {
+                    while (curr !== -1 && count < 8) {
+                        let node = state.nodes[curr]; if (!node) break; 
+                        if (node.isGhost && state.fadingNodeIdx === curr) break; 
+                        if (!node.isGhost) {
+                            let hl = state.highlights[`node${curr}`] || '';
+                            let ptrHtml = `<div class="pointer-flip-wrapper"><div class="pointer-container" style="opacity: 0;"><div class="pointer-label">X</div><div class="pointer-arrow"></div></div></div>`;
+                            if (curr===0) ptrHtml = `<div class="pointer-flip-wrapper flip-item" data-id="head-pointer"><div class="pointer-container"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div>`;
+                            else if (curr===1) ptrHtml = `<div class="pointer-flip-wrapper flip-item" data-id="tail-pointer"><div class="pointer-container"><div class="pointer-label blue-bg">tail</div><div class="pointer-arrow blue-bg"></div></div></div>`;
+                            let valD = node.val; if(node.val==='Head') valD=`<span style="font-size:14px;color:var(--pointer-red)">Head</span>`; if(node.val==='Tail') valD=`<span style="font-size:14px;color:var(--pointer-blue)">Tail</span>`;
+                            html += `<div class="ll-node-wrapper flip-item" data-id="wrapper-${curr}" data-node-id="${curr}">${ptrHtml}<div class="ll-node double ${hl}"><div class="ll-prev ${node.l===-1?'null-ptr':''}">${node.l===-1?'∅':node.l}</div><div class="ll-val">${valD}</div><div class="ll-next ${node.r===-1?'null-ptr':''}">${node.r===-1?'∅':node.r}</div></div><div class="ll-node-idx">[${curr}]</div></div>`;
+                            
+                            let nextNodeIdx = node.r; if (state.overrideLinks && state.overrideLinks[curr] !== undefined) nextNodeIdx = state.overrideLinks[curr];
+                            if (nextNodeIdx !== -1) {
+                                let aCls = ['css-arrow'];
+                                let isFresh = (state.drawArrow !== undefined) ? (state.drawArrow === curr) : (state.triggerAnim && count > 0 && count < 3 && state.activeCmd !== 3);
+                                if (isFresh) aCls.push('anim-draw'); else aCls.push('active');
+                                let rR = state.nodes[curr].r; let nN = state.nodes[nextNodeIdx];
+                                if (rR !== nextNodeIdx && rR !== undefined && rR !== -1) aCls.push('no-right-arrow');
+                                if (nN && nN.l === curr) aCls.push('double-arrow');
+                                html += `<div class="css-arrow-container flip-item ${state.hideArrowFrom===curr?'hidden':''}" data-id="arrow-${curr}"><div class="${aCls.join(' ')}"></div></div>`;
+                                curr = nextNodeIdx;
+                            } else break;
+                            count++;
+                        } else break; 
+                    }
+                }
+            } else { // Single Array
+                if (state.tempNodeIdx !== null) {
+                    let tN = state.nodes[state.tempNodeIdx];
+                    html += `<div class="ll-node-wrapper flip-item" data-id="wrapper-single-${state.tempNodeIdx}" data-node-id="${state.tempNodeIdx}"><div class="ll-node ${state.highlights[`node${state.tempNodeIdx}`]||''}"><div class="ll-val">${tN.val}</div><div class="ll-next ${tN.nxt===-1?'null-ptr':''}">${tN.nxt===-1?'∅':(tN.nxt===""?" ":"•")}</div></div><div class="ll-node-idx">[${state.tempNodeIdx}]</div></div><div class="css-arrow-container" style="opacity:0;"></div>`;
+                }
+                if (state.fadingNodeIdx !== undefined && state.fadingNodeIdx !== null) {
+                    let fN = state.nodes[state.fadingNodeIdx];
+                    html += `<div class="ll-node-wrapper node-fade-out flip-item" data-id="wrapper-single-${state.fadingNodeIdx}" data-node-id="${state.fadingNodeIdx}"><div class="pointer-flip-wrapper"><div class="pointer-container" style="opacity:0;"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div><div class="ll-node deleted"><div class="ll-val">${fN.val}</div><div class="ll-next ${fN.nxt===-1?'null-ptr':''}">${fN.nxt===-1?'∅':'•'}</div></div><div class="ll-node-idx">[${state.fadingNodeIdx}]</div></div><div class="css-arrow-container arrow-fade-out"><div class="css-arrow"></div></div>`;
+                }
+                let curr = state.head; let count = 0;
+                if (curr === -1) {
+                    html += `<div class="ll-node-wrapper"><div class="pointer-flip-wrapper flip-item" data-id="head-pointer"><div class="pointer-container"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div><div class="ll-node" style="border-color:transparent; background:transparent; box-shadow:none;"><div class="ll-val" style="border:none; color:#94a3b8; font-size: 20px; width: 30px;">∅</div></div></div>`;
+                } else {
+                    while (curr !== -1 && count < 6) {
+                        let node = state.nodes[curr];
+                        let ptrHtml = count === 0 ? `<div class="pointer-flip-wrapper flip-item" data-id="head-pointer"><div class="pointer-container"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div>` : `<div class="pointer-flip-wrapper"><div class="pointer-container" style="opacity: 0;"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div>`;
+                        html += `<div class="ll-node-wrapper flip-item" data-id="wrapper-single-${curr}" data-node-id="${curr}">${ptrHtml}<div class="ll-node ${state.highlights[`node${curr}`]||''}"><div class="ll-val">${node.val}</div><div class="ll-next ${node.nxt===-1?'null-ptr':''}">${node.nxt===-1?'∅':'•'}</div></div><div class="ll-node-idx">[${curr}]</div></div>`;
+                        let isFresh = (count === 0 && state.triggerAnim);
+                        html += `<div class="css-arrow-container flip-item" data-id="arrow-single-${curr}"><div class="css-arrow ${isFresh?'anim-draw':'active'}" style="${isFresh?'animation-delay:0.1s':''}"></div></div>`;
+                        if (node.nxt === -1) html += `<div class="ll-node-wrapper"><div class="pointer-flip-wrapper"><div class="pointer-container" style="opacity: 0;"><div class="pointer-label">head</div><div class="pointer-arrow"></div></div></div><div class="ll-node" style="border-color:transparent; background:transparent; box-shadow:none;"><div class="ll-val" style="border:none; color:#94a3b8; font-size: 20px; width: 30px;">∅</div></div></div>`;
+                        curr = node.nxt; count++;
+                    }
+                }
+            } 
+            logicalList.innerHTML = html;
+
+            // 绝对定位幽灵节点 (双链表专用)
+            if (isDouble && state.fadingNodeIdx !== undefined && state.fadingNodeIdx !== null) {
+                let fN = state.nodes[state.fadingNodeIdx];
+                logicalList.innerHTML += `<div id="ghost-node" class="ll-node-wrapper node-fade-out" style="position: absolute; z-index: 0; left: 0; top: 0;"><div class="ll-node double deleted"><div class="ll-prev">${fN.l}</div><div class="ll-val">${fN.val}</div><div class="ll-next">${fN.r}</div></div><div class="ll-node-idx">[${state.fadingNodeIdx}]</div></div>`;
+            }
+
+            // SVG 曲线 (数组模式特供)
+            let svgLinks = state.svgLinks || [];
+            if (svgLinks.length > 0) {
+                let startTime = performance.now();
+                function drawArrayFrame(now) {
+                    let activePaths = 0;
+                    svgLinks.forEach((link, idx) => {
+                        let pathEl = document.getElementById(`svg-path-${idx}`); if (!pathEl) return;
+                        let startEl = document.querySelector(`#logical-list .ll-node-wrapper[data-node-id="${link.from}"] .ll-node`);
+                        let endEl = document.querySelector(`#logical-list .ll-node-wrapper[data-node-id="${link.to}"] .ll-node`);
+                        if (startEl && endEl) {
+                            const cRect = document.getElementById('chart-container').getBoundingClientRect();
+                            const sRect = startEl.getBoundingClientRect(); const eRect = endEl.getBoundingClientRect();
+                            let sX, sY, eX, eY, cp1X, cp1Y, cp2X, cp2Y;
+                            if (link.type === 'arc-bottom') {
+                                sX = sRect.left + sRect.width/4 - cRect.left; sY = sRect.bottom - cRect.top;
+                                eX = eRect.left + 3*eRect.width/4 - cRect.left; eY = eRect.bottom - cRect.top;
+                                cp1X = sX; cp1Y = sY+60; cp2X = eX; cp2Y = eY+60;
+                            } else if (link.type === 'arc-top') {
+                                sX = sRect.left + 3*sRect.width/4 - cRect.left; sY = sRect.top - cRect.top;
+                                eX = eRect.left + eRect.width/4 - cRect.left; eY = eRect.top - cRect.top;
+                                cp1X = sX; cp1Y = sY-60; cp2X = eX; cp2Y = eY-60;
+                            } else if (link.type === 'temp-out-left') {
+                                sX = sRect.left + sRect.width/4 - cRect.left; sY = sRect.top - cRect.top;
+                                eX = eRect.left + eRect.width/2 - cRect.left; eY = eRect.top - cRect.top;
+                                cp1X = sX-30; cp1Y = sY-50; cp2X = eX+30; cp2Y = eY-50;
+                            } else if (link.type === 'temp-out-right') {
+                                sX = sRect.left + 3*sRect.width/4 - cRect.left; sY = sRect.bottom - cRect.top;
+                                eX = eRect.left + eRect.width/2 - cRect.left; eY = eRect.bottom - cRect.top;
+                                cp1X = sX+30; cp1Y = sY+50; cp2X = eX-30; cp2Y = eY+50;
+                            }
+                            pathEl.setAttribute('d', `M ${sX} ${sY} C ${cp1X} ${cp1Y}, ${cp2X} ${cp2Y}, ${eX} ${eY}`);
+                            pathEl.style.opacity = '1';
+                            if (link.double) pathEl.setAttribute('marker-start', `url(#marker-${link.color}-start)`); else pathEl.removeAttribute('marker-start');
+                            pathEl.setAttribute('marker-end', `url(#marker-${link.color})`);
+                            pathEl.style.stroke = `var(--neon-${link.color})`; pathEl.setAttribute('filter', `url(#glow-${link.color})`);
+                            activePaths++;
+                        }
+                    });
+                    if (now - startTime < 1000 && activePaths > 0) window.svgAnimFrame = requestAnimationFrame(drawArrayFrame);
+                }
+                window.svgAnimFrame = requestAnimationFrame(drawArrayFrame);
+            }
+        }
+
+        // ================= FLIP 全局平滑收缩动画 =================
+        const activeContainer = document.querySelector(`#chart-container > div:not([style*="display: none"])`);
+        if (activeContainer) {
+            activeContainer.offsetWidth; 
+            requestAnimationFrame(() => {
+                if (state.type === 'array' && currentAlgoKey === 'double' && state.fadingNodeIdx !== undefined) {
+                    let gNode = document.getElementById('ghost-node'); let oldNodePos = oldPositions[`wrapper-${state.fadingNodeIdx}`];
+                    const cRect = activeContainer.getBoundingClientRect();
+                    if (gNode && oldNodePos) { gNode.style.left = (oldNodePos.x - cRect.left) + 'px'; gNode.style.top = (oldNodePos.y - cRect.top) + 'px'; }
+                }
+
+                document.querySelectorAll('.flip-item').forEach(el => {
+                    const oldPos = oldPositions[el.dataset.id];
+                    if (oldPos) {
+                        const newPos = el.getBoundingClientRect();
+                        const dX = oldPos.x - newPos.left; const dY = oldPos.y - newPos.top;
+                        if (Math.abs(dX) > 0.5 || Math.abs(dY) > 0.5) {
+                            el.style.transition = 'none'; el.style.transform = `translate(${dX}px, ${dY}px)`; el.offsetHeight; 
+                            el.style.transition = 'transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)'; el.style.transform = 'translate(0, 0)';
+                        }
+                    }
+                });
+            });
+        }
+
+        // ================= 代码高亮 & 描述更新 =================
+        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight'));
+        if (state.line) { const lineEl = document.getElementById(`line-${state.line}`); if(lineEl) { lineEl.classList.add('highlight'); lineEl.scrollIntoView({ behavior: "smooth", block: "center" }); } }
+        document.getElementById('step-desc').innerHTML = state.desc; document.getElementById('btn-prev').disabled = (index === 0); document.getElementById('btn-next').disabled = (index === states.length - 1);
+    }
+    
+    function step(direction) { let targetIndex = currentStateIndex + direction; if (targetIndex >= 0 && targetIndex < states.length) { currentStateIndex = targetIndex; renderState(currentStateIndex); } }
+    function reset() { currentStateIndex = 0; renderState(currentStateIndex); }
+    
+    // ================= 算法切换核心 =================
+    function changeAlgorithm() { 
+        currentAlgoKey = document.getElementById('algo-select').value; 
+        let algoData = ALGORITHMS[currentAlgoKey];
+        document.getElementById('code-title').innerText = algoData.title; 
+        document.getElementById('step-title').innerText = algoData.stepTitle;
+        document.getElementById('logic-title').innerText = algoData.logicTitle;
+        document.getElementById('logic-content').innerHTML = algoData.logic; 
+        
+        // 彻底清空各个视图内的元素，防止遗留的翻页动画错乱
+        document.getElementById('main-list').innerHTML = '';
+        document.getElementById('temp-list').innerHTML = '';
+        document.getElementById('logical-list').innerHTML = '';
+        document.getElementById('array-list').innerHTML = '';
+
+        renderCode(algoData.code); 
+        algoData.run(); 
+        reset(); 
+    }
+
+    window.onload = () => { changeAlgorithm(); };
+</script>
+</body>
+</html>

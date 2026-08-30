@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>白学在线 - 栈与队列全景演练 (统一框架版)</title>
+    <style>
+        :root {
+            /* 完美继承海洋蓝明亮主题与全景版变量 */
+            --primary-color: #0284c7;
+            --secondary-color: #0ea5e9;
+            --neon-blue: #0ea5e9;
+            --neon-orange: #f59e0b;
+            --neon-red: #ef4444;
+            --neon-green: #10b981;
+            --neon-purple: #8b5cf6;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --pointer-red: #ef4444;
+            --pointer-blue: #3b82f6;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            color: var(--text-main);
+            margin: 0; padding: 0; 
+            height: 100vh; overflow: hidden; 
+            user-select: none;
+        }
+
+        .wrapper { display: flex; justify-content: center; padding: 16px 24px 20px 24px; height: 100%; width: 100%; }
+        .main-container { max-width: 1600px; width: 100%; height: 100%; display: flex; flex-direction: column; gap: 16px; position: relative; z-index: 1; }
+        .glass-card { background: var(--bg-glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 16px; box-shadow: 0 8px 24px rgba(31, 38, 135, 0.08); }
+
+        /* 顶部标题栏 */
+        .header-card {
+            flex: 0 0 auto; background: linear-gradient(135deg, rgba(2, 132, 199, 0.95), rgba(14, 165, 233, 0.95));
+            color: white; padding: 12px 24px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .header-text span { font-size: 14px; font-weight: 400; opacity: 0.9; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 100px;}
+        
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .algo-selector {
+            background: transparent; border: 2px solid rgba(255, 255, 255, 0.6);
+            color: white; padding: 8px 16px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; outline: none;
+            appearance: none; padding-right: 35px;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 12px auto; transition: 0.3s;
+        }
+        .algo-selector option { color: #333; background: white; }
+        .algo-selector:hover { border-color: white; background: rgba(255,255,255,0.1); }
+        .fullscreen-btn { background: transparent; border: 2px solid rgba(255, 255, 255, 0.6); color: white; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+        .fullscreen-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: white; }
+
+        /* 左侧 IDE 代码区 */
+        .content-wrapper { display: flex; flex: 1; gap: 16px; min-height: 0; }
+        .left-panel { flex: 0 0 38%; min-width: 380px; display: flex; flex-direction: column; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+        .code-window { background-color: #1e1e1e; border-radius: 16px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
+        .code-header { background-color: #2d2d2d; padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto;}
+        .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .mac-dot.red { background-color: #ef4444; } .mac-dot.yellow { background-color: #f59e0b; } .mac-dot.green { background-color: #10b981; }
+        .code-title { margin-left: 10px; color: #858585; font-size: 13px; font-family: sans-serif; }
+        .code-card { flex: 1; overflow-y: auto; color: #d4d4d4; font-family: "Consolas", monospace; font-size: 14.5px; line-height: 1.6; padding: 15px 0; scroll-behavior: smooth; counter-reset: line-number;}
+        .code-line { padding: 2px 20px 2px 55px; border-left: 4px solid transparent; white-space: pre; transition: background 0.2s; position: relative; }
+        .code-line.highlight { background-color: rgba(245, 158, 11, 0.15); border-left-color: var(--neon-orange); color: #ffffff; }
+        .code-line::before { counter-increment: line-number; content: counter(line-number); position: absolute; left: 4px; top: 0; bottom: 0; width: 35px; text-align: right; color: #475569; font-size: 13px; padding-top: 2px; border-right: 1px solid #334155; padding-right: 8px; }
+        .code-comment { color: #6A9955; } .code-number { color: #b5cea8; } .code-keyword { color: #c586c0; } .code-variable { color: #9cdcfe; }
+
+        /* 右侧 核心布局 */
+        .visual-card { flex: 0.62; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 15px 20px; position: relative;}
+        .fs-layout { display: flex; flex-direction: row; width: 100%; flex: 1; border-bottom: 2px dashed #cbd5e1; margin-bottom: 10px; padding: 0 10px 15px 10px; min-height: 0; }
+        .fs-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; position: relative; min-width: 0; overflow-y: auto; overflow-x: hidden; padding-top: 10px;}
+
+        /* 指令流 */
+        .fs-sidebar { flex: 0 0 190px; width: 190px; display: flex; flex-direction: column; align-items: center; gap: 10px; border-left: 2px dashed #cbd5e1; margin-left: 10px; padding-left: 10px; padding-right: 5px; justify-content: flex-start; height: 100%; overflow-y: auto; box-sizing: border-box; }
+        .sidebar-title { font-family: Consolas; font-weight: bold; color: var(--primary-color); font-size: 16px; margin-bottom: 5px; text-align: center; border-bottom: 2px solid var(--primary-color); padding-bottom: 8px; width: 100%; }
+        .sidebar-list { width: 100%; display: flex; flex-direction: column; gap: 10px; padding-top: 4px; padding-bottom: 20px; overflow-x: hidden; }
+        .sidebar-item { width: 100%; padding: 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-family: Consolas; font-weight: bold; transition: all 0.3s; position: relative; background: rgba(255,255,255,0.5); font-size: 13px; word-break: break-all; text-align: center; color: var(--text-muted); }
+        .sidebar-item.active { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.1); color: var(--neon-orange); transform: translateX(-6px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.2); }
+        .sidebar-item.active::before { content: '▶'; position: absolute; left: -16px; color: var(--neon-orange); font-size: 14px; top: 50%; transform: translateY(-50%); }
+
+        /* 画布区域：容器和数组池 */
+        .graph-area { flex: 0 0 200px; width: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; margin-bottom: 15px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 10px; padding-top: 15px; transition: all 0.3s;}
+        .graph-title { position:absolute; top: 10px; left: 10px; font-family: Consolas; font-weight: bold; font-size: 12px; color: var(--primary-color); }
+        
+        /* 栈容器 (垂直U型) */
+        .stack-container { display: flex; flex-direction: column-reverse; width: 120px; height: 180px; border: 4px solid var(--neon-blue); border-top: none; border-radius: 0 0 12px 12px; background: rgba(14, 165, 233, 0.05); position: relative; padding: 8px; gap: 6px; box-shadow: 0 8px 24px rgba(14, 165, 233, 0.15); transition: all 0.5s; z-index: 2;}
+        
+
+        /* 队列容器 (水平管子变身为带固定栅格的物理内存槽) */
+        .queue-container { 
+            display: flex; flex-direction: row; height: 90px; width: 320px; /* 固定整体宽度 */
+            border: 4px solid var(--neon-purple); border-left: none; border-right: none; 
+            background: rgba(139, 92, 246, 0.05); position: relative; padding: 0; 
+            align-items: center; box-shadow: 0 8px 24px rgba(139, 92, 246, 0.15); 
+            transition: all 0.5s; overflow: visible; z-index: 2;
+        }
+
+        /* 新增：队列内部固定的物理格子 */
+        .queue-slot {
+            flex: 1; height: 100%; border-right: 2px solid rgba(139, 92, 246, 0.3);
+            display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .queue-slot:last-child { border-right: none; }
+
+        /* 调整队列内节点的大小，使其完美嵌入格子中 */
+        .stack-container .ds-node { height: 40px; width: 100%; border-color: var(--neon-blue); }
+        .queue-container .ds-node { height: 75%; width: 75%; flex-shrink: 0; border-color: var(--neon-purple); }
+
+
+
+        /* 数据节点 */
+        .ds-node { display: flex; align-items: center; justify-content: center; background: white; border: 2px solid var(--neon-blue); border-radius: 8px; font-family: "Consolas", monospace; font-size: 20px; font-weight: 800; color: var(--text-main); box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 5; position: relative; }
+        .stack-container .ds-node { height: 40px; width: 100%; border-color: var(--neon-blue); }
+        .queue-container .ds-node { height: 85%; width: 55px; flex-shrink: 0; border-color: var(--neon-purple); }
+
+        /* 动画类 */
+        .node-enter-stack { animation: dropIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .node-exit-stack { animation: popOutStack 0.5s ease-in forwards; }
+        .node-enter-queue { animation: slideInQueue 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+        .node-exit-queue { animation: popOutQueue 0.5s ease-in forwards; }
+        .node-ghost { opacity: 0.3; filter: grayscale(1); border-style: dashed; }
+
+        @keyframes dropIn { from { opacity: 0; transform: translateY(-80px) scale(0.8); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes popOutStack { to { opacity: 0; transform: translateY(-80px) scale(0.8); } }
+        @keyframes slideInQueue { from { opacity: 0; transform: translateX(80px) scale(0.8); } to { opacity: 1; transform: translateX(0) scale(1); } }
+        @keyframes popOutQueue { to { opacity: 0; transform: translateX(-80px) scale(0.8); } }
+
+        /* 指针标签 */
+        .ptr-label { position: absolute; font-family: "Consolas", monospace; font-weight: 800; font-size: 13px; color: white; padding: 2px 8px; border-radius: 6px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); z-index: 10; display: flex; flex-direction: column; align-items: center; gap: 4px; white-space: nowrap;}
+        .ptr-tt { background-color: var(--pointer-red); border: 2px solid var(--pointer-red);}
+        .ptr-hh { background-color: var(--neon-green); border: 2px solid var(--neon-green);}
+        
+        /* 三角小箭头 (控制附着方向) */
+        .ptr-tt.side-arrow::before { content: ''; position: absolute; left: -8px; top: 50%; transform: translateY(-50%); border-top: 5px solid transparent; border-bottom: 5px solid transparent; border-right: 6px solid var(--pointer-red); }
+        .ptr-tt.down-arrow::after { content: ''; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--pointer-red); }
+        .ptr-hh.up-arrow::before { content: ''; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid var(--neon-green); }
+
+        /* 静态数组区域 */
+        .vars-area { display: flex; justify-content: center; align-items: center; gap: 40px; margin-bottom: 25px; }
+        .var-group { display: flex; flex-direction: column; align-items: center; position: relative; }
+        .var-box { width: 70px; height: 50px; background: rgba(139, 92, 246, 0.05); border: 2px solid var(--neon-purple); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; color: var(--text-main); transition: all 0.3s; box-shadow: 0 4px 10px rgba(139, 92, 246, 0.15); }
+        .var-label { margin-top: 8px; font-size: 14px; font-family: Consolas; font-weight: bold; color: var(--neon-purple); background: rgba(255,255,255,0.8); padding: 2px 10px; border-radius: 10px;}
+
+        .edges-area { display: flex; flex-direction: column; justify-content: center; align-items: center; width: 100%;}
+        .array-title { font-family: Consolas; font-weight: bold; font-size: 16px; color: var(--primary-color); margin-bottom: 10px;}
+        .edge-list { display: flex; gap: 15px; flex-wrap: wrap; justify-content: center;}
+        
+        .edge-struct { display: flex; flex-direction: column; background: rgba(14, 165, 233, 0.04); border: 2px solid var(--neon-blue); border-radius: 10px; padding: 6px 8px; box-shadow: 0 4px 12px rgba(14, 165, 233, 0.12); transition: all 0.3s; width: 75px; position: relative; }
+        .edge-struct.empty { border: 2px dashed #94a3b8; background: transparent; box-shadow: none; opacity: 0.6; }
+        .edge-struct.deleted { opacity: 0.4; filter: grayscale(1); }
+        .edge-struct-index { text-align: center; font-family: Consolas; font-size: 13px; font-weight: bold; color: var(--neon-blue); margin-bottom: 6px; border-bottom: 1px dashed var(--neon-blue); padding-bottom: 4px;}
+        .edge-struct.empty .edge-struct-index { border-color: #94a3b8; color: #64748b; }
+        .edge-field { display: flex; justify-content: space-between; font-family: Consolas; font-size: 15px; margin-bottom: 4px; }
+        .edge-field span { color: #64748b; font-weight: bold; }
+        .edge-field .val { color: var(--text-main); font-weight: bold; transition: color 0.3s; }
+
+        .control-panel { display: flex; gap: 16px; background: rgba(255, 255, 255, 0.9); padding: 10px 24px; border-radius: 100px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 5px; border: 2px solid #e2e8f0; }
+        .btn { padding: 8px 28px; font-size: 15px; font-weight: 700; border-radius: 100px; cursor: pointer; transition: all 0.2s ease; background: transparent; }
+        .btn-primary { border: 2px solid var(--neon-blue); color: var(--neon-blue); }
+        .btn-primary:hover { background: var(--neon-blue); color: white; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
+        .btn-secondary { border: 2px solid #94a3b8; color: #64748b; }
+        .btn-secondary:hover { background: #f1f5f9; color: #334155; border-color: #64748b; }
+        .btn:disabled { border-color: #cbd5e1; color: #cbd5e1; cursor: not-allowed; background: transparent; box-shadow: none; }
+
+        /* 下部解析区 */
+        .explanation-row { flex: 0.38; display: flex; gap: 16px; width: 100%; min-height: 0; }
+        .step-box { background: rgba(255, 255, 255, 0.8); border: 2px solid var(--neon-blue); padding: 16px 20px; border-radius: 12px; flex: 0 0 35%; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); overflow-y: auto;}
+        .step-box h4 { margin: 0 0 6px 0; color: var(--neon-blue); font-size: 16px; }
+        .step-box p { margin: 0; font-size: 14.5px; line-height: 1.6; font-weight: 600; color: #1e293b;}
+        .logic-box { background: rgba(255, 255, 255, 0.6); border: 1px solid #cbd5e1; padding: 16px 20px; border-radius: 12px; flex: 1; overflow-y: auto;}
+        .logic-box h3 { margin: 0 0 8px 0; font-size: 16px; border-bottom: 2px dashed #cbd5e1; padding-bottom: 6px; }
+        .logic-box div { font-size: 14.5px; color: #334155; line-height: 1.8; }
+        code { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); padding: 2px 6px; border-radius: 4px; font-family: "Consolas", monospace; font-weight: bold;}
+
+        /* 白板系统 */
+        #draw-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
+        #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
+        #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
+        .draw-toolbar { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 100px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; display: flex; flex-direction: row; align-items: center; gap: 10px; width: max-content; transition: all 0.3s; }
+        .tool-btn { background: none; border: 2px solid transparent; font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer; padding: 6px 14px; border-radius: 100px; display: flex; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap;}
+        .tool-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .tool-btn.active { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
+        .color-dot { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s;}
+        .color-dot:hover { transform: scale(1.2); } .color-dot.active { border-color: #1e293b; transform: scale(1.2); }
+        .draw-tools-panel { display: none; flex-direction: row; align-items: center; gap: 12px; border-left: 2px solid #e2e8f0; padding-left: 12px; margin-left: 2px; }
+        .draw-tools-panel.show { display: flex; }
+        
+        /* 高亮工具类 */
+        .highlight-write { border-color: var(--neon-orange) !important; background: rgba(245, 158, 11, 0.1) !important; transform: translateY(-4px); box-shadow: 0 8px 15px rgba(245, 158, 11, 0.25) !important; }
+        .highlight-write .val { color: var(--neon-orange) !important; }
+        .highlight-read { border-color: var(--neon-green) !important; background: rgba(16, 185, 129, 0.1) !important; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.25) !important; }
+    </style>
+</head>
+<body>
+
+<canvas id="draw-canvas"></canvas>
+
+<div class="draw-toolbar">
+    <button class="tool-btn" id="toggle-draw-btn" onclick="toggleDrawingMode()">🖌️ 开启白板 (Ctrl+Z)</button>
+    <div class="draw-tools-panel" id="draw-tools-panel">
+        <div class="color-dot active tool-item" style="background: #ef4444;" onclick="setBrushMode(this, 'draw', '#ef4444')"></div>
+        <div class="color-dot tool-item" style="background: #0ea5e9;" onclick="setBrushMode(this, 'draw', '#0ea5e9')"></div>
+        <div class="color-dot tool-item" style="background: #10b981;" onclick="setBrushMode(this, 'draw', '#10b981')"></div>
+        <button class="tool-btn tool-item" style="color: #f59e0b;" onclick="setBrushMode(this, 'erase')">🧽 橡皮</button>
+        <button class="tool-btn" onclick="undoDraw()">↩️ 撤销</button>
+        <button class="tool-btn" style="color: #ef4444; border-color: #fca5a5;" onclick="clearCanvas()">🗑️ 清屏</button>
+    </div>
+</div>
+
+<div class="wrapper">
+    <div class="main-container">
+        <div class="header-card">
+            <div class="header-text">
+                <h1>✨ 白学在线 - 数据结构全景演练 <span>栈与队列 (Stack & Queue)</span></h1>
+            </div>
+            <div class="header-controls">
+                <select class="algo-selector" id="algo-select" onchange="changeAlgorithm()">
+                    <option value="stack">静态数组栈 (Array Stack LIFO)</option>
+                    <option value="queue">普通队列 (Array Queue FIFO)</option>
+                    <option value="circular">循环队列 (Circular Queue)</option> </select>
+                </select>
+                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            <div class="left-panel">
+                <div class="code-window">
+                    <div class="code-header">
+                        <div class="mac-dot red"></div><div class="mac-dot yellow"></div><div class="mac-dot green"></div>
+                        <span class="code-title" id="code-title">array_stack.cpp</span>
+                    </div>
+                    <div class="code-card" id="code-content"></div>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="glass-card visual-card">
+                    <div class="fs-layout">
+                        <div class="fs-main">
+                            <div class="graph-area" id="chart-container">
+                                </div>
+                            
+                            <div class="vars-area" id="vars-area">
+                                </div>
+
+                            <div class="edges-area" id="edges-area">
+                                <div class="array-title" id="array-title-text">静态物理内存池 stk[N]</div>
+                                <div class="edge-list" id="array-list">
+                                    </div>
+                            </div>
+                        </div>
+
+                        <div class="fs-sidebar" id="sidebar-panel">
+                            <div class="sidebar-title">指令流</div>
+                            <div class="sidebar-list" id="sidebar-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-panel">
+                        <button class="btn btn-secondary" id="btn-prev" onclick="step(-1)">← 上一步</button>
+                        <button class="btn btn-secondary" id="btn-reset" onclick="reset()">重置状态</button>
+                        <button class="btn btn-primary" id="btn-next" onclick="step(1)">下一步 →</button>
+                    </div>
+                </div>
+
+                <div class="explanation-row">
+                    <div class="step-box">
+                        <h4 id="step-title">实时追踪</h4>
+                        <p id="step-desc">点击“下一步”启动程序单步调试模拟。</p>
+                    </div>
+                    <div class="logic-box">
+                        <h3 id="logic-title">💡 核心解析</h3>
+                        <div id="logic-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ================= 全屏与白板系统 =================
+    function toggleFullScreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
+    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; });
+    
+    window.addEventListener('keydown', (e) => { 
+        if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); 
+        else if (e.key === 'ArrowLeft') document.getElementById('btn-prev').click(); 
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'z')) {
+            if (isDrawingMode) { e.preventDefault(); undoDraw(); }
+        }
+    });
+
+    const canvas = document.getElementById('draw-canvas'); const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let isDrawingMode = false; let isDrawing = false; let currentMode = 'draw'; let drawHistory = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; if(drawHistory.length === 0) saveDrawState(); }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function toggleDrawingMode() { isDrawingMode = !isDrawingMode; const btn = document.getElementById('toggle-draw-btn'); const panel = document.getElementById('draw-tools-panel'); if (isDrawingMode) { canvas.className = currentMode === 'erase' ? 'eraser-mode' : 'drawing-mode'; btn.classList.add('active'); btn.innerHTML = "❌ 退出白板"; panel.classList.add('show'); } else { canvas.className = ''; btn.classList.remove('active'); btn.innerHTML = "🖌️ 开启白板 (Ctrl+Z)"; panel.classList.remove('show'); } }
+    function setBrushMode(element, mode, color = null) { currentMode = mode; document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active')); element.classList.add('active'); if (mode === 'erase') { canvas.className = 'eraser-mode'; ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 30; } else { canvas.className = 'drawing-mode'; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 4; if (color) ctx.strokeStyle = color; } }
+    function saveDrawState() { if (drawHistory.length > 20) drawHistory.shift(); drawHistory.push(canvas.toDataURL()); }
+    function undoDraw() { if (drawHistory.length > 1) { drawHistory.pop(); let img = new Image(); img.src = drawHistory[drawHistory.length - 1]; img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); let prevMode = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(img, 0, 0); ctx.globalCompositeOperation = prevMode; }; } else if (drawHistory.length === 1) clearCanvas(); }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); drawHistory = []; saveDrawState(); }
+
+    canvas.addEventListener('mousedown', (e) => { if (!isDrawingMode) return; isDrawing = true; ctx.beginPath(); ctx.moveTo(e.clientX, e.clientY); });
+    canvas.addEventListener('mousemove', (e) => { if (!isDrawing || !isDrawingMode) return; ctx.lineTo(e.clientX, e.clientY); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => { if (isDrawing) { isDrawing = false; saveDrawState(); } });
+
+
+    // ================= 核心算法引擎与状态流 =================
+    const ALGORITHMS = {
+        stack: {
+            title: "array_stack.cpp",
+            stepTitle: "栈内存联动",
+            logicTitle: "💡 核心底层逻辑与考点提炼",
+            logic: "<b>栈 (Stack) 核心机制：</b><br>1. <b>后进先出 (LIFO)：</b>像一口深井，最后扔进去的砖头，必须最先拿出来。<br>2. <b>游标充当指针：</b><code>tt</code> 表示栈顶，通常初始 <code>tt=0</code> 表示空栈，元素存放在 <code>1 ~ N</code>。<br>3. <b>判空与判满：</b><code>tt == 0</code> 为空，<code>tt == N</code> 为满。<br>4. <b>物理内存覆盖：</b>执行 <code>pop()</code> 时仅仅是 <code>tt--</code>，旧数据依然留在物理数组中，直到下一次 push 时被直接覆盖！",
+            inputCmds: ["init()", "isEmpty()", "push(10)", "push(20)", "push(30)", "pop()", "push(40)"],
+            code: [
+                "// 静态数组模拟栈 (AcWing 模板)",
+                "const int N = 100010;",
+                "int stk[N];",
+                "int tt = 0; // 栈顶指针",
+                "",
+                "// 1. 压入元素",
+                "void push(int x) { stk[++tt] = x; }",
+                "",
+                "// 2. 弹出元素",
+                "void pop() { if (tt > 0) tt--; }",
+                "",
+                "// 3. 判空",
+                "bool isEmpty() { return tt == 0; }",
+                "",
+                "// 4. 获取栈顶",
+                "int top() { return stk[tt]; }"
+            ],
+            run: function() {
+                states = []; let logicData = []; let memory = [null, null, null, null, null]; let ttVal = 0;
+                
+                states.push({ activeCmd: 0, tt: 0, hh: null, logicData: [], memory: [...memory], highlights: {}, line: 4, desc: "【初始化】 栈顶指针 <code>tt = 0</code>。" });
+                
+                states.push({ activeCmd: 1, tt: 0, hh: null, logicData: [], memory: [...memory], highlights: {'var-tt':'highlight-read'}, line: 13, desc: `【判空】 执行 <code>isEmpty()</code>：<br>此时 <code>tt == 0</code> 成立，返回 true，栈为空。` });
+
+                ttVal = 1; memory[1] = {val: 10, isGhost: false}; logicData.push({val: 10, state: 'fresh'});
+                states.push({ activeCmd: 2, tt: 1, hh: null, logicData: JSON.parse(JSON.stringify(logicData)), memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem1':'highlight-write'}, line: 7, desc: `执行 <code>push(10)</code>：<code>++tt</code> 后存入 stk[1]。` });
+                logicData[logicData.length-1].state = 'normal';
+
+                ttVal = 2; memory[2] = {val: 20, isGhost: false}; logicData.push({val: 20, state: 'fresh'});
+                states.push({ activeCmd: 3, tt: 2, hh: null, logicData: JSON.parse(JSON.stringify(logicData)), memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem2':'highlight-write'}, line: 7, desc: `执行 <code>push(20)</code>：新元素压入栈顶。` });
+                logicData[logicData.length-1].state = 'normal';
+
+                ttVal = 3; memory[3] = {val: 30, isGhost: false}; logicData.push({val: 30, state: 'fresh'});
+                states.push({ activeCmd: 4, tt: 3, hh: null, logicData: JSON.parse(JSON.stringify(logicData)), memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem3':'highlight-write'}, line: 7, desc: `执行 <code>push(30)</code>：此时 30 是栈顶。` });
+                logicData[logicData.length-1].state = 'normal';
+
+                logicData[logicData.length-1].state = 'popping'; ttVal = 2; memory[3].isGhost = true; 
+                states.push({ activeCmd: 5, tt: 2, hh: null, logicData: JSON.parse(JSON.stringify(logicData)), memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem3':'highlight-read'}, line: 10, desc: `【出栈】 执行 <code>pop()</code>：<br>指针 <code>tt</code> 下降为 2。stk[3] 中的 30 依然完好无损地留在内存里，变成了幽灵数据！` });
+                logicData.pop(); 
+
+                ttVal = 3; memory[3] = {val: 40, isGhost: false}; logicData.push({val: 40, state: 'fresh'});
+                states.push({ activeCmd: 6, tt: 3, hh: null, logicData: JSON.parse(JSON.stringify(logicData)), memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem3':'highlight-write'}, line: 7, desc: `执行 <code>push(40)</code>：<br>新数据 40 直接在物理内存上覆盖了废弃的 30！` });
+            }
+        },
+
+        queue: {
+            title: "array_queue.cpp",
+            stepTitle: "普通队列联动",
+            logicTitle: "💡 核心底层逻辑与考点提炼",
+            logic: "<b>普通队列 (Queue) 核心边界：</b><br>1. <b>判空：</b>当 <code>hh > tt</code> 时，说明出队指针追上了入队指针，队列为空。<br>2. <b>判满：</b>当 <code>tt == N - 1</code> 时，说明入队指针顶到了数组最右侧边界，物理数组已满。<br>3. <b>假溢出致命伤：</b>此时哪怕我们刚刚 <code>pop()</code> 出去了几个元素，左侧空间空出来了，<code>tt</code> 也无法向右推进了，导致无法继续 <code>push</code>！",
+            inputCmds: ["init()", "isEmpty()", "push(10,20,30)", "push(40)", "isFull()", "pop()", "push(50) 假溢出"],
+            code: [
+                "// 静态数组模拟普通队列",
+                "const int N = 4; // 演示长度为4",
+                "int q[N];",
+                "int hh = 0, tt = -1;",
+                "",
+                "// 1. 入队",
+                "void push(int x) { q[++tt] = x; }",
+                "",
+                "// 2. 出队",
+                "void pop() { hh++; }",
+                "",
+                "// 3. 判空 (重点)",
+                "bool isEmpty() { return hh > tt; }",
+                "",
+                "// 4. 判满 (重点)",
+                "bool isFull() { return tt == N - 1; }"
+            ],
+            run: function() {
+                states = []; let memory = [null, null, null, null]; let hhVal = 0; let ttVal = -1;
+
+                states.push({ activeCmd: 0, tt: -1, hh: 0, memory: [...memory], highlights: {}, line: 4, desc: "【初始化】 <code>hh = 0, tt = -1</code>。", lastPush: null, lastPop: null });
+
+                states.push({ activeCmd: 1, tt: -1, hh: 0, memory: [...memory], highlights: {'var-hh':'highlight-read', 'var-tt':'highlight-read'}, line: 12, desc: `【判空】 执行 <code>isEmpty()</code>：<br>此时 <code>hh (0) > tt (-1)</code>，说明两者指针发生错位，队列为空。`, lastPush: null, lastPop: null });
+
+                ttVal = 2; memory[0] = {val: 10, isGhost: false}; memory[1] = {val: 20, isGhost: false}; memory[2] = {val: 30, isGhost: false};
+                states.push({ activeCmd: 2, tt: 2, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write'}, line: 7, desc: `连续执行三次 <code>push</code>：<br>10, 20, 30 依次入队，<code>tt</code> 移动到下标 2 的位置。`, lastPush: 2, lastPop: null });
+
+                ttVal = 3; memory[3] = {val: 40, isGhost: false}; 
+                states.push({ activeCmd: 3, tt: 3, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem3':'highlight-write'}, line: 7, desc: `执行 <code>push(40)</code>：<br><code>tt</code> 来到了物理数组的最右端边界 (下标3)。`, lastPush: 3, lastPop: null });
+
+                states.push({ activeCmd: 4, tt: 3, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-read'}, line: 15, desc: `【判满】 执行 <code>isFull()</code>：<br>此时 <code>tt == N - 1 (即 3 == 3)</code> 成立，代表物理数组右侧已无空间，队列已满！`, lastPush: null, lastPop: null });
+
+                hhVal = 1; memory[0].isGhost = true; 
+                states.push({ activeCmd: 5, tt: 3, hh: 1, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-hh':'highlight-write', 'mem0':'highlight-read'}, line: 10, desc: `执行 <code>pop()</code>：<br><code>hh</code> 向右收缩为 1。q[0] 空出来了！`, lastPush: null, lastPop: 0 });
+
+                // 假溢出
+                states.push({ activeCmd: 6, tt: 3, hh: 1, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-read'}, line: 7, desc: `【越界报错 (假溢出)】 尝试执行 <code>push(50)</code>：<br>由于 <code>tt</code> 只能向右走，此时继续 <code>++tt</code> 会越界访问 <code>q[4]</code>！<br><span style="color:var(--neon-red);font-weight:bold;">💡 左侧 q[0] 明明是空的却用不了，这就是普通数组队列的致命伤。</span>`, lastPush: null, lastPop: null, isOverflow: true, overflowVal: 50 });
+            }
+        },
+
+        // --- 全新：循环队列 ---
+        circular: {
+            title: "circular_queue.cpp",
+            stepTitle: "循环队列追踪",
+            logicTitle: "💡 核心底层逻辑与考点提炼",
+            logic: "<b>循环队列 (Circular Queue) 边界判断：</b><br>在循环队列中，如果不做处理，<code>hh == tt</code> 既可能是队空，也可能是队满（套圈了）。<br><br><b>神仙解法 (刻意浪费一个空间)：</b><br>1. <b>判空：</b><code>hh == tt</code><br>2. <b>判满：</b>入队指针 <code>tt</code> 的下一个位置如果是 <code>hh</code>，则视为队满。公式：<code>(tt + 1) % N == hh</code>。<br>这样，长度为 N 的数组，最多只能存储 N-1 个元素，完美解决了边界二义性问题！",
+            // ★ 修改点1：拆分指令流，让步骤更细腻
+            inputCmds: ["init()", "isEmpty()", "push(10)", "push(20)", "push(30)", "isFull()", "pop()", "push(40) 取模回绕"],
+            code: [
+                "// 静态数组模拟循环队列 (AcWing 模板)",
+                "const int N = 4; // 演示长度为4，最多存3个元素",
+                "int q[N];",
+                "int hh = 0, tt = 0; // tt 指向下一个空闲位",
+                "",
+                "// 1. 判空 (重点)",
+                "bool isEmpty() { return hh == tt; }",
+                "",
+                "// 2. 判满 (重点：牺牲一个空间)",
+                "bool isFull() { return (tt + 1) % N == hh; }",
+                "",
+                "// 3. 入队",
+                "void push(int x) {",
+                "    q[tt++] = x;",
+                "    if (tt == N) tt = 0; // 取模回绕",
+                "}",
+                "",
+                "// 4. 出队",
+                "void pop() {",
+                "    hh++;",
+                "    if (hh == N) hh = 0;",
+                "}"
+            ],
+            run: function() {
+                states = []; let memory = [null, null, null, null]; let hhVal = 0; let ttVal = 0;
+
+                // 0. init()
+                states.push({ activeCmd: 0, tt: 0, hh: 0, memory: [...memory], highlights: {}, line: 4, desc: "【初始化】 <code>hh = 0, tt = 0</code>。<br>在循环队列中 <code>tt</code> 通常指向的是<b>下一个可用的空闲位置</b>。", lastPush: null, lastPop: null });
+
+                // 1. isEmpty()
+                states.push({ activeCmd: 1, tt: 0, hh: 0, memory: [...memory], highlights: {'var-hh':'highlight-read', 'var-tt':'highlight-read'}, line: 7, desc: `【判空】 执行 <code>isEmpty()</code>：<br>此时 <code>hh == tt</code> (都是0)，队列为空。`, lastPush: null, lastPop: null });
+
+                // 2. push(10) - ★ 修改点2：逐个压入元素
+                memory[0] = {val: 10, isGhost: false}; ttVal = 1;
+                states.push({ activeCmd: 2, tt: 1, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem0':'highlight-write'}, line: 14, desc: `执行 <code>push(10)</code>：<br>数据存入 q[0]，<code>tt</code> 自增指向空闲位 1。`, lastPush: 0, lastPop: null });
+
+                // 3. push(20)
+                memory[1] = {val: 20, isGhost: false}; ttVal = 2;
+                states.push({ activeCmd: 3, tt: 2, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem1':'highlight-write'}, line: 14, desc: `执行 <code>push(20)</code>：<br>数据存入 q[1]，<code>tt</code> 自增指向空闲位 2。`, lastPush: 1, lastPop: null });
+
+                // 4. push(30)
+                memory[2] = {val: 30, isGhost: false}; ttVal = 3;
+                states.push({ activeCmd: 4, tt: 3, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem2':'highlight-write'}, line: 14, desc: `执行 <code>push(30)</code>：<br>数据存入 q[2]，<code>tt</code> 停留在了最后的空闲位 3 上。`, lastPush: 2, lastPop: null });
+
+                // 5. isFull()
+                states.push({ activeCmd: 5, tt: 3, hh: 0, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-hh':'highlight-read', 'var-tt':'highlight-read'}, line: 10, desc: `【判满】 执行 <code>isFull()</code>：<br>套入公式：<code>(tt + 1) % N == hh</code><br>即 <code>(3 + 1) % 4 == 0</code> 成立！<br>说明虽然 <code>q[3]</code> 是空的，但为了防止和 <code>isEmpty</code> 逻辑冲突，我们判定队列<b>已满</b>！`, lastPush: null, lastPop: null });
+
+                // 6. pop()
+                memory[0].isGhost = true; hhVal = 1;
+                states.push({ activeCmd: 6, tt: 3, hh: 1, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-hh':'highlight-write', 'mem0':'highlight-read'}, line: 20, desc: `【出队】 执行 <code>pop()</code>：队头 hh 向右移，q[0] 空出来了！`, lastPush: null, lastPop: 0 });
+
+                // 7. push(40)
+                memory[3] = {val: 40, isGhost: false}; ttVal = 0; 
+                states.push({ activeCmd: 7, tt: 0, hh: 1, memory: JSON.parse(JSON.stringify(memory)), highlights: {'var-tt':'highlight-write', 'mem3':'highlight-write'}, line: 15, desc: `【循环复用】 执行 <code>push(40)</code>：<br>存入 q[3] 后，<code>tt == 4</code> 触发取模回绕，<span style="color:var(--neon-red);font-weight:bold;">tt 瞬间飞回数组开头 0 的位置！</span>完美解决了假溢出！`, lastPush: 3, lastPop: null });
+            }
+        }
+    };
+
+    let states = []; let currentStateIndex = 0; let currentAlgoKey = 'stack';
+    
+    function renderCode(codeLines) {
+        const container = document.getElementById('code-content'); container.innerHTML = '';
+        codeLines.forEach((lineText, idx) => {
+            const div = document.createElement('div'); div.className = 'code-line'; div.id = `line-${idx + 1}`;
+            let html = lineText.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/\b(void|int|const|if|else|return)\b/g, '<span class="code-keyword">$1</span>')
+                .replace(/\b(stk|tt|hh|q|x|N)\b/g, '<span class="code-variable">$1</span>')
+                .replace(/\b(\-1|\d+)\b/g, '<span class="code-number">$1</span>')
+                .replace(/\/\/.*/g, match => `<span class='code-comment'>${match}</span>`);
+            div.innerHTML = html; container.appendChild(div);
+        });
+    }
+
+    function renderState(index) {
+        const state = states[index]; 
+        const isQueue = currentAlgoKey === 'queue' || currentAlgoKey === 'circular';
+
+        // 1. Sidebar Instruction Flow
+        let inputHtml = '';
+        ALGORITHMS[currentAlgoKey].inputCmds.forEach((text, i) => {
+            let activeClass = (state.activeCmd === i) ? 'active' : '';
+            inputHtml += `<div class="sidebar-item ${activeClass}">${i}. ${text}</div>`;
+        });
+        const sidebarList = document.getElementById('sidebar-list'); sidebarList.innerHTML = inputHtml;
+        if(state.activeCmd >= 0 && sidebarList.children[state.activeCmd]) sidebarList.children[state.activeCmd].scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+        // 2. Variables Area
+        const varsArea = document.getElementById('vars-area');
+        if (isQueue) {
+            varsArea.innerHTML = `
+                <div class="var-group"><div class="var-box ${state.highlights['var-hh'] || ''}">${state.hh}</div><div class="var-label">hh</div></div>
+                <div class="var-group"><div class="var-box ${state.highlights['var-tt'] || ''}">${state.tt}</div><div class="var-label">tt</div></div>
+            `;
+        } else {
+            varsArea.innerHTML = `
+                <div class="var-group"><div class="var-box ${state.highlights['var-tt'] || ''}">${state.tt}</div><div class="var-label">tt</div></div>
+            `;
+        }
+
+        // 3. Physical Array Pool
+        document.getElementById('array-title-text').innerText = isQueue ? '静态物理内存池 q[N]' : '静态物理内存池 stk[N]';
+        const arrayList = document.getElementById('array-list'); arrayList.innerHTML = '';
+        
+        let slotCount = isQueue ? 4 : 5; 
+        let startIndex = isQueue ? 0 : 1;
+
+        for (let i = startIndex; i < startIndex + slotCount; i++) {
+            let node = state.memory[i];
+            let boxId = `mem${i}`;
+            let hlClass = state.highlights[boxId] || '';
+            let ghostClass = node && node.isGhost ? 'deleted' : '';
+            let val = node ? node.val : ' ';
+
+            arrayList.innerHTML += `
+            <div class="edge-struct ${hlClass} ${ghostClass}">
+                <div class="edge-struct-index">${isQueue ? 'q' : 'stk'}[${i}]</div>
+                <div class="edge-field" style="justify-content:center"><span class="var-val" style="font-size:20px; margin-top:2px">${val}</span></div>
+            </div>`;
+        }
+
+        // 4. Logical Visual Graph (The Core Animation Fix)
+        const chartContainer = document.getElementById('chart-container');
+        
+        const oldPositions = {};
+        document.querySelectorAll('.flip-item').forEach(el => {
+            const rect = el.getBoundingClientRect();
+            oldPositions[el.dataset.id] = { x: rect.left, y: rect.top };
+        });
+
+        chartContainer.innerHTML = ''; 
+        
+        if (!isQueue) {
+            // ==== Stack Container (Vertical U-Shape) ====
+            chartContainer.className = 'graph-area';
+            let html = `<div class="graph-title">逻辑视角：栈底 (底层) 到 栈顶 (上层)</div><div class="stack-container">`;
+            
+            state.logicData.forEach(item => {
+                let animClass = '';
+                if(item.state === 'fresh') animClass = 'node-enter-stack';
+                if(item.state === 'popping') animClass = 'node-exit-stack';
+                html += `<div class="ds-node ${animClass}">${item.val}</div>`;
+            });
+
+            let bottomPx = 8; 
+            if (state.tt > 0) bottomPx = 8 + (state.tt - 1) * 46 + 10; 
+            
+            html += `
+                <div class="ptr-label ptr-tt side-arrow flip-item" data-id="stack-tt" style="position: absolute; right: -60px; bottom: ${bottomPx}px; flex-direction: row; padding: 4px 8px;">
+                    tt <span style="color:#fca5a5; font-family:sans-serif">[${state.tt}]</span>
+                </div>
+            </div>`;
+            chartContainer.innerHTML = html;
+
+        } else {
+            // ==== Queue Container (Horizontal Pipe with Grids) ====
+            chartContainer.className = 'graph-area';
+            let html = `<div class="graph-title">逻辑视角：出队方 (左侧) <-> 入队方 (右侧)</div><div class="queue-container">`;
+            
+            for (let i = 0; i < 4; i++) {
+                html += `<div class="queue-slot">`;
+                let node = state.memory[i];
+                if (node && !node.isGhost) {
+                    let animClass = (state.lastPush === i) ? 'node-enter-queue' : '';
+                    html += `<div class="ds-node ${animClass}">${node.val}</div>`;
+                } else if (node && node.isGhost && state.lastPop === i) {
+                    html += `<div class="ds-node node-exit-queue">${node.val}</div>`;
+                }
+                html += `</div>`;
+            }
+
+            let slotWidth = 80;
+            let hhLeft = state.hh * slotWidth + 40; 
+            let ttLeft = state.tt * slotWidth + 40;
+            if (state.tt === -1) ttLeft = -20; 
+
+            html += `
+                <div class="ptr-label ptr-hh up-arrow flip-item" data-id="queue-hh" style="position: absolute; left: calc(${hhLeft}px - 22px); bottom: -45px; flex-direction: row; transition: none;">
+                    hh <span style="color:#a7f3d0; font-family:sans-serif">[${state.hh}]</span>
+                </div>
+                <div class="ptr-label ptr-tt down-arrow flip-item" data-id="queue-tt" style="position: absolute; left: calc(${ttLeft}px - 22px); top: -45px; flex-direction: row; transition: none;">
+                    tt <span style="color:#fca5a5; font-family:sans-serif">[${state.tt}]</span>
+                </div>
+            `;
+
+            // ★ 核心修改点：加入假溢出视觉渲染
+            if (state.isOverflow) {
+                // 巧妙利用 overflow: visible，把越界的节点悬浮在管子右侧外部
+                html += `
+                <div class="ds-node node-enter-queue" style="position: absolute; left: calc(${ttLeft + slotWidth}px - 27px); top: 6px; height: 76px; border-color: var(--neon-red); color: var(--neon-red); background: rgba(239, 68, 68, 0.1); border-style: dashed; z-index: 10;">
+                    ${state.overflowVal}
+                    <div style="position: absolute; top: -15px; left: -15px; font-size: 24px; text-shadow: 0 2px 4px rgba(239,68,68,0.4);">❌</div>
+                </div>
+                `;
+            }
+
+            html += `</div>`; // 闭合 queue-container
+            chartContainer.innerHTML = html;
+        }
+
+        // FLIP 引擎接管滑动
+        chartContainer.offsetWidth; 
+        requestAnimationFrame(() => {
+            document.querySelectorAll('.flip-item').forEach(el => {
+                const id = el.dataset.id;
+                const oldPos = oldPositions[id];
+                if (oldPos) {
+                    const newPos = el.getBoundingClientRect();
+                    const deltaX = oldPos.x - newPos.left;
+                    const deltaY = oldPos.y - newPos.top;
+
+                    if (Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5) {
+                        el.style.transition = 'none';
+                        el.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                        el.offsetHeight; 
+                        el.style.transition = 'transform 0.65s cubic-bezier(0.34, 1.56, 0.64, 1)';
+                        el.style.transform = 'translate(0, 0)';
+                    }
+                }
+            });
+        });
+
+        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight'));
+        if (state.line) { const lineEl = document.getElementById(`line-${state.line}`); if(lineEl) { lineEl.classList.add('highlight'); lineEl.scrollIntoView({ behavior: "smooth", block: "center" }); } }
+        document.getElementById('step-desc').innerHTML = state.desc; 
+        document.getElementById('btn-prev').disabled = (index === 0); 
+        document.getElementById('btn-next').disabled = (index === states.length - 1);
+    }
+    
+    function step(direction) { let targetIndex = currentStateIndex + direction; if (targetIndex >= 0 && targetIndex < states.length) { currentStateIndex = targetIndex; renderState(currentStateIndex); } }
+    function reset() { currentStateIndex = 0; renderState(currentStateIndex); }
+    
+    function changeAlgorithm() { 
+        currentAlgoKey = document.getElementById('algo-select').value; 
+        let algoData = ALGORITHMS[currentAlgoKey];
+        document.getElementById('code-title').innerText = algoData.title; 
+        document.getElementById('step-title').innerText = algoData.stepTitle;
+        document.getElementById('logic-title').innerText = algoData.logicTitle;
+        document.getElementById('logic-content').innerHTML = algoData.logic; 
+        
+        document.getElementById('chart-container').innerHTML = '';
+        document.getElementById('array-list').innerHTML = '';
+
+        renderCode(algoData.code); 
+        algoData.run(); 
+        reset(); 
+    }
+
+    window.onload = () => { changeAlgorithm(); };
+</script>
+</body>
+</html>
