@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Code2, Home, Menu, Play, RotateCcw, Search, Sparkles } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Code2, Home as HomeIcon, Menu, Play, RotateCcw, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,7 +59,7 @@ const bubbleSteps = [
 ];
 const code = ['for (int i = 0; i < n - 1; i++) {', '  for (int j = 0; j < n - 1 - i; j++) {', '    if (a[j] > a[j + 1])', '      swap(a[j], a[j + 1]);', '  }', '  // 右侧一个元素已经有序', '}', '// 全部完成'];
 
-export default function Home() {
+export default function AlgorithmMap() {
   const [categoryIndex, setCategoryIndex] = useState(0);
   const [topicIndex, setTopicIndex] = useState(0);
   const [algorithmIndex, setAlgorithmIndex] = useState(0);
@@ -77,7 +77,7 @@ export default function Home() {
       <nav className="border-t border-slate-100"><div className="mx-auto flex max-w-[1550px] overflow-x-auto px-5">{categories.map((item, index) => <button key={item.name} onClick={() => selectCategory(index)} className={`shrink-0 border-b-2 px-4 py-3 text-sm transition ${categoryIndex === index ? 'border-sky-600 font-bold text-sky-700' : 'border-transparent text-slate-600 hover:text-sky-700'}`}>{item.name}</button>)}</div></nav>
     </header>
     <div className="mx-auto grid max-w-[1550px] grid-cols-1 lg:grid-cols-[228px_minmax(0,1fr)]">
-      <aside className="border-b border-slate-200 bg-white lg:min-h-[calc(100vh-101px)] lg:border-b-0 lg:border-r"><div className="px-5 py-6 lg:sticky lg:top-0"><div className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-700"><Home size={15} className="text-sky-600" />{category.name}</div><div className="flex gap-1 overflow-x-auto lg:block lg:space-y-1">{category.topics.map((item, index) => <button key={item.name} onClick={() => selectTopic(index)} className={`shrink-0 rounded-md px-3 py-2 text-left text-sm transition lg:block lg:w-full ${topicIndex === index ? 'bg-sky-50 font-bold text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}>{item.name}</button>)}</div><div className="mt-8 hidden rounded-lg border-l-2 border-sky-500 bg-sky-50 p-3 text-xs leading-5 text-sky-800 lg:block"><b>课堂使用</b><br />先从左侧选择知识点，再在右侧切换具体算法。</div></div></aside>
+      <aside className="border-b border-slate-200 bg-white lg:min-h-[calc(100vh-101px)] lg:border-b-0 lg:border-r"><div className="px-5 py-6 lg:sticky lg:top-0"><div className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-700"><HomeIcon size={15} className="text-sky-600" />{category.name}</div><div className="flex gap-1 overflow-x-auto lg:block lg:space-y-1">{category.topics.map((item, index) => <button key={item.name} onClick={() => selectTopic(index)} className={`shrink-0 rounded-md px-3 py-2 text-left text-sm transition lg:block lg:w-full ${topicIndex === index ? 'bg-sky-50 font-bold text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}>{item.name}</button>)}</div><div className="mt-8 hidden rounded-lg border-l-2 border-sky-500 bg-sky-50 p-3 text-xs leading-5 text-sky-800 lg:block"><b>课堂使用</b><br />先从左侧选择知识点，再在右侧切换具体算法。</div></div></aside>
       <section className="min-w-0 px-5 py-7 lg:px-10"><div className="border-b border-slate-200 pb-5"><p className="text-xs text-slate-400">首页 / {category.name} / {topic.name}</p><div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-3xl font-normal tracking-tight text-slate-800">{topic.name}</h1><p className="mt-3 max-w-3xl leading-7 text-slate-600">{topic.overview}</p></div><Badge variant="outline" className="border-slate-200 text-slate-500">{topic.algorithms.length} 个算法</Badge></div></div>
         <div className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-5">{topic.algorithms.map((item, index) => <button key={item.name} onClick={() => selectAlgorithm(index)} className={`rounded-md border px-3 py-2 text-sm transition ${algorithmIndex === index ? 'border-sky-600 bg-sky-600 font-bold text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`}>{item.name}{item.ready && <span className="ml-1.5 text-[10px] opacity-80">●</span>}</button>)}</div>
         <div className="mt-6 flex items-center gap-2"><Code2 size={18} className="text-sky-600" /><h2 className="text-xl font-bold text-slate-800">{algorithm.name} 可视化</h2></div><p className="mt-2 text-sm text-slate-500">{algorithm.brief}</p>
