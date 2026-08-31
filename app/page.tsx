@@ -12,8 +12,8 @@ type Category = { name: string; topics: Topic[] };
 
 const categories: Category[] = [
   { name: '算法基础', topics: [
-    { name: '排序', overview: '将一组数据按规则重新排列。先理解稳定性、时间复杂度，再比较不同排序的工作过程。', algorithms: [
-      { name: '冒泡排序', brief: '相邻元素比较并交换，大元素逐轮移动到右侧。', demo: 'bubble' }, { name: '选择排序', brief: '每轮从未排序区选出最小元素。' }, { name: '插入排序', brief: '将当前元素插入前方有序区间。' }, { name: '归并排序', brief: '分治排序，在合并时保持顺序。' }, { name: '快速排序', brief: '围绕基准值划分区间。' }, { name: '堆排序', brief: '反复从堆中取出最值。' },
+    { name: '排序', overview: '将一组数据按规则重新排列。教具中可直接切换冒泡、选择、插入、归并、快速、计数与基数排序。', algorithms: [
+      { name: '排序算法演示', brief: '在同一课堂教具中比较七种常见排序的过程、代码与复杂度。', ready: true, lesson: '/lessons/sorting.html' },
     ] },
     { name: '二分', overview: '在单调空间中每次排除一半答案，重点是区间边界与循环不变量。', algorithms: [{ name: '二分查找', brief: '在有序序列中查找目标或插入位置。' }, { name: '二分答案', brief: '将最优化问题转为可行性判定。' }, { name: '实数二分', brief: '在精度范围内逼近连续答案。' }] },
     { name: '前缀和与差分', overview: '将重复区间计算转为一次预处理。', algorithms: [{ name: '一维前缀和', brief: '两次前缀和相减得到区间和。' }, { name: '二维前缀和', brief: '快速统计矩形区域。' }, { name: '差分', brief: '把区间修改压缩为端点修改。' }] },

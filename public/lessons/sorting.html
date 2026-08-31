@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>白学在线 - 排序算法全屏演练</title>
+    <style>
+        :root {
+            --primary-color: #0284c7;
+            --secondary-color: #0ea5e9;
+            --neon-blue: #0ea5e9;
+            --neon-orange: #f59e0b;
+            --neon-red: #ef4444;
+            --neon-green: #10b981;
+            --neon-purple: #8b5cf6;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+            --pointer-red: #ef4444;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
+            color: var(--text-main);
+            margin: 0; padding: 0; 
+            height: 100vh; overflow: hidden; 
+            user-select: none;
+        }
+
+        .wrapper {
+            display: flex; justify-content: center;
+            padding: 16px 24px 20px 24px;
+            height: 100%; width: 100%;
+        }
+
+        .main-container { 
+            max-width: 1600px; width: 100%; height: 100%; 
+            display: flex; flex-direction: column; gap: 16px; 
+            position: relative; z-index: 1; 
+        }
+
+        .glass-card { background: var(--bg-glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 16px; box-shadow: 0 8px 24px rgba(31, 38, 135, 0.08); }
+
+        /* 顶部标题栏 */
+        .header-card {
+            flex: 0 0 auto; background: linear-gradient(135deg, rgba(2, 132, 199, 0.95), rgba(14, 165, 233, 0.95));
+            color: white; padding: 12px 24px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .header-text span { font-size: 14px; font-weight: 400; opacity: 0.9; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 100px;}
+
+        .header-controls { display: flex; align-items: center; gap: 12px; }
+        .algo-selector {
+            background: transparent; border: 2px solid rgba(255, 255, 255, 0.6);
+            color: white; padding: 8px 16px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; outline: none;
+            appearance: none; padding-right: 35px;
+            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+            background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 12px auto; transition: 0.3s;
+        }
+        .algo-selector option { color: #333; background: white; }
+        .algo-selector:hover { border-color: white; background: rgba(255,255,255,0.1); }
+        .fullscreen-btn { background: transparent; border: 2px solid rgba(255, 255, 255, 0.6); color: white; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
+        .fullscreen-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: white; }
+
+        /* 核心布局：左右分栏 */
+        .content-wrapper { display: flex; flex: 1; gap: 16px; min-height: 0; }
+        
+        .left-panel { flex: 0 0 35%; min-width: 320px; display: flex; flex-direction: column; }
+        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+        /* 左侧：代码区贯穿高度 */
+        .code-window { background-color: #1e1e1e; border-radius: 16px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
+        .code-header { background-color: #2d2d2d; padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto;}
+        .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
+        .mac-dot.red { background-color: #ef4444; } .mac-dot.yellow { background-color: #f59e0b; } .mac-dot.green { background-color: #10b981; }
+        .code-title { margin-left: 10px; color: #858585; font-size: 13px; font-family: sans-serif; }
+        .code-card { flex: 1; overflow-y: auto; color: #d4d4d4; font-family: "Consolas", monospace; font-size: 14.5px; line-height: 1.6; padding: 15px 0; scroll-behavior: smooth; counter-reset: line-number;}
+        .code-line { padding: 2px 20px 2px 55px; border-left: 4px solid transparent; white-space: pre; transition: background 0.2s; position: relative; }
+        .code-line.highlight { background-color: rgba(245, 158, 11, 0.15); border-left-color: var(--neon-orange); color: #ffffff; }
+        .code-line::before { counter-increment: line-number; content: counter(line-number); position: absolute; left: 4px; top: 0; bottom: 0; width: 35px; text-align: right; color: #475569; font-size: 13px; padding-top: 2px; border-right: 1px solid #334155; padding-right: 8px; }
+
+        /* 右侧：上部动画区 (分配 62% 的弹性高度，不再强占屏幕) */
+        .visual-card { flex: 0.62; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 15px 20px; position: relative;}
+        .chart-layout { display: flex; align-items: flex-end; justify-content: center; width: 100%; padding: 20px 10px 20px 10px; flex: 1; border-bottom: 2px dashed #cbd5e1; margin-bottom: 15px;}
+
+        .pivot-area { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-right: 50px; }
+        .pivot-slot { width: 55px; height: 240px; border: 2px dashed var(--neon-purple); border-radius: 8px; display: flex; align-items: flex-end; justify-content: center; background: rgba(139, 92, 246, 0.02); transition: all 0.3s ease; position: relative; }
+        .pivot-slot.slot-empty { border-color: #cbd5e1; background: rgba(0, 0, 0, 0.02); }
+        .pivot-slot.slot-empty::before { content: 'empty'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg); color: #94a3b8; font-size: 13px; font-family: "Consolas", monospace; letter-spacing: 2px; }
+        .pivot-slot-label { margin-top: 10px; font-size: 15px; color: var(--neon-purple); font-family: "Consolas", monospace; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 10px; }
+        .pivot-area:has(.slot-empty) .pivot-slot-label { color: #64748b; }
+
+        .bars-area { display: flex; align-items: flex-end; gap: 16px; }
+        .bar-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; }
+        
+        /* 物理交换动画核心：动画隔离层 */
+        .bar-animator {
+            display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+            will-change: transform; z-index: 5;
+        }
+
+        .bar { 
+            width: 45px; background: rgba(14, 165, 233, 0.04); border: 2px solid var(--neon-blue); border-bottom: none; 
+            border-radius: 8px 8px 0 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12px; 
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 -4px 12px rgba(14, 165, 233, 0.12); position: relative; overflow: hidden; 
+        }
+        .bar-value { color: var(--text-main); font-weight: 800; font-size: 17px; z-index: 2; }
+        .bar-index { margin-top: 10px; font-size: 13px; color: var(--neon-blue); font-family: "Consolas", monospace; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 10px; }
+
+        .bar.pit { background: transparent !important; border: 2px dashed #94a3b8 !important; box-shadow: none !important; transform: translateY(0) !important; }
+        .bar.pit .bar-value { color: transparent !important; }
+
+        .bar.compare { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.08); box-shadow: 0 -6px 18px rgba(245, 158, 11, 0.25); transform: translateY(-10px); }
+        .bar-animator:has(.bar.compare) ~ .bar-index { color: var(--neon-orange); }
+        .bar.swap { border-color: var(--neon-red); background: rgba(239, 68, 68, 0.08); box-shadow: 0 -6px 18px rgba(239, 68, 68, 0.25); transform: translateY(-15px) scale(1.05); }
+        .bar-animator:has(.bar.swap) ~ .bar-index { color: var(--neon-red); }
+        .bar.sorted { border-color: var(--neon-green); background: rgba(16, 185, 129, 0.08); box-shadow: 0 -4px 12px rgba(16, 185, 129, 0.15); }
+        .bar-animator:has(.bar.sorted) ~ .bar-index { color: var(--neon-green); }
+        .bar.pivot { border-color: var(--neon-purple); background: rgba(139, 92, 246, 0.08); box-shadow: 0 -4px 12px rgba(139, 92, 246, 0.15); } 
+        .bar-animator:has(.bar.pivot) ~ .bar-index { color: var(--neon-purple); }
+        .bar.scan { border-color: #22d3ee; background: rgba(34, 211, 238, 0.08); box-shadow: 0 -4px 12px rgba(34, 211, 238, 0.15); }
+
+        .pointer-container { position: absolute; top: -42px; display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 10; animation: floatUpDown 1.5s ease-in-out infinite; }
+        @keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+        .pointer-label { font-family: "Consolas", monospace; font-weight: 800; font-size: 14px; color: var(--pointer-red); background: rgba(255, 255, 255, 0.95); padding: 2px 6px; border-radius: 4px; border: 2px solid var(--pointer-red); white-space: nowrap; box-shadow: 0 4px 10px rgba(239,68,68,0.2);}
+        .pointer-arrow { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--pointer-red); }
+
+        .control-panel { display: flex; gap: 16px; background: rgba(255, 255, 255, 0.9); padding: 10px 24px; border-radius: 100px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 5px; border: 2px solid #e2e8f0; }
+        .btn { padding: 10px 30px; font-size: 15px; font-weight: 700; border-radius: 100px; cursor: pointer; transition: all 0.2s ease; background: transparent; }
+        .btn-primary { border: 2px solid var(--neon-blue); color: var(--neon-blue); }
+        .btn-primary:hover { background: var(--neon-blue); color: white; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
+        .btn-secondary { border: 2px solid #94a3b8; color: #64748b; }
+        .btn-secondary:hover { background: #f1f5f9; color: #334155; border-color: #64748b; }
+        .btn:disabled { border-color: #cbd5e1; color: #cbd5e1; cursor: not-allowed; background: transparent; box-shadow: none; }
+
+        /* 右侧：下部解析区（分配 38% 的比例，大幅拉高并吸收空白） */
+        .explanation-row { flex: 0.38; display: flex; gap: 16px; width: 100%; min-height: 0; }
+        
+        .step-box { background: rgba(255, 255, 255, 0.8); border: 2px solid var(--neon-blue); padding: 16px 20px; border-radius: 12px; flex: 0 0 35%; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); overflow-y: auto;}
+        .step-box h4 { margin: 0 0 6px 0; color: var(--neon-blue); font-size: 16px; }
+        .step-box p { margin: 0; font-size: 15px; line-height: 1.6; font-weight: 600; color: #1e293b;}
+        
+        .logic-box { background: rgba(255, 255, 255, 0.6); border: 1px solid #cbd5e1; padding: 16px 20px; border-radius: 12px; flex: 1; overflow-y: auto;}
+        .logic-box h3 { margin: 0 0 8px 0; font-size: 16px; border-bottom: 2px dashed #cbd5e1; padding-bottom: 6px; }
+        .logic-box div { font-size: 14.5px; color: #334155; line-height: 1.8; }
+
+        /* 白板系统 */
+        #draw-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
+        #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
+        #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
+        .draw-toolbar { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 100px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 10px; width: max-content; transition: all 0.3s; }
+        .tool-btn { background: none; border: 2px solid transparent; font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer; padding: 6px 14px; border-radius: 100px; display: flex; flex-direction: row; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap;}
+        .tool-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
+        .tool-btn.active { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
+        .color-dot { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s;}
+        .color-dot:hover { transform: scale(1.2); } .color-dot.active { border-color: #1e293b; transform: scale(1.2); }
+        .draw-tools-panel { display: none; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; border-left: 2px solid #e2e8f0; padding-left: 12px; margin-left: 2px; }
+        .draw-tools-panel.show { display: flex; }
+    </style>
+</head>
+<body>
+
+<canvas id="draw-canvas"></canvas>
+
+<div class="draw-toolbar">
+    <button class="tool-btn" id="toggle-draw-btn" onclick="toggleDrawingMode()">🖌️ 开启白板</button>
+    <div class="draw-tools-panel" id="draw-tools-panel">
+        <div class="color-dot active tool-item" style="background: #ef4444;" onclick="setBrushMode(this, 'draw', '#ef4444')"></div>
+        <div class="color-dot tool-item" style="background: #0ea5e9;" onclick="setBrushMode(this, 'draw', '#0ea5e9')"></div>
+        <div class="color-dot tool-item" style="background: #10b981;" onclick="setBrushMode(this, 'draw', '#10b981')"></div>
+        <button class="tool-btn tool-item" style="color: #f59e0b;" onclick="setBrushMode(this, 'erase')">🧽 橡皮</button>
+        <button class="tool-btn" onclick="undoDraw()">↩️ 撤销</button>
+        <button class="tool-btn" style="color: #ef4444; border-color: #fca5a5;" onclick="clearCanvas()">🗑️ 清屏</button>
+    </div>
+</div>
+
+<div class="wrapper">
+    <div class="main-container">
+        <div class="header-card">
+            <div class="header-text">
+                <h1>✨ 白学在线 - CSP/NOIP 核心排序算法全景演练 <span>PPT放映模式：可按 ← / → 键控制</span></h1>
+            </div>
+            <div class="header-controls">
+                <select class="algo-selector" id="algo-select" onchange="changeAlgorithm()">
+                    <option value="bubble">冒泡排序 (Bubble Sort)</option>
+                    <option value="selection">选择排序 (Selection Sort)</option>
+                    <option value="insertion">插入排序 (Insertion Sort)</option>
+                    <option value="merge">归并排序 (Merge Sort)</option>
+                    <option value="quick">快速排序 (Quick Sort)</option>
+                    <option value="counting">计数排序 (Counting Sort)</option>
+                    <option value="radix">基数排序 (Radix Sort)</option>
+                </select>
+                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
+            </div>
+        </div>
+
+        <div class="content-wrapper">
+            <!-- 左侧：代码区贯穿整个高度 -->
+            <div class="left-panel">
+                <div class="code-window">
+                    <div class="code-header">
+                        <div class="mac-dot red"></div><div class="mac-dot yellow"></div><div class="mac-dot green"></div>
+                        <span class="code-title" id="code-title">bubble_sort.cpp</span>
+                    </div>
+                    <div class="code-card" id="code-content"></div>
+                </div>
+            </div>
+
+            <!-- 右侧：上层动画区 + 下层解析区 -->
+            <div class="right-panel">
+                <div class="glass-card visual-card">
+                    <div class="chart-layout" id="chart-container">
+                        <div class="pivot-area" id="pivot-area" style="display: none;">
+                            <div class="pivot-slot" id="pivot-slot"></div>
+                            <div class="pivot-slot-label" id="pivot-label">pivot</div>
+                        </div>
+                        <div class="bars-area" id="bars-area"></div>
+                    </div>
+                    
+                    <div class="control-panel">
+                        <button class="btn btn-secondary" id="btn-prev" onclick="step(-1)">← 上一步</button>
+                        <button class="btn btn-secondary" id="btn-reset" onclick="reset()">重置序列</button>
+                        <button class="btn btn-primary" id="btn-next" onclick="step(1)">下一步 →</button>
+                    </div>
+                </div>
+
+                <div class="explanation-row">
+                    <div class="step-box">
+                        <h4>实时执行分析</h4>
+                        <p id="step-desc">点击“下一步”启动程序单步调试模拟。</p>
+                    </div>
+                    <div class="logic-box">
+                        <h3>💡 算法答题思路与核心提炼</h3>
+                        <div id="logic-content"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 全屏与白板系统
+    function toggleFullScreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
+    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; });
+    window.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); else if (e.key === 'ArrowLeft') document.getElementById('btn-prev').click(); });
+
+    const canvas = document.getElementById('draw-canvas'); const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    let isDrawingMode = false; let isDrawing = false; let currentMode = 'draw'; let drawHistory = [];
+    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; if(drawHistory.length === 0) saveDrawState(); }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function toggleDrawingMode() { isDrawingMode = !isDrawingMode; const btn = document.getElementById('toggle-draw-btn'); const panel = document.getElementById('draw-tools-panel'); if (isDrawingMode) { canvas.className = currentMode === 'erase' ? 'eraser-mode' : 'drawing-mode'; btn.classList.add('active'); btn.innerHTML = "❌ 退出白板"; panel.classList.add('show'); } else { canvas.className = ''; btn.classList.remove('active'); btn.innerHTML = "🖌️ 开启白板"; panel.classList.remove('show'); } }
+    function setBrushMode(element, mode, color = null) { currentMode = mode; document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active')); element.classList.add('active'); if (mode === 'erase') { canvas.className = 'eraser-mode'; ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 30; } else { canvas.className = 'drawing-mode'; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 4; if (color) ctx.strokeStyle = color; } }
+    function saveDrawState() { if (drawHistory.length > 20) drawHistory.shift(); drawHistory.push(canvas.toDataURL()); }
+    function undoDraw() { if (drawHistory.length > 1) { drawHistory.pop(); let img = new Image(); img.src = drawHistory[drawHistory.length - 1]; img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); let prevMode = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(img, 0, 0); ctx.globalCompositeOperation = prevMode; }; } else if (drawHistory.length === 1) clearCanvas(); }
+    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); drawHistory = []; saveDrawState(); }
+    canvas.addEventListener('mousedown', (e) => { if (!isDrawingMode) return; saveDrawState(); isDrawing = true; ctx.beginPath(); ctx.moveTo(e.clientX, e.clientY); });
+    canvas.addEventListener('mousemove', (e) => { if (!isDrawing || !isDrawingMode) return; ctx.lineTo(e.clientX, e.clientY); ctx.stroke(); });
+    canvas.addEventListener('mouseup', () => isDrawing = false);
+
+    // ================= 7大排序核心引擎 (引入对象式 ID 追踪) =================
+    const ALGORITHMS = {
+        bubble: {
+            title: "bubble_sort.cpp",
+            code: ["void bubbleSort(int arr[], int n) {", "    for (int i = n; i > 1; i--) {", "        for (int j = 1; j < i; j++) {", "            if (arr[j] > arr[j + 1]) swap(arr[j], arr[j + 1]);", "        }", "    }", "}"],
+            logic: "<b>终点思维法：</b>外层循环边界确定当前未排序区间的<b>终点位置 i</b>。每趟最大的数字向右“冒泡”落位到终点 <code>arr[i]</code>。<br><b>时空复杂度：</b>时间 $O(n^2)$，空间 $O(1)$，具有<b>稳定性</b>。",
+            run: function(arr) {
+                let n = arr.length - 1; let sorted = []; pushState(arr, 1, `初始化完成。数组有效区间 [1, ${n}]。`, {}, {}, sorted);
+                for (let i = n; i > 1; i--) {
+                    pushState(arr, 2, `外层循环：锁定当前未排序区间终点 i = ${i}。`, {}, { i: i }, sorted);
+                    for (let j = 1; j < i; j++) {
+                        pushState(arr, 3, `比较当前相邻项 arr[${j}] 和 arr[${j+1}]。`, {[j]:'compare', [j+1]:'compare'}, { i: i, j: j }, sorted);
+                        if (arr[j].val > arr[j + 1].val) { 
+                            let temp = arr[j]; arr[j] = arr[j+1]; arr[j+1] = temp; 
+                            pushState(arr, 4, `检测到逆序，执行 C++ <code>swap</code> 交换物理内存位置。`, {[j]:'swap', [j+1]:'swap'}, { i: i, j: j }, sorted); 
+                        }
+                    }
+                    sorted.push(i);
+                }
+                sorted.push(1); pushState(arr, 7, `排序完全结束！全部元素已稳固。`, {}, {}, sorted);
+            }
+        },
+        selection: {
+            title: "selection_sort.cpp",
+            code: ["void selectionSort(int arr[], int n) {", "    for (int i = 1; i < n; i++) {", "        int min_idx = i;", "        for (int j = i + 1; j <= n; j++) {", "            if (arr[j] < arr[min_idx]) min_idx = j;", "        }", "        if (min_idx != i) swap(arr[i], arr[min_idx]);", "    }", "}"],
+            logic: "<b>打擂台原理：</b>外层控制起始位。内层在剩余未排序的区间 <code>[i, n]</code> 里搜寻极小值的索引 <code>min_idx</code>，再将其移至前方。<br><b>时空复杂度：</b>时间 $O(n^2)$，空间 $O(1)$，属于<b>非稳定</b>排序。",
+            run: function(arr) {
+                let n = arr.length - 1; let sorted = [];
+                for(let i=1; i<n; i++) {
+                    let min_idx = i; pushState(arr, 3, `第 ${i} 趟：暂定极小值位置 min_idx = ${i}`, {[i]:'pivot'}, { i: i, min: min_idx }, sorted);
+                    for(let j=i+1; j<=n; j++) {
+                        pushState(arr, 4, `扫描对比 arr[${j}] 是否小于当前的擂主元素。`, {[min_idx]:'pivot', [j]:'scan'}, { i: i, min: min_idx, j: j }, sorted);
+                        if(arr[j].val < arr[min_idx].val) { min_idx = j; pushState(arr, 5, `发现更小元素，更新极小值标记位置 min_idx = ${j}`, {[min_idx]:'pivot'}, { i: i, min: min_idx, j: j }, sorted); }
+                    }
+                    if(min_idx !== i) { let t = arr[i]; arr[i] = arr[min_idx]; arr[min_idx] = t; pushState(arr, 7, `将找到的真正极小值换至当前未排序区的最左端。`, {[i]:'swap', [min_idx]:'swap'}, { i: i }, sorted); }
+                    sorted.push(i);
+                }
+                sorted.push(n); pushState(arr, 9, `所有位置检索匹配完毕，选择排序结束。`, {}, {}, sorted);
+            }
+        },
+        insertion: {
+            title: "insertion_sort.cpp",
+            code: [
+                "void insertionSort(int arr[], int n) {",
+                "    for (int i = 2; i <= n; i++) {",
+                "        int key = arr[i];",
+                "        int j = i - 1;",
+                "        while (j >= 1 && arr[j] > key) {",
+                "            arr[j + 1] = arr[j];",
+                "            j--;",
+                "        }",
+                "        arr[j + 1] = key;",
+                "    }",
+                "}"
+            ],
+            logic: "<b>精妙的留坑挪动机制：</b><br>执行 <code>key = arr[i]</code> 时，把待插入值<b>保存在专属变量框中</b>，原位形成<b>“空坑”</b>。在已排序区间中检索，比 <code>key</code> 大的元素<b>向右移一格复写</b>，直到将 <code>key</code> 填入合适的坑位。",
+            run: function(arr) {
+                let n = arr.length - 1; let sorted = [1];
+                pushState(arr, 1, `【程序启动】 第一个元素天然有序，i 指针从 2 开始。左侧开辟了 <code>key</code> 变量空间。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "key"});
+                for(let i = 2; i <= n; i++) {
+                    let keyObj = arr[i]; let j = i - 1;
+                    pushState(arr, 3, `执行 <code>key = arr[${i}]</code>：抽出数字 <b style="color:var(--neon-purple)">${keyObj.val}</b> 飞入暂存框，原位形成<b>空坑</b>。`, {[i]:'pivot'}, { i: i }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: i, slotLabel: "key"});
+                    while(j >= 1) {
+                        pushState(arr, 5, `核对有序区 arr[${j}] (${arr[j].val}) 是否大于暂存的 key (${keyObj.val})？`, {[j]:'compare'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j+1, slotLabel: "key"});
+                        if(arr[j].val > keyObj.val) {
+                            arr[j + 1] = arr[j]; 
+                            pushState(arr, 6, `满足！执行 <code>arr[j + 1] = arr[j]</code>：大数右移填补坑，原地 arr[${j}] 变为新坑。`, {[j+1]:'swap'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j, slotLabel: "key"});
+                            j--;
+                        } else {
+                            pushState(arr, 5, `条件不满足：arr[${j}.val] &le; key。跳出挪移循环。`, {[j]:'compare'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j+1, slotLabel: "key"});
+                            break;
+                        }
+                    }
+                    arr[j + 1] = keyObj; sorted.push(i);
+                    pushState(arr, 9, `执行 <code>arr[j + 1] = key</code>：将数字从暂存框中取出，飞入最终位置 arr[${j+1}]。`, {[j+1]:'sorted'}, { 'j+1': j+1 }, sorted, {slotEmpty: true, slotLabel: "key"});
+                }
+                pushState(arr, 11, `高精度精确插入匹配整理结束，插入排序彻底完成。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "key"});
+            }
+        },
+        merge: {
+            title: "merge_sort.cpp",
+            code: [
+                "void mergeSort(int arr[], int l, int r) {",
+                "    if (l >= r) return;",
+                "    int mid = (l + r) / 2;",
+                "    mergeSort(arr, l, mid);",
+                "    mergeSort(arr, mid + 1, r);",
+                "    int temp[r - l + 1];",
+                "    int i = l, j = mid + 1, k = 0;",
+                "    while (i <= mid && j <= r) {",
+                "        if (arr[i] <= arr[j]) temp[k++] = arr[i++];",
+                "        else temp[k++] = arr[j++];",
+                "    }",
+                "    while (i <= mid) temp[k++] = arr[i++];",
+                "    while (j <= r) temp[k++] = arr[j++];",
+                "    for (int p = 0; p < k; p++) arr[l + p] = temp[p];",
+                "}"
+            ],
+            logic: "<b>分治合并：</b>先将数组平分，然后利用辅助数组 <code>temp</code> 和双指针 <code>i, j</code>，将两个有序子数组如拉链般合并起来拷回原数组。<br><b>时空复杂度：</b>时间恒定 $O(n \\log n)$，空间 $O(n)$，<b>稳定</b>排序。",
+            run: function(arr) {
+                let n = arr.length - 1; let sorted = []; pushState(arr, 1, `开始归并排序。`, {}, {}, sorted);
+                function mSort(l, r) {
+                    if (l >= r) { if(l===r) sorted.push(l); return; }
+                    let mid = Math.floor((l + r) / 2);
+                    pushState(arr, 3, `分解：将区间 [${l}, ${r}] 从中点 ${mid} 拆分。`, {[l]:'scan', [r]:'scan'}, { l: l, r: r, mid: mid }, sorted);
+                    mSort(l, mid); mSort(mid + 1, r);
+                    pushState(arr, 6, `准备将拆分好的左右有序区间 [${l}, ${mid}] 与 [${mid+1}, ${r}] 进行双指针合并。`, {}, { l: l, r: r, mid: mid }, sorted);
+                    let temp = []; let i = l, j = mid + 1;
+                    while (i <= mid && j <= r) {
+                        pushState(arr, 8, `比较双指针元素：arr[${i}](${arr[i].val}) 和 arr[${j}](${arr[j].val})。`, {[i]:'compare', [j]:'compare'}, { i: i, j: j }, sorted);
+                        if (arr[i].val <= arr[j].val) { temp.push(arr[i]); pushState(arr, 9, `arr[${i}] 较小，放入 temp 数组，左指针 i 右移。`, {[i]:'swap'}, { i: i, j: j }, sorted); i++; } 
+                        else { temp.push(arr[j]); pushState(arr, 10, `arr[${j}] 较小，放入 temp 数组，右指针 j 右移。`, {[j]:'swap'}, { i: i, j: j }, sorted); j++; }
+                    }
+                    while (i <= mid) { temp.push(arr[i]); i++; }
+                    while (j <= r) { temp.push(arr[j]); j++; }
+                    pushState(arr, 13, `扫尾完毕。准备将合并好的一整段数据从 temp 拷回原数组区间 [${l}, ${r}]。`, {}, {}, sorted);
+                    for (let p = 0; p < temp.length; p++) { arr[l + p] = temp[p]; sorted.push(l + p); pushState(arr, 14, `拷回过程：覆盖更新 arr[${l + p}]。`, {[l+p]:'sorted'}, { p: l + p }, sorted); }
+                }
+                mSort(1, n); pushState(arr, 15, `🎉 归并排序全部完成！`, {}, {}, sorted);
+            }
+        },
+        quick: {
+            title: "quick_sort.cpp",
+            code: ["void quickSort(int arr[], int l, int r) {", "    if (l >= r) return;", "    int pivot = arr[l]; int i = l, j = r;", "    while (i < j) {", "        while (i < j && arr[j] >= pivot) j--;", "        if (i < j) arr[i++] = arr[j];", "        while (i < j && arr[i] <= pivot) i++;", "        if (i < j) arr[j--] = arr[i];", "    }", "    arr[i] = pivot;", "    quickSort(arr, l, i - 1); quickSort(arr, i + 1, r);", "}"],
+            logic: "<b>挖坑标兵划分法：</b>取出首项 <code>pivot</code> 暂存，原位置沦为“基准坑”。双向交替探测，小值补左坑，大值补右坑。最后指针重叠位置即基准落脚位。<br><b>时空复杂度：</b>平均 $O(n \\log n)$，最差情况退化为 $O(n^2)$。",
+            run: function(arr) {
+                let n = arr.length - 1; let sorted = []; 
+                pushState(arr, 1, `【程序启动】 准备执行快速排序。左侧 C++ 已开辟了 <code>pivot</code> 变量空间。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "pivot"});
+                function qSort(l, r) {
+                    if (l >= r) { if(l === r) sorted.push(l); return; }
+                    let pivotObj = arr[l];
+                    pushState(arr, 3, `处理区间 [${l}, ${r}]。选中首位元素 ${pivotObj.val}，准备执行挖坑。`, {[l]:'pivot'}, { l: l, r: r }, sorted, {slotEmpty: true, slotLabel: "pivot"});
+                    pushState(arr, 3, `基准抽出飞入左侧 <code>pivot</code> 变量框中，原位置变为待填补的空虚坑位 arr[${l}]。`, {}, { l: l, r: r }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: l, slotLabel: "pivot"});
+                    let i = l, j = r;
+                    while (i < j) {
+                        pushState(arr, 5, `右指针 j 向左检索，扫查小于基准 ${pivotObj.val} 的值。`, {[j]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"});
+                        while (i < j && arr[j].val >= pivotObj.val) { j--; pushState(arr, 5, `符合规整条件，右指针继续左移。`, {[j]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"}); }
+                        if (i < j) { arr[i] = arr[j]; pushState(arr, 6, `<span style="color:var(--neon-red); font-weight:bold;">填坑：</span>发现较小值 ${arr[j].val}，飞入左坑 arr[${i}]，右端顺势转化为新空虚坑位。`, {[i]:'swap'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"}); i++; }
+                        if(i < j) pushState(arr, 7, `左指针 i 向右检索，扫查大于基准 ${pivotObj.val} 的值。`, {[i]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"});
+                        while (i < j && arr[i].val <= pivotObj.val) { i++; pushState(arr, 7, `符合规整条件，左指针继续右推。`, {[i]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"}); }
+                        if (i < j) { arr[j] = arr[i]; pushState(arr, 8, `<span style="color:var(--neon-red); font-weight:bold;">填坑：</span>发现较大值 ${arr[i].val}，飞入右坑 arr[${j}]，左端演变为新空坑。`, {[j]:'swap'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"}); j--; }
+                    }
+                    arr[i] = pivotObj; sorted.push(i);
+                    pushState(arr, 10, `左右双指针汇合重叠。将基准值 ${pivotObj.val} 从专属区取出，飞回最终交汇坑位 [${i}] 处。`, {[i]:'sorted'}, { 'i, j': i }, sorted, {slotEmpty: true, slotLabel: "pivot"}); 
+                    qSort(l, i - 1); qSort(i + 1, r);
+                }
+                qSort(1, n); pushState(arr, 12, `所有区间划分归位完全完成！快速排序成功。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "pivot"});
+            }
+        },
+        counting: { 
+            title: "counting_sort.cpp", 
+            code: [
+                "void countingSort(int arr[], int n) {",
+                "    int max_val = 0;",
+                "    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);",
+                "    int cnt[max_val + 1] = {0};",
+                "    for (int i = 1; i <= n; i++) cnt[arr[i]]++;",
+                "    int idx = 1;",
+                "    for (int i = 0; i <= max_val; i++) {",
+                "        while (cnt[i] > 0) {",
+                "            arr[idx++] = i;",
+                "            cnt[i]--;",
+                "        }",
+                "    }",
+                "}"
+            ], 
+            logic: "<b>空间换时间：</b>不通过比较大小，而是利用数组下标来确定元素的正确位置。<br><b>频数统计：</b>先遍历原数组，在 <code>cnt</code> 数组中记录每个元素出现的次数。然后再按从小到大的顺序覆盖原数组。<br><b>时空复杂度：</b>时间 $O(n + k)$，空间 $O(k)$。只适合极差小的密集数据。", 
+            run: function(arr) { 
+                let n = arr.length - 1; let sorted = [];
+                pushState(arr, 1, `开始计数排序。由于这里没有直接展现 cnt 桶的 DOM，我们将用动画模拟整个逻辑流。`, {}, {}, sorted);
+                let max_val = 0;
+                for (let i = 1; i <= n; i++) {
+                    pushState(arr, 3, `全盘扫描寻找最大值，考察 arr[${i}] = ${arr[i].val}。`, {[i]:'scan'}, { i: i }, sorted);
+                    if (arr[i].val > max_val) { max_val = arr[i].val; pushState(arr, 3, `最大值纪录刷新为 ${max_val}。`, {[i]:'pivot'}, { i: i }, sorted); }
+                }
+                pushState(arr, 5, `找到极值 ${max_val}，在内存中动态开辟等长度的 cnt 计数桶。`, {}, {}, sorted);
+                let cnt = new Array(max_val + 1).fill(0);
+                for (let i = 1; i <= n; i++) {
+                    cnt[arr[i].val]++;
+                    pushState(arr, 6, `频数统计：捕获数字 ${arr[i].val}，将其投入 cnt 桶，对应计数器加一。`, {[i]:'compare'}, { i: i }, sorted);
+                }
+                let idx = 1;
+                pushState(arr, 8, `遍历 cnt 桶数组，按从 0 到 max_val 的顺序准备提取数据重新铺设原数组。`, {}, {}, sorted);
+                for (let i = 0; i <= max_val; i++) {
+                    if (cnt[i] > 0) {
+                        pushState(arr, 10, `发现桶 cnt[${i}] 中存在 ${cnt[i]} 个元素，开始依次弹射。`, {}, {}, sorted);
+                        while (cnt[i] > 0) {
+                            arr[idx].val = i; sorted.push(idx); // mock update for visualization
+                            pushState(arr, 11, `数据回填：将数值 ${i} 放置到 arr[${idx}] 的位置。`, {[idx]:'swap'}, { idx: idx }, sorted);
+                            idx++; cnt[i]--;
+                        }
+                    }
+                }
+                pushState(arr, 15, `🎉 频数展开完毕！计数排序完美结束。`, {}, {}, sorted);
+            } 
+        },
+        radix: { 
+            title: "radix_sort.cpp", 
+            code: [
+                "void radixSort(int arr[], int n) {",
+                "    int max_val = 0;",
+                "    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);",
+                "    for (int exp = 1; max_val / exp > 0; exp *= 10) {",
+                "        int output[n + 1], cnt[10] = {0};",
+                "        for (int i = 1; i <= n; i++) cnt[(arr[i] / exp) % 10]++;",
+                "        for (int i = 1; i < 10; i++) cnt[i] += cnt[i - 1];",
+                "        for (int i = n; i >= 1; i--) {",
+                "            output[cnt[(arr[i] / exp) % 10]] = arr[i];",
+                "            cnt[(arr[i] / exp) % 10]--;",
+                "        }",
+                "        for (int i = 1; i <= n; i++) arr[i] = output[i];",
+                "    }",
+                "}"
+            ], 
+            logic: "<b>按位分配：</b>分别依据个位、十位、百位等阶梯权重，进行多轮稳健的计数装桶。<br><b>基数收集：</b>利用 0-9 桶分发，再倒序遍历原数组填充 <code>output</code> 以确保数字的相对稳定性。<br><b>时空复杂度：</b>时间 $O(d(n+k))$，空间 $O(n+k)$。", 
+            run: function(arr) { 
+                let n = arr.length - 1; let sorted = [];
+                pushState(arr, 1, `开始基数排序。`, {}, {}, sorted);
+                let max_val = 0;
+                for (let i = 1; i <= n; i++) if (arr[i].val > max_val) max_val = arr[i].val;
+                pushState(arr, 3, `检索得出数组最大值为 ${max_val}，确立最多需要排序到百/十位级别。`, {}, {}, sorted);
+
+                for (let exp = 1; Math.floor(max_val / exp) > 0; exp *= 10) {
+                    let digitName = exp === 1 ? "个位" : (exp === 10 ? "十位" : "更高位");
+                    pushState(arr, 4, `>>> 本轮开始对所有元素的【${digitName}】进行分配和收集。`, {}, {}, sorted);
+                    let output = new Array(n + 1).fill(0);
+                    let cnt = new Array(10).fill(0);
+
+                    for (let i = 1; i <= n; i++) {
+                        let digit = Math.floor(arr[i].val / exp) % 10;
+                        cnt[digit]++;
+                        pushState(arr, 7, `抓取 arr[${i}](${arr[i].val}) 的【${digitName}】: ${digit}，将其投入对应的 0-9 基数桶。`, {[i]:'scan'}, { i: i }, sorted);
+                    }
+                    for (let i = 1; i < 10; i++) cnt[i] += cnt[i - 1];
+                    pushState(arr, 8, `累加前缀和。准备进行稳定的收集和回填。`, {}, {}, sorted);
+
+                    for (let i = n; i >= 1; i--) {
+                        let digit = Math.floor(arr[i].val / exp) % 10;
+                        let pos = cnt[digit];
+                        output[pos] = arr[i]; // store object
+                        cnt[digit]--;
+                        pushState(arr, 10, `基于稳定原则逆向遍历：将 arr[${i}](${arr[i].val}) 排入辅助数组的第 ${pos} 个位置。`, {[i]:'pivot'}, { i: i }, sorted);
+                    }
+                    for (let i = 1; i <= n; i++) {
+                        arr[i] = output[i];
+                        pushState(arr, 13, `数据迁移完毕，重新刷入原数组 arr[${i}] = ${arr[i].val}。`, {[i]:'swap'}, { i: i }, sorted);
+                    }
+                    pushState(arr, 15, `【${digitName}】轮次落幕，数组开始呈现阶段性有序。`, {}, {}, sorted);
+                }
+                for(let i=1;i<=n;i++) sorted.push(i);
+                pushState(arr, 16, `🎉 所有数位收集完成，基数排序最终结束！`, {}, {}, sorted);
+            } 
+        }
+    };
+
+    const initialTestData = [38, 27, 43, 3, 9, 82, 10, 19, 50]; let states = []; let currentStateIndex = 0; let currentAlgoKey = 'bubble';
+    
+    function renderCode(codeLines) {
+        const container = document.getElementById('code-content'); container.innerHTML = '';
+        codeLines.forEach((lineText, idx) => {
+            const div = document.createElement('div'); div.className = 'code-line'; div.id = `line-${idx + 1}`;
+            div.innerHTML = lineText.replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/\b(void|int|for|while|if|else|return|max)\b/g, '<span style="color:#c586c0;">$1</span>')
+                .replace(/\b(arr|n|l|r|i|j|k|p|mid|pivot|temp|key|max_val|cnt|output|exp|pos|digit)\b/g, '<span style="color:#9cdcfe;">$1</span>')
+                .replace(/\b(swap|max|rand)\b/g, '<span style="color:#dcdcaa;">$1</span>')
+                .replace(/\b(\d+)\b/g, '<span style="color:#b5cea8;">$1</span>')
+                .replace(/\/\/.*/g, match => `<span style="color:#6A9955;">${match}</span>`);
+            container.appendChild(div);
+        });
+    }
+
+    function pushState(arr, line, desc, highlights, pointers = {}, sortedArr = [], meta = null) { states.push({ arr: [...arr], line: line, desc: desc, highlights: {...highlights}, pointers: {...pointers}, sorted: [...sortedArr], meta: meta ? {...meta} : null }); }
+    
+    // 初始化数据，使用对象包装确保全局唯一 ID 用于 FLIP 动画
+    function generateStates() { 
+        states = []; 
+        let arr = [{id: 0, val: 0}];
+        initialTestData.forEach((v, i) => {
+            arr.push({id: i+1, val: v});
+        });
+        ALGORITHMS[currentAlgoKey].run(arr); 
+    }
+
+    function renderState(index) {
+        const state = states[index]; const n = state.arr.length - 1;
+        const pivotArea = document.getElementById('pivot-area'); 
+        const pivotSlot = document.getElementById('pivot-slot'); 
+        const barsArea = document.getElementById('bars-area');
+        const pivotLabel = document.getElementById('pivot-label');
+        
+        // 1. 记录旧的物理坐标 (FLIP: First)
+        const oldPositions = {};
+        document.querySelectorAll('.flip-item').forEach(el => {
+            const rect = el.getBoundingClientRect();
+            oldPositions[el.dataset.id] = { x: rect.left, y: rect.top };
+        });
+
+        // 2. 清空并重绘 DOM
+        barsArea.innerHTML = ''; pivotSlot.innerHTML = ''; 
+        
+        if (currentAlgoKey === 'quick' || currentAlgoKey === 'insertion') {
+            pivotArea.style.display = 'flex';
+            if (state.meta && state.meta.slotLabel) {
+                pivotLabel.innerText = state.meta.slotLabel;
+            } else {
+                pivotLabel.innerText = (currentAlgoKey === 'quick') ? "pivot" : "key";
+            }
+        } else {
+            pivotArea.style.display = 'none';
+        }
+        
+        let maxVal = Math.max(...initialTestData);
+
+        // 渲染左侧寄存槽
+        if (pivotArea.style.display === 'flex') {
+            if (state.meta && state.meta.slotEmpty) {
+                pivotSlot.className = 'pivot-slot slot-empty';
+            } else if (state.meta && state.meta.pivotValue !== undefined) {
+                pivotSlot.className = 'pivot-slot';
+                const pVal = state.meta.pivotValue; 
+                
+                // 给柱子套上专用的 FLIP 动画包裹层
+                const pAnimator = document.createElement('div');
+                pAnimator.className = 'bar-animator flip-item';
+                pAnimator.setAttribute('data-id', state.meta.pivotId);
+
+                const pBar = document.createElement('div'); pBar.className = 'bar pivot'; 
+                pBar.style.height = `${45 + (pVal / maxVal) * 190}px`; 
+                pBar.innerHTML = `<span class="bar-value">${pVal}</span>`; 
+                
+                pAnimator.appendChild(pBar);
+                pivotSlot.appendChild(pAnimator);
+            } else {
+                pivotSlot.className = 'pivot-slot slot-empty';
+            }
+        }
+
+        // 渲染主数组
+        for (let idx = 1; idx <= n; idx++) {
+            const nodeObj = state.arr[idx];
+            const val = nodeObj.val; 
+            const wrapper = document.createElement('div'); wrapper.className = 'bar-wrapper';
+            
+            let isPit = (state.meta && state.meta.pitIndex === idx);
+            
+            const animator = document.createElement('div');
+            // 只有真实存在的数字才加入 FLIP 追踪，空坑留在原地不飞
+            if (!isPit) {
+                animator.className = 'bar-animator flip-item';
+                animator.setAttribute('data-id', nodeObj.id);
+            } else {
+                animator.className = 'bar-animator';
+            }
+
+            const bar = document.createElement('div'); bar.className = 'bar';
+            bar.style.height = `${45 + (val / maxVal) * 190}px`; 
+
+            if (isPit) bar.classList.add('pit'); 
+            else if (state.sorted.includes(idx)) bar.classList.add('sorted');
+            else if (state.highlights[idx]) bar.classList.add(state.highlights[idx]);
+
+            bar.innerHTML = `<span class="bar-value">${val}</span>`; 
+            
+            animator.appendChild(bar);
+            wrapper.appendChild(animator); 
+            wrapper.innerHTML += `<span class="bar-index">[${idx}]</span>`;
+
+            if (state.pointers) {
+                let labels = []; for (const [ptrName, ptrIdx] of Object.entries(state.pointers)) if (ptrIdx === idx) labels.push(ptrName);
+                if (labels.length > 0) wrapper.innerHTML += `<div class="pointer-container"><div class="pointer-label">${labels.join(', ')}</div><div class="pointer-arrow"></div></div>`;
+            }
+            barsArea.appendChild(wrapper);
+        }
+
+        // 3. 执行 FLIP 动画核心计算
+        barsArea.offsetWidth; // 强制重绘，获取新插入元素的布局信息
+        
+        const newElements = document.querySelectorAll('.flip-item');
+        newElements.forEach(el => {
+            const id = el.dataset.id;
+            const oldPos = oldPositions[id];
+            if (oldPos) {
+                const newPos = el.getBoundingClientRect();
+                const deltaX = oldPos.x - newPos.left;
+                const deltaY = oldPos.y - newPos.top;
+                
+                if (deltaX !== 0 || deltaY !== 0) {
+                    // Invert: 无动画瞬间拉回原位置
+                    el.style.transition = 'none';
+                    el.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
+                }
+            }
+        });
+
+        // 强制重排，让浏览器认可上述 Invert 状态
+        barsArea.offsetWidth;
+
+        // Play: 开启过渡，撤销 Transform，让元素平滑飞至新位置
+        newElements.forEach(el => {
+            el.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+            el.style.transform = 'translate(0, 0)';
+        });
+
+        // 更新代码高亮与解析
+        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight'));
+        if (state.line) { const lineEl = document.getElementById(`line-${state.line}`); if(lineEl) { lineEl.classList.add('highlight'); lineEl.scrollIntoView({ behavior: "smooth", block: "center" }); } }
+        document.getElementById('step-desc').innerHTML = state.desc;
+        document.getElementById('btn-prev').disabled = (index === 0); document.getElementById('btn-next').disabled = (index === states.length - 1);
+    }
+    
+    function step(direction) { let targetIndex = currentStateIndex + direction; if (targetIndex >= 0 && targetIndex < states.length) { currentStateIndex = targetIndex; renderState(currentStateIndex); } }
+    function reset() { currentStateIndex = 0; renderState(currentStateIndex); }
+    function changeAlgorithm() { currentAlgoKey = document.getElementById('algo-select').value; document.getElementById('code-title').innerText = ALGORITHMS[currentAlgoKey].title; document.getElementById('logic-content').innerHTML = ALGORITHMS[currentAlgoKey].logic; renderCode(ALGORITHMS[currentAlgoKey].code); generateStates(); reset(); }
+    window.onload = () => { changeAlgorithm(); };
+</script>
+</body>
+</html>
