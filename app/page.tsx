@@ -134,9 +134,11 @@ export default function AlgorithmMap() {
         return;
       }
       if (event.data.action === 'exit') {
+        // 退出全屏时浏览器自身也会调整滚动位置，单次恢复可能被覆盖，因此多次重试
         const savedPosition = scrollBeforeFullscreen.current;
-        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: savedPosition, behavior: 'instant' })));
-        window.setTimeout(() => window.scrollTo({ top: savedPosition, behavior: 'instant' }), 120);
+        const restore = () => window.scrollTo({ top: savedPosition, behavior: 'instant' });
+        requestAnimationFrame(() => requestAnimationFrame(restore));
+        [120, 320, 640].forEach((delay) => window.setTimeout(restore, delay));
       }
     };
     window.addEventListener('message', handleLessonFullscreen);
@@ -152,7 +154,7 @@ export default function AlgorithmMap() {
         <div className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-5">{topic.algorithms.map((item, index) => <button key={item.name} onClick={() => selectAlgorithm(index)} className={`rounded-md border px-3 py-2 text-sm transition ${algorithmIndex === index ? 'border-sky-600 bg-sky-600 font-bold text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`}>{item.name}{item.ready && <span className="ml-1.5 text-[10px] opacity-80">●</span>}</button>)}</div>
         <TheoryPanel topic={topic} />
         <div className="mt-10 flex items-center gap-2 border-t border-slate-200 pt-8"><Code2 size={18} className="text-sky-600" /><h2 className="text-xl font-bold text-slate-800">动画演示 · {algorithm.name}</h2></div><p className="mt-2 text-sm text-slate-500">{algorithm.brief}</p>
-        <div className="mt-5">{algorithm.ready && lessonUrl ? <div className="overflow-hidden border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm"><span className="font-bold">课堂互动教具</span><a href={lessonUrl} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">全屏打开</a></div><iframe title={`${algorithm.name} 互动演示`} className="h-[720px] w-full" src={lessonUrl} /></div> : <Placeholder topic={topic.name} algorithm={algorithm.name} />}</div>
+        <div className="mt-5">{algorithm.ready && lessonUrl ? <div className="overflow-hidden border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm"><span className="font-bold">课堂互动教具</span><a href={lessonUrl} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">全屏打开</a></div><iframe title={`${algorithm.name} 互动演示`} className="h-[720px] w-full" src={lessonUrl} allow="fullscreen" allowFullScreen /></div> : <Placeholder topic={topic.name} algorithm={algorithm.name} />}</div>
         {search && <div className="mt-10 border-t border-slate-200 pt-5"><h2 className="font-bold">搜索结果</h2><div className="mt-3 grid gap-2 sm:grid-cols-2">{searchResults.map(({ group, item }) => <button key={`${group.name}-${item.name}`} onClick={() => { const ci = categories.indexOf(group); selectCategory(ci); setTopicIndex(group.topics.indexOf(item)); }} className="border border-slate-200 p-3 text-left hover:border-sky-300"><p className="text-xs text-sky-600">{group.name}</p><p className="mt-1 font-bold">{item.name}</p><p className="mt-1 text-xs text-slate-500">{item.algorithms.map((a) => a.name).join(' · ')}</p></button>)}</div></div>}
       </section>
     </div>
