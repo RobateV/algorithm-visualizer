@@ -154,7 +154,7 @@
     .slide-lead { margin: 8px 0 0; color: var(--muted); font-size: clamp(14px, 1.1vw, 16px); max-width: 76ch; }
 
     /* ============ 引入页 ============ */
-    .intro-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(14px, 1.6vw, 28px); align-content: center; }
+    .intro-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(14px, 1.6vw, 28px); align-content: start; }
 
     .question-card {
         border: 1px solid #DBEAFE;
@@ -449,11 +449,14 @@
     .pager .btn { min-width: 96px; }
 
     /* ============ 白板 ============ */
+    /* 白板开启时画布会铺满视口，导航层必须位于其上方，否则翻页/切环节按钮点不到 */
+    .topbar, .stagebar, .pager { position: relative; z-index: 9999; }
+
     #draw-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
     #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
     #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
     .draw-toolbar {
-        position: fixed; right: 20px; bottom: 78px; z-index: 9999;
+        position: fixed; right: 20px; bottom: 78px; z-index: 10000;
         background: rgba(255,255,255,.97); padding: 7px 11px;
         border-radius: 999px; box-shadow: 0 8px 24px rgba(15,23,42,.14);
         border: 1px solid var(--line);
@@ -610,10 +613,10 @@ const COURSES = {
                 title: '冒泡排序',
                 lead: '给你一串打乱的数字，怎样让最大的那个"浮"到最右边？',
                 question: '不排序、只靠"比较相邻两个数"，能不能让数组一点点变整齐？',
-                points: [
-                    '每次只看相邻的两个数，不跳着看。',
-                    '左边的数更大，就交换它们的位置。',
-                    '每一趟走完，未排序部分的最大值一定停在末尾。'
+                hints: [
+                    { id: 'h-max', text: '先找一找：9 个数里最大的 82，现在停在第几位？' },
+                    { id: 'h-last', text: '最后一格 [9] 现在是 50。这个位置"应该"放谁？' },
+                    { id: 'h-rule', text: '限制条件：每一步只能比较相邻的两个数，也只能交换这两个。' }
                 ],
                 cta: '进入原理'
             },
@@ -1493,11 +1496,15 @@ function buildIntro(slide) {
     left.appendChild(cta);
 
     const right = h('div');
+    const hintCard = h('div', { class: 'question-card', dataset: { block: 'intro-hints' } });
+    hintCard.appendChild(h('div', { class: 'q-label', text: '观察提示（先别急着看结论）' }));
     const list = h('ul', { class: 'intro-points' });
-    slide.points.forEach(function (point) {
-        list.appendChild(h('li', null, [h('span', { class: 'dot' }), h('span', { text: point })]));
+    slide.hints.forEach(function (hint) {
+        const item = h('li', { dataset: { block: hint.id } }, [h('span', { class: 'dot' }), h('span', { text: hint.text })]);
+        list.appendChild(item);
     });
-    right.appendChild(list);
+    hintCard.appendChild(list);
+    right.appendChild(hintCard);
 
     body.appendChild(left);
     body.appendChild(right);
@@ -1857,7 +1864,9 @@ function resizeCanvas() {
     ctx.lineJoin = 'round';
     ctx.lineWidth = 4;
     ctx.strokeStyle = '#ef4444';
-    if (drawHistory.length === 0) saveDrawState();
+    // 修改 canvas 尺寸会清空画面，历史同步重置为空白起点
+    drawHistory = [];
+    saveDrawState();
 }
 window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
@@ -1894,24 +1903,23 @@ function setBrushMode(element, mode, color) {
     }
 }
 function saveDrawState() {
-    if (drawHistory.length > 20) drawHistory.shift();
-    drawHistory.push(canvas.toDataURL());
+    const snapshot = canvas.toDataURL();
+    if (drawHistory.length && drawHistory[drawHistory.length - 1] === snapshot) return;
+    drawHistory.push(snapshot);
+    if (drawHistory.length > 21) drawHistory.shift();
 }
 function undoDraw() {
-    if (drawHistory.length > 1) {
-        drawHistory.pop();
-        const img = new Image();
-        img.src = drawHistory[drawHistory.length - 1];
-        img.onload = function () {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const prevMode = ctx.globalCompositeOperation;
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.drawImage(img, 0, 0);
-            ctx.globalCompositeOperation = prevMode;
-        };
-    } else if (drawHistory.length === 1) {
-        clearCanvas();
-    }
+    if (drawHistory.length <= 1) return;
+    drawHistory.pop();
+    const img = new Image();
+    img.src = drawHistory[drawHistory.length - 1];
+    img.onload = function () {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const prevMode = ctx.globalCompositeOperation;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.drawImage(img, 0, 0);
+        ctx.globalCompositeOperation = prevMode;
+    };
 }
 function clearCanvas() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1920,7 +1928,6 @@ function clearCanvas() {
 }
 canvas.addEventListener('mousedown', function (e) {
     if (!isDrawingMode) return;
-    saveDrawState();
     isDrawing = true;
     ctx.beginPath();
     ctx.moveTo(e.clientX, e.clientY);
@@ -1930,7 +1937,12 @@ canvas.addEventListener('mousemove', function (e) {
     ctx.lineTo(e.clientX, e.clientY);
     ctx.stroke();
 });
-canvas.addEventListener('mouseup', function () { isDrawing = false; });
+canvas.addEventListener('mouseup', function () {
+    if (!isDrawing) return;
+    isDrawing = false;
+    // 一笔结束后才记录快照，撤销才能真正回到上一笔
+    if (isDrawingMode) saveDrawState();
+});
 
 /* =========================================================================
  * 13. 键盘：← / → 翻课件页，Shift + ← / → 切执行步，空格播放/暂停
@@ -1944,40 +1956,49 @@ function isTextTarget(target) {
 /** 当前环节是否真的显示了执行步控件；没有控件时不允许用快捷键暗中改变执行位置 */
 function execControlsPresent() { return !!$('exec-next'); }
 
+/** 其余 6 种算法走「经典演示」单页模式，没有课件环节 */
+function isClassicMode() { return currentAlgoKey !== 'bubble'; }
+
+/** 执行步进；返回是否真的发生了移动（用于决定要不要 preventDefault） */
+function tryStep(dir) {
+    if (!execControlsPresent()) return false;
+    const can = dir > 0 ? currentStateIndex < states.length - 1 : currentStateIndex > 0;
+    if (!can) return false;
+    pausePlayback();
+    stepExec(dir);
+    return true;
+}
+
 window.addEventListener('keydown', function (e) {
     if (isTextTarget(e.target)) return;
 
-    if (e.key === 'ArrowRight') {
-        if (e.shiftKey) {
-            if (execControlsPresent() && currentStateIndex < states.length - 1) {
-                e.preventDefault();
-                pausePlayback();
-                stepExec(1);
-            }
-        } else if (canPageNext()) {
-            e.preventDefault();
-            pageNext();
-        }
-        return;
-    }
+    if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        const dir = e.key === 'ArrowRight' ? 1 : -1;
 
-    if (e.key === 'ArrowLeft') {
+        // 经典演示：普通 ← / → 直接切执行步，保持改造前的手感
+        if (isClassicMode()) {
+            if (tryStep(dir)) e.preventDefault();
+            return;
+        }
+
+        // 冒泡课件：Shift + ← / → 切执行步
         if (e.shiftKey) {
-            if (execControlsPresent() && currentStateIndex > 0) {
-                e.preventDefault();
-                pausePlayback();
-                stepExec(-1);
-            }
-        } else if (canPagePrev()) {
+            if (tryStep(dir)) e.preventDefault();
+            return;
+        }
+
+        // 冒泡课件：普通 ← / → 翻教学页
+        const canPage = dir > 0 ? canPageNext() : canPagePrev();
+        if (canPage) {
             e.preventDefault();
-            pagePrev();
+            if (dir > 0) pageNext(); else pagePrev();
         }
         return;
     }
 
     if (e.key === ' ' || e.code === 'Space') {
         const slide = currentSlide();
-        const inAnim = currentAlgoKey !== 'bubble' || (slide && (slide.kind === 'anim' || slide.kind === 'code'));
+        const inAnim = isClassicMode() || (slide && (slide.kind === 'anim' || slide.kind === 'code'));
         if (execControlsPresent() && inAnim) {
             e.preventDefault();
             togglePlay();
