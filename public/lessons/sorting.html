@@ -2500,8 +2500,17 @@ window.addEventListener('keydown', function (e) {
 /* 离开页面时停止计时器，避免后台空转 */
 document.addEventListener('visibilitychange', function () {
     if (document.hidden && playing) pausePlayback();
+    // 页面转入后台时同步落盘，避免防抖窗口内被挂起
+    if (document.hidden) flushSave(true);
 });
-window.addEventListener('beforeunload', function () { pausePlayback(); });
+window.addEventListener('beforeunload', function () {
+    pausePlayback();
+    flushSave(true);
+});
+window.addEventListener('pagehide', function () {
+    pausePlayback();
+    flushSave(true);
+});
 
 /* 视口变化时重算柱高，避免 iframe 与全屏之间切换后柱条溢出 */
 window.addEventListener('resize', function () {
@@ -2700,7 +2709,7 @@ function sanitizeStyle(raw) {
     return Object.keys(out).length ? out : null;
 }
 
-function persistNow() {
+function persistNow(silent) {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
     const payload = {
         version: STORAGE_VERSION,
@@ -2712,16 +2721,29 @@ function persistNow() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
         setSaveState('saved');
+        return true;
     } catch (err) {
         setSaveState('failed');
-        toast('保存失败：浏览器拒绝写入本地存储（隐私模式或空间不足）。修改仍保存在本页，请用「导出 JSON」备份。', 'error', 6500);
+        if (!silent) {
+            toast('保存失败：浏览器拒绝写入本地存储（隐私模式或空间不足）。修改仍保存在本页，请用「导出 JSON」备份。', 'error', 6500);
+        }
+        return false;
     }
+}
+
+/**
+ * 立即落盘尚未写入的最新编辑，供 pagehide / visibilitychange / beforeunload 使用。
+ * 不依赖 320ms 防抖计时器，避免"改完立刻刷新"丢字。
+ */
+function flushSave(silent) {
+    if (!saveTimer && saveState === 'saved') return saveState === 'saved';
+    return persistNow(silent === true);
 }
 
 function scheduleSave() {
     setSaveState('unsaved');
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(persistNow, 320);
+    saveTimer = setTimeout(function () { persistNow(false); }, 320);
 }
 
 function dropSaved(reason) {
@@ -2877,13 +2899,42 @@ function onEditInput(event) {
     scheduleSave();
 }
 
-function startEdit(el) {
+/** 把纯文本按行内代码规则重新渲染到元素内部（不重建整个舞台，避免其它字段节点被卸载） */
+function renderFieldInPlace(el, value) {
+    el.replaceChildren();
+    rich(el, value);
+}
+
+/** 把光标放到鼠标点击处；坐标不可用时返回 false 由调用方兜底 */
+function placeCaretAtPoint(el, x, y) {
+    let range = null;
+    if (typeof document.caretRangeFromPoint === 'function') {
+        range = document.caretRangeFromPoint(x, y);
+    } else if (typeof document.caretPositionFromPoint === 'function') {
+        const pos = document.caretPositionFromPoint(x, y);
+        if (pos) {
+            range = document.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+            range.collapse(true);
+        }
+    }
+    if (!range || !el.contains(range.startContainer)) return false;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+}
+
+function startEdit(el, point) {
     if (!editMode || !el) return;
+    // 已经在编辑同一字段：交给浏览器原生处理光标与选区，绝不重置内容
+    if (activeField && activeField.el === el) return;
+
     const path = el.dataset.edit;
     const field = fieldMap.get(path);
     if (!field) return;
 
-    if (activeField && activeField.el !== el) commitEdit(activeField.el);
+    if (activeField) commitEdit(activeField.el);
 
     activeField = { el: el, path: path };
     el.classList.add('is-editing');
@@ -2893,12 +2944,14 @@ function startEdit(el) {
     el.addEventListener('input', onEditInput);
     el.focus();
 
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
+    if (!point || !placeCaretAtPoint(el, point.x, point.y)) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
 
     updateEditorUI();
 }
@@ -2917,11 +2970,11 @@ function commitEdit(el) {
     el.removeEventListener('input', onEditInput);
     el.removeAttribute('contenteditable');
     el.classList.remove('is-editing');
+    renderFieldInPlace(el, value);
     activeField = null;
 
     field.set(value);
     scheduleSave();
-    renderStage();
     updateEditorUI();
 }
 
@@ -3071,22 +3124,20 @@ function bindEditor() {
         if (event.target.closest('#style-reset')) resetFieldStyle();
     });
 
-    // 点击可编辑文字进入编辑
+    // 点击可编辑文字进入编辑；点击其它区域提交当前编辑
     document.addEventListener('click', function (event) {
         if (!editMode) return;
-        if (event.target.closest('#editor-bar')) return;
-        const target = event.target.closest('.etext');
-        if (!target) return;
-        event.preventDefault();
-        startEdit(target);
-    });
-
-    // 点击其他区域提交
-    document.addEventListener('mousedown', function (event) {
-        if (!activeField) return;
-        if (activeField.el.contains(event.target)) return;
         if (event.target.closest && event.target.closest('#editor-bar')) return;
-        commitEdit(activeField.el);
+
+        const target = event.target.closest('.etext');
+        if (!target) {
+            if (activeField) commitEdit(activeField.el);
+            return;
+        }
+        // 点的是正在编辑的同一字段：保留浏览器原生的光标定位与拖拽选择
+        if (activeField && activeField.el === target) return;
+        event.preventDefault();
+        startEdit(target, { x: event.clientX, y: event.clientY });
     });
 
     // Esc 提交；编辑中不接管方向键

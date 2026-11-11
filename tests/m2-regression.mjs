@@ -415,6 +415,103 @@ async function t11ReadonlyRuntimeText(cdp) {
         editableFields.join(', '));
 }
 
+async function waitReady(cdp) {
+    for (let i = 0; i < 120; i++) {
+        await sleep(100);
+        try {
+            if ((await cdp.evaluate('document.readyState')) === 'complete') { await sleep(250); return; }
+        } catch { /* 导航中上下文会短暂失效 */ }
+    }
+    throw new Error('页面重新加载超时');
+}
+
+async function t12CaretAndSwitching(cdp) {
+    await goto(cdp, LESSON + '?stage=intro');
+    await cdp.evaluate(`window.__m2.resetCourse()`);
+    await sleep(250);
+    await setEdit(cdp, true);
+    await sleep(300);
+
+    const rect = await cdp.evaluate(`(() => {
+        const r = document.querySelector('.slide-title').getBoundingClientRect();
+        return { left: r.left, right: r.right, y: r.top + r.height / 2 };
+    })()`);
+
+    // 首次点击：应进入编辑，且光标落在点击位置（左边缘），不是末尾
+    await mouseClick(cdp, rect.left + 4, rect.y);
+    await sleep(220);
+    const first = await cdp.evaluate(`(() => {
+        const el = document.querySelector('.slide-title');
+        return { ce: el.getAttribute('contenteditable'), offset: getSelection().anchorOffset, len: el.textContent.length };
+    })()`);
+    check('首次点击进入编辑', first.ce === 'plaintext-only', JSON.stringify(first));
+    check('首次点击光标落在点击处而非末尾', first.offset === 0, `offset=${first.offset}/${first.len}`);
+
+    // 光标处插入一个字符，验证确实按定位输入
+    await cdp.send('Input.insertText', { text: '新' });
+    await sleep(150);
+    const typed = await cdp.evaluate(`document.querySelector('.slide-title').textContent`);
+    check('可在光标定位处输入', typed.startsWith('新'), typed);
+
+    // 再次点击同一字段：内容不得被重置
+    await mouseClick(cdp, rect.left + 4, rect.y);
+    await sleep(220);
+    const again = await cdp.evaluate(`(() => ({
+        text: document.querySelector('.slide-title').textContent,
+        offset: getSelection().anchorOffset,
+        ce: document.querySelector('.slide-title').getAttribute('contenteditable')
+    }))()`);
+    check('同字段再次点击不重置内容', again.text === typed && again.ce === 'plaintext-only', `${typed} -> ${again.text}`);
+    check('同字段再次点击光标不回跳末尾', again.offset < again.text.length, `offset=${again.offset}/${again.text.length}`);
+
+    // A → B 单击切换（不得需要点两次）
+    await clickSelector(cdp, '.q-text');
+    await sleep(280);
+    const switched = await cdp.evaluate(`(() => ({
+        active: window.__m2.getState().activeField,
+        a: document.querySelector('.slide-title').getAttribute('contenteditable'),
+        b: document.querySelector('.q-text').getAttribute('contenteditable')
+    }))()`);
+    check('A→B 单击即可切换编辑',
+        switched.active === 'slides.intro.question' && switched.b === 'plaintext-only' && switched.a === null,
+        JSON.stringify(switched));
+
+    // 切换后字段内容保留
+    check('切走字段内容未丢失', (await field(cdp, 'slides.intro.title')) === typed, await field(cdp, 'slides.intro.title'));
+}
+
+async function t13SaveOnUnload(cdp) {
+    await goto(cdp, LESSON + '?stage=intro');
+    await cdp.evaluate(`window.__m2.resetCourse()`);
+    await sleep(250);
+    await setEdit(cdp, true);
+    await sleep(300);
+
+    await clickSelector(cdp, '.slide-title');
+    await selectAllIn(cdp, '.slide-title');
+    // 输入后不等待 320ms 防抖，立刻刷新
+    await cdp.send('Input.insertText', { text: '立即刷新也要保留' });
+    await cdp.send('Page.reload');
+    await waitReady(cdp);
+    check('输入后立即刷新不丢最新内容',
+        (await cdp.evaluate(`document.querySelector('.slide-title').textContent`)) === '立即刷新也要保留',
+        await cdp.evaluate(`document.querySelector('.slide-title').textContent`));
+
+    // 输入后立刻导航离开，再回来
+    await cdp.evaluate(`window.__m2.setEditMode(true)`);
+    await sleep(300);
+    await clickSelector(cdp, '.slide-title');
+    await selectAllIn(cdp, '.slide-title');
+    await cdp.send('Input.insertText', { text: '导航前也要保留' });
+    await cdp.send('Page.navigate', { url: LESSON + '?stage=summary' });
+    await waitReady(cdp);
+    await cdp.send('Page.navigate', { url: LESSON + '?stage=intro' });
+    await waitReady(cdp);
+    check('输入后立即离开页面也不丢内容',
+        (await cdp.evaluate(`document.querySelector('.slide-title').textContent`)) === '导航前也要保留',
+        await cdp.evaluate(`document.querySelector('.slide-title').textContent`));
+}
+
 /* -------------------------------------------------------------------- 主流程 */
 
 async function main() {
@@ -451,7 +548,9 @@ async function main() {
             { title: '非法导入', run: t8InvalidImport },
             { title: 'HTML 与超大文件', run: t9HtmlSafety },
             { title: '白板与模式切换', run: t10WhiteboardAndMode },
-            { title: '只读运行文本', run: t11ReadonlyRuntimeText }
+            { title: '只读运行文本', run: t11ReadonlyRuntimeText },
+            { title: '光标与字段切换', run: t12CaretAndSwitching },
+            { title: '离开页面前落盘', run: t13SaveOnUnload }
         ];
         for (const suite of suites) {
             try { await suite.run(cdp); }
