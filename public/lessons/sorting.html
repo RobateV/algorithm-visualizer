@@ -1,166 +1,507 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>白学在线 - 排序算法全屏演练</title>
-    <style>
-        :root {
-            --primary-color: #0284c7;
-            --secondary-color: #0ea5e9;
-            --neon-blue: #0ea5e9;
-            --neon-orange: #f59e0b;
-            --neon-red: #ef4444;
-            --neon-green: #10b981;
-            --neon-purple: #8b5cf6;
-            --bg-glass: rgba(255, 255, 255, 0.85);
-            --text-main: #0f172a;
-            --text-muted: #64748b;
-            --pointer-red: #ef4444;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>白学在线 - 排序算法课堂</title>
+<style>
+    :root {
+        --bg: #F5F9FF;
+        --card: #FFFFFF;
+        --primary: #2563EB;
+        --primary-soft: #EFF6FF;
+        --text: #0F172A;
+        --muted: #64748B;
+        --line: #E2E8F0;
+        --line-strong: #CBD5E1;
+        --scan: #22D3EE;
+        --compare: #F59E0B;
+        --swap: #EF4444;
+        --sorted: #10B981;
+        --pivot: #8B5CF6;
+        --radius: 14px;
+        --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px rgba(15, 23, 42, .06);
+    }
 
-        * { box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);
-            color: var(--text-main);
-            margin: 0; padding: 0; 
-            height: 100vh; overflow: hidden; 
-            user-select: none;
-        }
+    body {
+        margin: 0; padding: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", Roboto, Helvetica, Arial, sans-serif;
+        font-size: clamp(14px, 1.02vw, 17px);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+        user-select: none;
+        overflow: hidden;
+    }
 
-        .wrapper {
-            display: flex; justify-content: center;
-            padding: 16px 24px 20px 24px;
-            height: 100%; width: 100%;
-        }
+    button { font-family: inherit; }
 
-        .main-container { 
-            max-width: 1600px; width: 100%; height: 100%; 
-            display: flex; flex-direction: column; gap: 16px; 
-            position: relative; z-index: 1; 
-        }
+    /* ============ 应用骨架 ============ */
+    .app {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 12px clamp(12px, 1.6vw, 26px) 10px;
+        gap: 10px;
+    }
 
-        .glass-card { background: var(--bg-glass); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.6); border-radius: 16px; box-shadow: 0 8px 24px rgba(31, 38, 135, 0.08); }
+    .topbar {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 8px 16px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
 
-        /* 顶部标题栏 */
-        .header-card {
-            flex: 0 0 auto; background: linear-gradient(135deg, rgba(2, 132, 199, 0.95), rgba(14, 165, 233, 0.95));
-            color: white; padding: 12px 24px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.2);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-        .header-text h1 { margin: 0; font-size: 22px; font-weight: 700; display: flex; align-items: center; gap: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .header-text span { font-size: 14px; font-weight: 400; opacity: 0.9; background: rgba(0,0,0,0.15); padding: 4px 10px; border-radius: 100px;}
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-mark {
+        width: 30px; height: 30px; flex: 0 0 auto;
+        border-radius: 9px; background: var(--primary); color: #fff;
+        display: grid; place-items: center; font-weight: 700; font-size: 15px;
+    }
+    .brand h1 { margin: 0; font-size: clamp(16px, 1.25vw, 20px); font-weight: 700; letter-spacing: .2px; }
+    .brand-tag {
+        font-size: 12px; color: var(--primary); background: var(--primary-soft);
+        border: 1px solid #DBEAFE; border-radius: 999px; padding: 2px 9px; white-space: nowrap;
+    }
 
-        .header-controls { display: flex; align-items: center; gap: 12px; }
-        .algo-selector {
-            background: transparent; border: 2px solid rgba(255, 255, 255, 0.6);
-            color: white; padding: 8px 16px; font-size: 15px; font-weight: 600; border-radius: 8px; cursor: pointer; outline: none;
-            appearance: none; padding-right: 35px;
-            background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23FFFFFF%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
-            background-repeat: no-repeat; background-position: right 12px top 50%; background-size: 12px auto; transition: 0.3s;
-        }
-        .algo-selector option { color: #333; background: white; }
-        .algo-selector:hover { border-color: white; background: rgba(255,255,255,0.1); }
-        .fullscreen-btn { background: transparent; border: 2px solid rgba(255, 255, 255, 0.6); color: white; padding: 8px 16px; font-size: 14px; font-weight: bold; border-radius: 8px; cursor: pointer; transition: all 0.3s; display: flex; align-items: center; gap: 6px; }
-        .fullscreen-btn:hover { background: rgba(255, 255, 255, 0.1); border-color: white; }
+    .topbar-actions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 
-        /* 核心布局：左右分栏 */
-        .content-wrapper { display: flex; flex: 1; gap: 16px; min-height: 0; }
-        
-        .left-panel { flex: 0 0 35%; min-width: 320px; display: flex; flex-direction: column; }
-        .right-panel { flex: 1; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+    .algo-select {
+        appearance: none;
+        background: var(--card) url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748B%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E") no-repeat right 12px center / 11px auto;
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        color: var(--text);
+        font-size: 14px; font-weight: 600;
+        padding: 7px 34px 7px 12px;
+        cursor: pointer;
+    }
+    .algo-select:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 
-        /* 左侧：代码区贯穿高度 */
-        .code-window { background-color: #1e1e1e; border-radius: 16px; display: flex; flex-direction: column; height: 100%; box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
-        .code-header { background-color: #2d2d2d; padding: 10px 16px; display: flex; gap: 8px; align-items: center; flex: 0 0 auto;}
-        .mac-dot { width: 12px; height: 12px; border-radius: 50%; }
-        .mac-dot.red { background-color: #ef4444; } .mac-dot.yellow { background-color: #f59e0b; } .mac-dot.green { background-color: #10b981; }
-        .code-title { margin-left: 10px; color: #858585; font-size: 13px; font-family: sans-serif; }
-        .code-card { flex: 1; overflow-y: auto; color: #d4d4d4; font-family: "Consolas", monospace; font-size: 14.5px; line-height: 1.6; padding: 15px 0; scroll-behavior: smooth; counter-reset: line-number;}
-        .code-line { padding: 2px 20px 2px 55px; border-left: 4px solid transparent; white-space: pre; transition: background 0.2s; position: relative; }
-        .code-line.highlight { background-color: rgba(245, 158, 11, 0.15); border-left-color: var(--neon-orange); color: #ffffff; }
-        .code-line::before { counter-increment: line-number; content: counter(line-number); position: absolute; left: 4px; top: 0; bottom: 0; width: 35px; text-align: right; color: #475569; font-size: 13px; padding-top: 2px; border-right: 1px solid #334155; padding-right: 8px; }
+    .ghost-btn {
+        background: var(--card);
+        border: 1px solid var(--line-strong);
+        border-radius: 9px;
+        color: var(--text);
+        font-size: 14px; font-weight: 600;
+        padding: 7px 14px;
+        cursor: pointer;
+        transition: background .18s, border-color .18s, color .18s;
+        white-space: nowrap;
+    }
+    .ghost-btn:hover { background: #F8FAFC; border-color: var(--primary); color: var(--primary); }
 
-        /* 右侧：上部动画区 (分配 62% 的弹性高度，不再强占屏幕) */
-        .visual-card { flex: 0.62; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; padding: 15px 20px; position: relative;}
-        .chart-layout { display: flex; align-items: flex-end; justify-content: center; width: 100%; padding: 20px 10px 20px 10px; flex: 1; border-bottom: 2px dashed #cbd5e1; margin-bottom: 15px;}
+    /* ============ 环节导航 ============ */
+    .stagebar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; gap: 8px;
+        overflow-x: auto; padding: 2px 0;
+    }
+    .stagebar[hidden] { display: none; }
 
-        .pivot-area { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; margin-right: 50px; }
-        .pivot-slot { width: 55px; height: 240px; border: 2px dashed var(--neon-purple); border-radius: 8px; display: flex; align-items: flex-end; justify-content: center; background: rgba(139, 92, 246, 0.02); transition: all 0.3s ease; position: relative; }
-        .pivot-slot.slot-empty { border-color: #cbd5e1; background: rgba(0, 0, 0, 0.02); }
-        .pivot-slot.slot-empty::before { content: 'empty'; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg); color: #94a3b8; font-size: 13px; font-family: "Consolas", monospace; letter-spacing: 2px; }
-        .pivot-slot-label { margin-top: 10px; font-size: 15px; color: var(--neon-purple); font-family: "Consolas", monospace; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 10px; }
-        .pivot-area:has(.slot-empty) .pivot-slot-label { color: #64748b; }
+    .stage-chip {
+        display: flex; align-items: center; gap: 7px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 6px 14px 6px 7px;
+        font-size: 13.5px; font-weight: 600; color: var(--muted);
+        cursor: pointer; white-space: nowrap;
+        transition: all .18s;
+    }
+    .stage-chip:hover { border-color: var(--primary); color: var(--primary); }
+    .stage-chip .idx {
+        width: 20px; height: 20px; border-radius: 50%;
+        background: #F1F5F9; color: var(--muted);
+        display: grid; place-items: center; font-size: 12px; font-weight: 700;
+        transition: all .18s;
+    }
+    .stage-chip.done .idx { background: #DCFCE7; color: #047857; }
+    .stage-chip.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .stage-chip.active .idx { background: rgba(255,255,255,.24); color: #fff; }
 
-        .bars-area { display: flex; align-items: flex-end; gap: 16px; }
-        .bar-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; }
-        
-        /* 物理交换动画核心：动画隔离层 */
-        .bar-animator {
-            display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
-            will-change: transform; z-index: 5;
-        }
+    /* ============ 舞台 ============ */
+    .stage-host { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 
-        .bar { 
-            width: 45px; background: rgba(14, 165, 233, 0.04); border: 2px solid var(--neon-blue); border-bottom: none; 
-            border-radius: 8px 8px 0 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 12px; 
-            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1); box-shadow: 0 -4px 12px rgba(14, 165, 233, 0.12); position: relative; overflow: hidden; 
-        }
-        .bar-value { color: var(--text-main); font-weight: 800; font-size: 17px; z-index: 2; }
-        .bar-index { margin-top: 10px; font-size: 13px; color: var(--neon-blue); font-family: "Consolas", monospace; font-weight: bold; background: rgba(255,255,255,0.8); padding: 2px 8px; border-radius: 10px; }
+    .slide-card {
+        flex: 1 1 auto; min-height: 0;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: clamp(14px, 1.5vw, 26px);
+        display: flex; flex-direction: column;
+        overflow: auto;
+    }
 
-        .bar.pit { background: transparent !important; border: 2px dashed #94a3b8 !important; box-shadow: none !important; transform: translateY(0) !important; }
-        .bar.pit .bar-value { color: transparent !important; }
+    .slide-head { flex: 0 0 auto; margin-bottom: 12px; }
+    .kicker {
+        display: inline-block;
+        font-size: 12px; font-weight: 700; letter-spacing: .6px;
+        color: var(--primary); background: var(--primary-soft);
+        border-radius: 6px; padding: 2px 8px; margin-bottom: 8px;
+    }
+    .slide-title { margin: 0; font-size: clamp(21px, 2vw, 31px); font-weight: 800; letter-spacing: -.2px; }
+    .slide-lead { margin: 8px 0 0; color: var(--muted); font-size: clamp(14px, 1.1vw, 16px); max-width: 76ch; }
 
-        .bar.compare { border-color: var(--neon-orange); background: rgba(245, 158, 11, 0.08); box-shadow: 0 -6px 18px rgba(245, 158, 11, 0.25); transform: translateY(-10px); }
-        .bar-animator:has(.bar.compare) ~ .bar-index { color: var(--neon-orange); }
-        .bar.swap { border-color: var(--neon-red); background: rgba(239, 68, 68, 0.08); box-shadow: 0 -6px 18px rgba(239, 68, 68, 0.25); transform: translateY(-15px) scale(1.05); }
-        .bar-animator:has(.bar.swap) ~ .bar-index { color: var(--neon-red); }
-        .bar.sorted { border-color: var(--neon-green); background: rgba(16, 185, 129, 0.08); box-shadow: 0 -4px 12px rgba(16, 185, 129, 0.15); }
-        .bar-animator:has(.bar.sorted) ~ .bar-index { color: var(--neon-green); }
-        .bar.pivot { border-color: var(--neon-purple); background: rgba(139, 92, 246, 0.08); box-shadow: 0 -4px 12px rgba(139, 92, 246, 0.15); } 
-        .bar-animator:has(.bar.pivot) ~ .bar-index { color: var(--neon-purple); }
-        .bar.scan { border-color: #22d3ee; background: rgba(34, 211, 238, 0.08); box-shadow: 0 -4px 12px rgba(34, 211, 238, 0.15); }
+    /* ============ 引入页 ============ */
+    .intro-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: clamp(14px, 1.6vw, 28px); align-content: center; }
 
-        .pointer-container { position: absolute; top: -42px; display: flex; flex-direction: column; align-items: center; width: 100%; z-index: 10; animation: floatUpDown 1.5s ease-in-out infinite; }
-        @keyframes floatUpDown { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-        .pointer-label { font-family: "Consolas", monospace; font-weight: 800; font-size: 14px; color: var(--pointer-red); background: rgba(255, 255, 255, 0.95); padding: 2px 6px; border-radius: 4px; border: 2px solid var(--pointer-red); white-space: nowrap; box-shadow: 0 4px 10px rgba(239,68,68,0.2);}
-        .pointer-arrow { width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid var(--pointer-red); }
+    .question-card {
+        border: 1px solid #DBEAFE;
+        background: linear-gradient(180deg, #F8FBFF, #FFFFFF);
+        border-radius: 12px;
+        padding: clamp(14px, 1.4vw, 20px);
+    }
+    .question-card .q-label { font-size: 12px; font-weight: 700; color: var(--primary); letter-spacing: .6px; }
+    .question-card .q-text { margin: 8px 0 0; font-size: clamp(16px, 1.35vw, 20px); font-weight: 700; line-height: 1.5; }
 
-        .control-panel { display: flex; gap: 16px; background: rgba(255, 255, 255, 0.9); padding: 10px 24px; border-radius: 100px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 5px; border: 2px solid #e2e8f0; }
-        .btn { padding: 10px 30px; font-size: 15px; font-weight: 700; border-radius: 100px; cursor: pointer; transition: all 0.2s ease; background: transparent; }
-        .btn-primary { border: 2px solid var(--neon-blue); color: var(--neon-blue); }
-        .btn-primary:hover { background: var(--neon-blue); color: white; box-shadow: 0 4px 15px rgba(14, 165, 233, 0.4); }
-        .btn-secondary { border: 2px solid #94a3b8; color: #64748b; }
-        .btn-secondary:hover { background: #f1f5f9; color: #334155; border-color: #64748b; }
-        .btn:disabled { border-color: #cbd5e1; color: #cbd5e1; cursor: not-allowed; background: transparent; box-shadow: none; }
+    .num-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+    .num-card {
+        min-width: 46px; padding: 10px 8px 7px;
+        border: 2px solid var(--line-strong); border-radius: 10px;
+        background: #fff; text-align: center;
+    }
+    .num-card .v { font-weight: 800; font-size: clamp(15px, 1.3vw, 19px); font-variant-numeric: tabular-nums; }
+    .num-card .i { display: block; font-size: 11px; color: var(--muted); font-family: Consolas, monospace; margin-top: 2px; }
+    .num-card.cmp { border-color: var(--compare); background: #FFFBEB; }
+    .num-card.swp { border-color: var(--swap); background: #FEF2F2; }
+    .num-card.ok  { border-color: var(--sorted); background: #ECFDF5; }
 
-        /* 右侧：下部解析区（分配 38% 的比例，大幅拉高并吸收空白） */
-        .explanation-row { flex: 0.38; display: flex; gap: 16px; width: 100%; min-height: 0; }
-        
-        .step-box { background: rgba(255, 255, 255, 0.8); border: 2px solid var(--neon-blue); padding: 16px 20px; border-radius: 12px; flex: 0 0 35%; box-shadow: 0 4px 10px rgba(14, 165, 233, 0.1); overflow-y: auto;}
-        .step-box h4 { margin: 0 0 6px 0; color: var(--neon-blue); font-size: 16px; }
-        .step-box p { margin: 0; font-size: 15px; line-height: 1.6; font-weight: 600; color: #1e293b;}
-        
-        .logic-box { background: rgba(255, 255, 255, 0.6); border: 1px solid #cbd5e1; padding: 16px 20px; border-radius: 12px; flex: 1; overflow-y: auto;}
-        .logic-box h3 { margin: 0 0 8px 0; font-size: 16px; border-bottom: 2px dashed #cbd5e1; padding-bottom: 6px; }
-        .logic-box div { font-size: 14.5px; color: #334155; line-height: 1.8; }
+    .intro-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+    .intro-points li {
+        display: flex; gap: 9px; align-items: flex-start;
+        background: #F8FAFC; border: 1px solid var(--line); border-radius: 10px;
+        padding: 9px 12px; font-size: 14px; color: #334155;
+    }
+    .intro-points .dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); margin-top: 8px; }
 
-        /* 白板系统 */
-        #draw-canvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
-        #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
-        #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
-        .draw-toolbar { position: fixed; bottom: 20px; right: 20px; z-index: 9999; background: rgba(255, 255, 255, 0.95); padding: 8px 12px; border-radius: 100px; box-shadow: 0 8px 25px rgba(0,0,0,0.15); border: 2px solid #e2e8f0; display: flex; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 10px; width: max-content; transition: all 0.3s; }
-        .tool-btn { background: none; border: 2px solid transparent; font-size: 14px; font-weight: bold; color: var(--text-main); cursor: pointer; padding: 6px 14px; border-radius: 100px; display: flex; flex-direction: row; align-items: center; gap: 6px; transition: 0.2s; white-space: nowrap;}
-        .tool-btn:hover { background: #f1f5f9; border-color: #cbd5e1; }
-        .tool-btn.active { background: rgba(14, 165, 233, 0.1); color: var(--neon-blue); border-color: var(--neon-blue); }
-        .color-dot { width: 18px; height: 18px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s;}
-        .color-dot:hover { transform: scale(1.2); } .color-dot.active { border-color: #1e293b; transform: scale(1.2); }
-        .draw-tools-panel { display: none; flex-direction: row; flex-wrap: nowrap; align-items: center; gap: 12px; border-left: 2px solid #e2e8f0; padding-left: 12px; margin-left: 2px; }
-        .draw-tools-panel.show { display: flex; }
-    </style>
+    .intro-cta { margin-top: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .intro-hint { font-size: 13px; color: var(--muted); }
+
+    /* ============ 原理页 ============ */
+    .principle-body { flex: 1; display: flex; flex-direction: column; gap: clamp(12px, 1.3vw, 20px); min-height: 0; }
+
+    .concept-stack { display: grid; gap: 10px; }
+    .concept-item {
+        display: flex; gap: 12px;
+        border: 1px solid var(--line); border-left: 4px solid var(--primary);
+        border-radius: 10px; background: #fff; padding: 12px 15px;
+        animation: revealIn .42s cubic-bezier(.2,.7,.3,1) both;
+    }
+    .concept-item .step-no {
+        flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%;
+        background: var(--primary); color: #fff; font-size: 12.5px; font-weight: 700;
+        display: grid; place-items: center; margin-top: 2px;
+    }
+    .concept-item h3 { margin: 0 0 3px; font-size: clamp(15px, 1.15vw, 17px); font-weight: 700; }
+    .concept-item p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    @keyframes revealIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    .figure-card {
+        flex: 1 1 auto;
+        border: 1px dashed var(--line-strong); border-radius: 12px;
+        background: #FAFCFF; padding: 16px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+        animation: revealIn .42s cubic-bezier(.2,.7,.3,1) both;
+    }
+    .figure-caption { font-size: 13.5px; color: var(--muted); text-align: center; }
+    .figure-caption b { color: var(--text); }
+
+    .principle-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .sub-progress { display: flex; gap: 6px; }
+    .sub-progress span { width: 26px; height: 5px; border-radius: 999px; background: #E2E8F0; }
+    .sub-progress span.on { background: var(--primary); }
+
+    /* ============ 动画 / 代码工作台 ============ */
+    .workbench { flex: 1; display: flex; gap: clamp(10px, 1.2vw, 18px); min-height: 0; }
+    .workbench.with-code .code-pane { flex: 0 0 clamp(300px, 34%, 430px); display: flex; }
+    .workbench:not(.with-code) .code-pane { display: none; }
+    .code-pane { flex-direction: column; min-height: 0; }
+
+    .code-window {
+        flex: 1; min-height: 0;
+        background: #0F172A; border-radius: 12px;
+        display: flex; flex-direction: column; overflow: hidden;
+        box-shadow: 0 8px 22px rgba(15, 23, 42, .18);
+    }
+    .code-header {
+        flex: 0 0 auto; display: flex; align-items: center; gap: 7px;
+        padding: 8px 14px; background: #1E293B; border-bottom: 1px solid #334155;
+    }
+    .mac-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mac-dot.red { background: #EF4444; } .mac-dot.yellow { background: #F59E0B; } .mac-dot.green { background: #10B981; }
+    .code-title { margin-left: 6px; color: #94A3B8; font-size: 12.5px; font-family: Consolas, monospace; }
+
+    .code-content {
+        flex: 1; min-height: 0; overflow-y: auto;
+        padding: 10px 0; counter-reset: ln;
+        font-family: Consolas, "Courier New", monospace;
+        font-size: clamp(12.5px, .95vw, 14.5px);
+        line-height: 1.72; scroll-behavior: smooth;
+    }
+    .code-line {
+        position: relative; padding: 2px 16px 2px 54px;
+        white-space: pre; border-left: 3px solid transparent;
+        color: #CBD5E1; transition: background .2s, color .2s;
+    }
+    .code-line::before {
+        counter-increment: ln; content: counter(ln);
+        position: absolute; left: 0; top: 2px; width: 38px;
+        text-align: right; color: #64748B; font-size: 11.5px;
+        border-right: 1px solid #334155; padding-right: 9px;
+    }
+    .code-line.highlight {
+        background: rgba(245, 158, 11, .14);
+        border-left-color: var(--compare);
+        color: #F8FAFC;
+    }
+    .code-line.highlight::before { color: var(--compare); }
+    .tok-kw { color: #C084FC; } .tok-type { color: #7DD3FC; }
+    .tok-fn { color: #FDE68A; } .tok-num { color: #86EFAC; }
+    .tok-cmt { color: #64748B; font-style: italic; } .tok-op { color: #94A3B8; }
+
+    .work-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+
+    .visual-card {
+        flex: 1 1 auto; min-height: 0;
+        border: 1px solid var(--line); border-radius: 12px; background: #fff;
+        padding: clamp(8px, 1vw, 14px);
+        display: flex; flex-direction: column;
+    }
+    .visual-slot {
+        flex: 1; min-height: 0;
+        display: flex; align-items: flex-end; justify-content: center;
+        gap: clamp(6px, .7vw, 14px);
+        padding: 40px 4px 6px;
+        border-bottom: 2px dashed var(--line); margin-bottom: 10px;
+        overflow-x: auto; overflow-y: hidden;
+    }
+
+    /* 数据柱 */
+    .bar-wrapper { display: flex; flex-direction: column; align-items: center; position: relative; flex: 0 0 auto; }
+    .bar-animator { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; will-change: transform; }
+    .bar {
+        width: clamp(26px, 2.6vw, 50px);
+        background: #F0F7FF; border: 2px solid var(--primary); border-bottom: none;
+        border-radius: 8px 8px 0 0;
+        display: flex; align-items: flex-start; justify-content: center;
+        padding-top: 7px; position: relative; overflow: hidden;
+        transition: border-color .22s, background .22s, box-shadow .22s;
+    }
+    .bar-value { color: var(--text); font-weight: 800; font-size: clamp(12px, 1vw, 16px); font-variant-numeric: tabular-nums; }
+    .bar-index {
+        margin-top: 8px; font-size: 11.5px; color: var(--muted);
+        font-family: Consolas, monospace; background: #F1F5F9;
+        border-radius: 999px; padding: 1px 8px;
+    }
+
+    .bar.compare { border-color: var(--compare); background: #FFFBEB; box-shadow: 0 -4px 14px rgba(245,158,11,.28); }
+    .bar.swap    { border-color: var(--swap);    background: #FEF2F2; box-shadow: 0 -5px 16px rgba(239,68,68,.28); }
+    .bar.sorted  { border-color: var(--sorted);  background: #ECFDF5; box-shadow: 0 -3px 12px rgba(16,185,129,.2); }
+    .bar.pivot   { border-color: var(--pivot);   background: #F5F3FF; box-shadow: 0 -3px 12px rgba(139,92,246,.2); }
+    .bar.scan    { border-color: var(--scan);    background: #ECFEFF; box-shadow: 0 -3px 12px rgba(34,211,238,.2); }
+    .bar.pit { background: transparent !important; border: 2px dashed var(--line-strong) !important; box-shadow: none !important; }
+    .bar.pit .bar-value { color: transparent !important; }
+
+    .bar-wrapper.is-cmp .bar-index { color: var(--compare); }
+    .bar-wrapper.is-swp .bar-index { color: var(--swap); }
+    .bar-wrapper.is-ok  .bar-index { color: var(--sorted); }
+
+    .pointer-container { position: absolute; top: -30px; display: flex; flex-direction: column; align-items: center; gap: 2px; z-index: 6; }
+    .pointer-label {
+        font-family: Consolas, monospace; font-weight: 800; font-size: 12.5px;
+        color: var(--pivot); background: #fff; border: 2px solid var(--pivot);
+        border-radius: 6px; padding: 0 6px; white-space: nowrap;
+    }
+    .pointer-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 7px solid var(--pivot); }
+
+    /* 存放槽 */
+    .pivot-area { display: none; flex-direction: column; align-items: center; justify-content: flex-end; margin-right: clamp(18px, 3vw, 46px); flex: 0 0 auto; }
+    .pivot-area.show { display: flex; }
+    .pivot-slot {
+        width: clamp(38px, 3.4vw, 56px); height: clamp(140px, 18vh, 230px);
+        border: 2px dashed var(--pivot); border-radius: 9px;
+        display: flex; align-items: flex-end; justify-content: center;
+        background: #FAF9FF; transition: all .25s;
+    }
+    .pivot-slot.slot-empty { border-color: var(--line-strong); background: #F8FAFC; position: relative; }
+    .pivot-slot.slot-empty::before {
+        content: attr(data-label); position: absolute; top: 50%; left: 50%;
+        transform: translate(-50%, -50%) rotate(-90deg);
+        color: var(--line-strong); font-size: 12px; font-family: Consolas, monospace;
+        letter-spacing: 1.5px; text-transform: lowercase;
+    }
+    .pivot-slot-label {
+        margin-top: 8px; font-size: 12.5px; font-weight: 700; color: var(--pivot);
+        font-family: Consolas, monospace; background: #F5F3FF; border-radius: 999px; padding: 1px 9px;
+    }
+
+    /* 执行步控制条 */
+    .exec-bar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding-top: 8px; border-top: 1px solid var(--line);
+    }
+    .btn {
+        border-radius: 9px; font-size: 13.5px; font-weight: 700;
+        padding: 7px 15px; cursor: pointer; border: 1px solid var(--line-strong);
+        background: #fff; color: var(--text);
+        transition: all .18s; white-space: nowrap;
+    }
+    .btn:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); background: #F8FBFF; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn.primary:hover:not(:disabled) { background: #1D4ED8; border-color: #1D4ED8; color: #fff; }
+    .btn.play { background: #ECFDF5; border-color: #A7F3D0; color: #047857; }
+    .btn.play:hover:not(:disabled) { background: #D1FAE5; border-color: var(--sorted); color: #047857; }
+
+    .step-badge {
+        font-family: Consolas, monospace; font-size: 12.5px; font-weight: 700;
+        color: var(--primary); background: var(--primary-soft);
+        border-radius: 999px; padding: 3px 11px; white-space: nowrap;
+    }
+    .speed-group { display: flex; align-items: center; gap: 5px; margin-left: auto; }
+    .speed-group .lbl { font-size: 12.5px; color: var(--muted); }
+    .speed-btn {
+        border: 1px solid var(--line-strong); background: #fff; color: var(--muted);
+        border-radius: 7px; font-size: 12.5px; font-weight: 700; padding: 4px 9px; cursor: pointer;
+    }
+    .speed-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    /* 状态描述 */
+    .desc-card {
+        flex: 0 0 auto;
+        border: 1px solid var(--line); border-left: 4px solid var(--primary);
+        border-radius: 10px; background: #F8FBFF;
+        padding: 9px 104px 9px 14px; font-size: 13.5px; line-height: 1.65; color: #1E293B;
+        min-height: 46px;
+    }
+    .desc-card .desc-label { font-size: 11.5px; font-weight: 700; color: var(--primary); letter-spacing: .4px; display: block; margin-bottom: 2px; }
+    .desc-card code, .slide-card code {
+        font-family: Consolas, monospace; font-size: .92em;
+        background: #E2E8F0; color: #0F172A; border-radius: 4px; padding: .5px 5px;
+    }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--muted); }
+    .legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+    /* 经典演示的解析区 */
+    .explain-row { flex: 0 0 auto; display: flex; gap: 10px; }
+    .logic-box {
+        flex: 1; border: 1px solid var(--line); border-radius: 10px; background: #fff;
+        padding: 10px 14px; font-size: 13px; color: #334155; line-height: 1.7;
+        max-height: 132px; overflow-y: auto;
+    }
+    .logic-box h3 { margin: 0 0 5px; font-size: 12.5px; color: var(--primary); font-weight: 700; }
+
+    /* ============ 总结页 ============ */
+    .summary-grid { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(14px, 1.5vw, 24px); align-content: center; }
+
+    .point-list { display: grid; gap: 9px; }
+    .point-item {
+        display: flex; gap: 10px; align-items: flex-start;
+        border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 11px 14px;
+    }
+    .point-item .tag {
+        flex: 0 0 auto; font-size: 11.5px; font-weight: 800; font-family: Consolas, monospace;
+        color: var(--primary); background: var(--primary-soft); border-radius: 6px; padding: 1px 7px; margin-top: 3px;
+    }
+    .point-item h3 { margin: 0 0 2px; font-size: 14.5px; font-weight: 700; }
+    .point-item p { margin: 0; font-size: 13px; color: var(--muted); }
+
+    .quiz-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 14px 16px; display: grid; gap: 12px; }
+    .quiz-item h3 { margin: 0 0 8px; font-size: 14px; font-weight: 700; display: flex; gap: 7px; }
+    .quiz-item h3 .qn { color: var(--primary); font-family: Consolas, monospace; }
+    .opt-list { display: grid; gap: 6px; }
+    .opt {
+        text-align: left; border: 1px solid var(--line); background: #fff; border-radius: 8px;
+        padding: 7px 12px; font-size: 13px; color: #334155; cursor: pointer; transition: all .16s;
+    }
+    .opt:hover { border-color: var(--primary); background: #F8FBFF; }
+    .opt.right { border-color: var(--sorted); background: #ECFDF5; color: #047857; font-weight: 700; }
+    .opt.wrong { border-color: var(--swap); background: #FEF2F2; color: #B91C1C; }
+    .quiz-why { margin: 7px 0 0; font-size: 12.5px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; }
+
+    /* ============ 翻页条 ============ */
+    .pager {
+        flex: 0 0 auto;
+        display: flex; align-items: center; justify-content: center; gap: 16px;
+        padding: 8px 16px;
+        background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+        box-shadow: var(--shadow);
+    }
+    .pager[hidden] { display: none; }
+    .pager-info { text-align: center; min-width: 168px; }
+    .pager-label { font-size: 13px; font-weight: 700; color: var(--text); }
+    .pager-sub { display: block; font-size: 11.5px; color: var(--muted); font-family: Consolas, monospace; }
+    .pager .btn { min-width: 96px; }
+
+    /* ============ 白板 ============ */
+    #draw-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 9998; pointer-events: none; }
+    #draw-canvas.drawing-mode { pointer-events: auto; cursor: crosshair; }
+    #draw-canvas.eraser-mode { pointer-events: auto; cursor: cell; }
+    .draw-toolbar {
+        position: fixed; right: 20px; bottom: 78px; z-index: 9999;
+        background: rgba(255,255,255,.97); padding: 7px 11px;
+        border-radius: 999px; box-shadow: 0 8px 24px rgba(15,23,42,.14);
+        border: 1px solid var(--line);
+        display: flex; align-items: center; gap: 8px; width: max-content;
+    }
+    .tool-btn {
+        background: none; border: 2px solid transparent; font-size: 13px; font-weight: 700;
+        color: var(--text); cursor: pointer; padding: 4px 11px; border-radius: 999px;
+        display: flex; align-items: center; gap: 5px; transition: .18s; white-space: nowrap;
+    }
+    .tool-btn:hover { background: #F1F5F9; border-color: var(--line-strong); }
+    .tool-btn.active { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+    .color-dot { width: 17px; height: 17px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: .18s; }
+    .color-dot:hover { transform: scale(1.15); }
+    .color-dot.active { border-color: #1E293B; transform: scale(1.15); }
+    .draw-tools-panel { display: none; align-items: center; gap: 10px; border-left: 1px solid var(--line); padding-left: 10px; }
+    .draw-tools-panel.show { display: flex; }
+
+    /* ============ 窄屏 ============ */
+    @media (max-height: 800px) {
+        .app { padding: 8px clamp(10px, 1.4vw, 20px) 8px; gap: 8px; }
+        .slide-card { padding: 12px 16px; }
+        .slide-head { margin-bottom: 8px; }
+        .slide-title { font-size: clamp(19px, 1.7vw, 24px); }
+        .slide-lead { margin-top: 4px; font-size: 13.5px; }
+        .visual-card { padding: 8px 10px; }
+        .visual-slot { padding-top: 34px; margin-bottom: 8px; }
+        .legend { margin-top: 4px; gap: 9px; }
+        .legend span { font-size: 11.5px; }
+        .exec-bar { padding-top: 6px; gap: 6px; }
+        .btn { padding: 5px 11px; font-size: 12.5px; }
+        .desc-card { min-height: 42px; padding-top: 6px; padding-bottom: 6px; font-size: 13px; }
+        .code-content { font-size: 12.5px; line-height: 1.62; }
+    }
+
+    @media (max-width: 1080px) {
+        .intro-grid, .summary-grid { grid-template-columns: minmax(0, 1fr); }
+        .workbench { flex-direction: column; }
+        .workbench.with-code .code-pane { flex: 0 0 clamp(180px, 30vh, 260px); }
+    }
+    @media (max-width: 760px) {
+        body { overflow: auto; }
+        .app { height: auto; min-height: 100vh; }
+        .stage-host { min-height: 60vh; }
+        .draw-toolbar { bottom: 12px; }
+        .pager { position: sticky; bottom: 0; }
+    }
+</style>
 </head>
 <body>
 
@@ -169,514 +510,1533 @@
 <div class="draw-toolbar">
     <button class="tool-btn" id="toggle-draw-btn" onclick="toggleDrawingMode()">🖌️ 开启白板</button>
     <div class="draw-tools-panel" id="draw-tools-panel">
-        <div class="color-dot active tool-item" style="background: #ef4444;" onclick="setBrushMode(this, 'draw', '#ef4444')"></div>
-        <div class="color-dot tool-item" style="background: #0ea5e9;" onclick="setBrushMode(this, 'draw', '#0ea5e9')"></div>
-        <div class="color-dot tool-item" style="background: #10b981;" onclick="setBrushMode(this, 'draw', '#10b981')"></div>
-        <button class="tool-btn tool-item" style="color: #f59e0b;" onclick="setBrushMode(this, 'erase')">🧽 橡皮</button>
+        <div class="color-dot active tool-item" style="background:#ef4444;" onclick="setBrushMode(this,'draw','#ef4444')"></div>
+        <div class="color-dot tool-item" style="background:#2563eb;" onclick="setBrushMode(this,'draw','#2563eb')"></div>
+        <div class="color-dot tool-item" style="background:#10b981;" onclick="setBrushMode(this,'draw','#10b981')"></div>
+        <button class="tool-btn tool-item" style="color:#f59e0b;" onclick="setBrushMode(this,'erase')">🧽 橡皮</button>
         <button class="tool-btn" onclick="undoDraw()">↩️ 撤销</button>
-        <button class="tool-btn" style="color: #ef4444; border-color: #fca5a5;" onclick="clearCanvas()">🗑️ 清屏</button>
+        <button class="tool-btn" style="color:#ef4444;" onclick="clearCanvas()">🗑️ 清屏</button>
     </div>
 </div>
 
-<div class="wrapper">
-    <div class="main-container">
-        <div class="header-card">
-            <div class="header-text">
-                <h1>✨ 白学在线 - CSP/NOIP 核心排序算法全景演练 <span>PPT放映模式：可按 ← / → 键控制</span></h1>
-            </div>
-            <div class="header-controls">
-                <select class="algo-selector" id="algo-select" onchange="changeAlgorithm()">
-                    <option value="bubble">冒泡排序 (Bubble Sort)</option>
-                    <option value="selection">选择排序 (Selection Sort)</option>
-                    <option value="insertion">插入排序 (Insertion Sort)</option>
-                    <option value="merge">归并排序 (Merge Sort)</option>
-                    <option value="quick">快速排序 (Quick Sort)</option>
-                    <option value="counting">计数排序 (Counting Sort)</option>
-                    <option value="radix">基数排序 (Radix Sort)</option>
-                </select>
-                <button class="fullscreen-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
-            </div>
+<div class="app">
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark">绪</span>
+            <h1 id="brand-title">冒泡排序</h1>
+            <span class="brand-tag" id="brand-tag">教学课件</span>
         </div>
-
-        <div class="content-wrapper">
-            <!-- 左侧：代码区贯穿整个高度 -->
-            <div class="left-panel">
-                <div class="code-window">
-                    <div class="code-header">
-                        <div class="mac-dot red"></div><div class="mac-dot yellow"></div><div class="mac-dot green"></div>
-                        <span class="code-title" id="code-title">bubble_sort.cpp</span>
-                    </div>
-                    <div class="code-card" id="code-content"></div>
-                </div>
-            </div>
-
-            <!-- 右侧：上层动画区 + 下层解析区 -->
-            <div class="right-panel">
-                <div class="glass-card visual-card">
-                    <div class="chart-layout" id="chart-container">
-                        <div class="pivot-area" id="pivot-area" style="display: none;">
-                            <div class="pivot-slot" id="pivot-slot"></div>
-                            <div class="pivot-slot-label" id="pivot-label">pivot</div>
-                        </div>
-                        <div class="bars-area" id="bars-area"></div>
-                    </div>
-                    
-                    <div class="control-panel">
-                        <button class="btn btn-secondary" id="btn-prev" onclick="step(-1)">← 上一步</button>
-                        <button class="btn btn-secondary" id="btn-reset" onclick="reset()">重置序列</button>
-                        <button class="btn btn-primary" id="btn-next" onclick="step(1)">下一步 →</button>
-                    </div>
-                </div>
-
-                <div class="explanation-row">
-                    <div class="step-box">
-                        <h4>实时执行分析</h4>
-                        <p id="step-desc">点击“下一步”启动程序单步调试模拟。</p>
-                    </div>
-                    <div class="logic-box">
-                        <h3>💡 算法答题思路与核心提炼</h3>
-                        <div id="logic-content"></div>
-                    </div>
-                </div>
-            </div>
+        <div class="topbar-actions">
+            <select class="algo-select" id="algo-select" aria-label="选择排序算法"></select>
+            <button class="ghost-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
         </div>
-    </div>
+    </header>
+
+    <nav class="stagebar" id="stagebar" aria-label="教学环节"></nav>
+
+    <main class="stage-host" id="stage-host"></main>
+
+    <footer class="pager" id="pager">
+        <button class="btn" id="pager-prev">← 上一页</button>
+        <div class="pager-info">
+            <span class="pager-label" id="pager-label">环节 1 / 5</span>
+            <span class="pager-sub" id="pager-sub"></span>
+        </div>
+        <button class="btn primary" id="pager-next">下一页 →</button>
+    </footer>
 </div>
 
 <script>
-    // 全屏与白板系统
-    function tellParentFullscreen(action) { if (window.parent !== window) window.parent.postMessage({ type: 'lesson-fullscreen', action }, location.origin); }
-    function toggleFullScreen() { if (!document.fullscreenElement) { tellParentFullscreen('enter'); document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
-    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; if (!document.fullscreenElement) tellParentFullscreen('exit'); });
-    window.addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); else if (e.key === 'ArrowLeft') document.getElementById('btn-prev').click(); });
+/* =========================================================================
+ * 0. 基础工具 —— 全部采用 DOM API 构建，不使用 innerHTML 注入内容
+ * ========================================================================= */
+const $ = (id) => document.getElementById(id);
 
-    const canvas = document.getElementById('draw-canvas'); const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    let isDrawingMode = false; let isDrawing = false; let currentMode = 'draw'; let drawHistory = [];
-    function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.lineWidth = 4; ctx.strokeStyle = '#ef4444'; if(drawHistory.length === 0) saveDrawState(); }
-    window.addEventListener('resize', resizeCanvas); resizeCanvas();
-    function toggleDrawingMode() { isDrawingMode = !isDrawingMode; const btn = document.getElementById('toggle-draw-btn'); const panel = document.getElementById('draw-tools-panel'); if (isDrawingMode) { canvas.className = currentMode === 'erase' ? 'eraser-mode' : 'drawing-mode'; btn.classList.add('active'); btn.innerHTML = "❌ 退出白板"; panel.classList.add('show'); } else { canvas.className = ''; btn.classList.remove('active'); btn.innerHTML = "🖌️ 开启白板"; panel.classList.remove('show'); } }
-    function setBrushMode(element, mode, color = null) { currentMode = mode; document.querySelectorAll('.tool-item').forEach(el => el.classList.remove('active')); element.classList.add('active'); if (mode === 'erase') { canvas.className = 'eraser-mode'; ctx.globalCompositeOperation = 'destination-out'; ctx.lineWidth = 30; } else { canvas.className = 'drawing-mode'; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 4; if (color) ctx.strokeStyle = color; } }
-    function saveDrawState() { if (drawHistory.length > 20) drawHistory.shift(); drawHistory.push(canvas.toDataURL()); }
-    function undoDraw() { if (drawHistory.length > 1) { drawHistory.pop(); let img = new Image(); img.src = drawHistory[drawHistory.length - 1]; img.onload = () => { ctx.clearRect(0, 0, canvas.width, canvas.height); let prevMode = ctx.globalCompositeOperation; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(img, 0, 0); ctx.globalCompositeOperation = prevMode; }; } else if (drawHistory.length === 1) clearCanvas(); }
-    function clearCanvas() { ctx.clearRect(0, 0, canvas.width, canvas.height); drawHistory = []; saveDrawState(); }
-    canvas.addEventListener('mousedown', (e) => { if (!isDrawingMode) return; saveDrawState(); isDrawing = true; ctx.beginPath(); ctx.moveTo(e.clientX, e.clientY); });
-    canvas.addEventListener('mousemove', (e) => { if (!isDrawing || !isDrawingMode) return; ctx.lineTo(e.clientX, e.clientY); ctx.stroke(); });
-    canvas.addEventListener('mouseup', () => isDrawing = false);
-
-    // ================= 7大排序核心引擎 (引入对象式 ID 追踪) =================
-    const ALGORITHMS = {
-        bubble: {
-            title: "bubble_sort.cpp",
-            code: ["void bubbleSort(int arr[], int n) {", "    for (int i = n; i > 1; i--) {", "        for (int j = 1; j < i; j++) {", "            if (arr[j] > arr[j + 1]) swap(arr[j], arr[j + 1]);", "        }", "    }", "}"],
-            logic: "<b>终点思维法：</b>外层循环边界确定当前未排序区间的<b>终点位置 i</b>。每趟最大的数字向右“冒泡”落位到终点 <code>arr[i]</code>。<br><b>时空复杂度：</b>时间 $O(n^2)$，空间 $O(1)$，具有<b>稳定性</b>。",
-            run: function(arr) {
-                let n = arr.length - 1; let sorted = []; pushState(arr, 1, `初始化完成。数组有效区间 [1, ${n}]。`, {}, {}, sorted);
-                for (let i = n; i > 1; i--) {
-                    pushState(arr, 2, `外层循环：锁定当前未排序区间终点 i = ${i}。`, {}, { i: i }, sorted);
-                    for (let j = 1; j < i; j++) {
-                        pushState(arr, 3, `比较当前相邻项 arr[${j}] 和 arr[${j+1}]。`, {[j]:'compare', [j+1]:'compare'}, { i: i, j: j }, sorted);
-                        if (arr[j].val > arr[j + 1].val) { 
-                            let temp = arr[j]; arr[j] = arr[j+1]; arr[j+1] = temp; 
-                            pushState(arr, 4, `检测到逆序，执行 C++ <code>swap</code> 交换物理内存位置。`, {[j]:'swap', [j+1]:'swap'}, { i: i, j: j }, sorted); 
-                        }
-                    }
-                    sorted.push(i);
-                }
-                sorted.push(1); pushState(arr, 7, `排序完全结束！全部元素已稳固。`, {}, {}, sorted);
-            }
-        },
-        selection: {
-            title: "selection_sort.cpp",
-            code: ["void selectionSort(int arr[], int n) {", "    for (int i = 1; i < n; i++) {", "        int min_idx = i;", "        for (int j = i + 1; j <= n; j++) {", "            if (arr[j] < arr[min_idx]) min_idx = j;", "        }", "        if (min_idx != i) swap(arr[i], arr[min_idx]);", "    }", "}"],
-            logic: "<b>打擂台原理：</b>外层控制起始位。内层在剩余未排序的区间 <code>[i, n]</code> 里搜寻极小值的索引 <code>min_idx</code>，再将其移至前方。<br><b>时空复杂度：</b>时间 $O(n^2)$，空间 $O(1)$，属于<b>非稳定</b>排序。",
-            run: function(arr) {
-                let n = arr.length - 1; let sorted = [];
-                for(let i=1; i<n; i++) {
-                    let min_idx = i; pushState(arr, 3, `第 ${i} 趟：暂定极小值位置 min_idx = ${i}`, {[i]:'pivot'}, { i: i, min: min_idx }, sorted);
-                    for(let j=i+1; j<=n; j++) {
-                        pushState(arr, 4, `扫描对比 arr[${j}] 是否小于当前的擂主元素。`, {[min_idx]:'pivot', [j]:'scan'}, { i: i, min: min_idx, j: j }, sorted);
-                        if(arr[j].val < arr[min_idx].val) { min_idx = j; pushState(arr, 5, `发现更小元素，更新极小值标记位置 min_idx = ${j}`, {[min_idx]:'pivot'}, { i: i, min: min_idx, j: j }, sorted); }
-                    }
-                    if(min_idx !== i) { let t = arr[i]; arr[i] = arr[min_idx]; arr[min_idx] = t; pushState(arr, 7, `将找到的真正极小值换至当前未排序区的最左端。`, {[i]:'swap', [min_idx]:'swap'}, { i: i }, sorted); }
-                    sorted.push(i);
-                }
-                sorted.push(n); pushState(arr, 9, `所有位置检索匹配完毕，选择排序结束。`, {}, {}, sorted);
-            }
-        },
-        insertion: {
-            title: "insertion_sort.cpp",
-            code: [
-                "void insertionSort(int arr[], int n) {",
-                "    for (int i = 2; i <= n; i++) {",
-                "        int key = arr[i];",
-                "        int j = i - 1;",
-                "        while (j >= 1 && arr[j] > key) {",
-                "            arr[j + 1] = arr[j];",
-                "            j--;",
-                "        }",
-                "        arr[j + 1] = key;",
-                "    }",
-                "}"
-            ],
-            logic: "<b>精妙的留坑挪动机制：</b><br>执行 <code>key = arr[i]</code> 时，把待插入值<b>保存在专属变量框中</b>，原位形成<b>“空坑”</b>。在已排序区间中检索，比 <code>key</code> 大的元素<b>向右移一格复写</b>，直到将 <code>key</code> 填入合适的坑位。",
-            run: function(arr) {
-                let n = arr.length - 1; let sorted = [1];
-                pushState(arr, 1, `【程序启动】 第一个元素天然有序，i 指针从 2 开始。左侧开辟了 <code>key</code> 变量空间。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "key"});
-                for(let i = 2; i <= n; i++) {
-                    let keyObj = arr[i]; let j = i - 1;
-                    pushState(arr, 3, `执行 <code>key = arr[${i}]</code>：抽出数字 <b style="color:var(--neon-purple)">${keyObj.val}</b> 飞入暂存框，原位形成<b>空坑</b>。`, {[i]:'pivot'}, { i: i }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: i, slotLabel: "key"});
-                    while(j >= 1) {
-                        pushState(arr, 5, `核对有序区 arr[${j}] (${arr[j].val}) 是否大于暂存的 key (${keyObj.val})？`, {[j]:'compare'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j+1, slotLabel: "key"});
-                        if(arr[j].val > keyObj.val) {
-                            arr[j + 1] = arr[j]; 
-                            pushState(arr, 6, `满足！执行 <code>arr[j + 1] = arr[j]</code>：大数右移填补坑，原地 arr[${j}] 变为新坑。`, {[j+1]:'swap'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j, slotLabel: "key"});
-                            j--;
-                        } else {
-                            pushState(arr, 5, `条件不满足：arr[${j}.val] &le; key。跳出挪移循环。`, {[j]:'compare'}, { i: i, j: j }, sorted, {pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j+1, slotLabel: "key"});
-                            break;
-                        }
-                    }
-                    arr[j + 1] = keyObj; sorted.push(i);
-                    pushState(arr, 9, `执行 <code>arr[j + 1] = key</code>：将数字从暂存框中取出，飞入最终位置 arr[${j+1}]。`, {[j+1]:'sorted'}, { 'j+1': j+1 }, sorted, {slotEmpty: true, slotLabel: "key"});
-                }
-                pushState(arr, 11, `高精度精确插入匹配整理结束，插入排序彻底完成。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "key"});
-            }
-        },
-        merge: {
-            title: "merge_sort.cpp",
-            code: [
-                "void mergeSort(int arr[], int l, int r) {",
-                "    if (l >= r) return;",
-                "    int mid = (l + r) / 2;",
-                "    mergeSort(arr, l, mid);",
-                "    mergeSort(arr, mid + 1, r);",
-                "    int temp[r - l + 1];",
-                "    int i = l, j = mid + 1, k = 0;",
-                "    while (i <= mid && j <= r) {",
-                "        if (arr[i] <= arr[j]) temp[k++] = arr[i++];",
-                "        else temp[k++] = arr[j++];",
-                "    }",
-                "    while (i <= mid) temp[k++] = arr[i++];",
-                "    while (j <= r) temp[k++] = arr[j++];",
-                "    for (int p = 0; p < k; p++) arr[l + p] = temp[p];",
-                "}"
-            ],
-            logic: "<b>分治合并：</b>先将数组平分，然后利用辅助数组 <code>temp</code> 和双指针 <code>i, j</code>，将两个有序子数组如拉链般合并起来拷回原数组。<br><b>时空复杂度：</b>时间恒定 $O(n \\log n)$，空间 $O(n)$，<b>稳定</b>排序。",
-            run: function(arr) {
-                let n = arr.length - 1; let sorted = []; pushState(arr, 1, `开始归并排序。`, {}, {}, sorted);
-                function mSort(l, r) {
-                    if (l >= r) { if(l===r) sorted.push(l); return; }
-                    let mid = Math.floor((l + r) / 2);
-                    pushState(arr, 3, `分解：将区间 [${l}, ${r}] 从中点 ${mid} 拆分。`, {[l]:'scan', [r]:'scan'}, { l: l, r: r, mid: mid }, sorted);
-                    mSort(l, mid); mSort(mid + 1, r);
-                    pushState(arr, 6, `准备将拆分好的左右有序区间 [${l}, ${mid}] 与 [${mid+1}, ${r}] 进行双指针合并。`, {}, { l: l, r: r, mid: mid }, sorted);
-                    let temp = []; let i = l, j = mid + 1;
-                    while (i <= mid && j <= r) {
-                        pushState(arr, 8, `比较双指针元素：arr[${i}](${arr[i].val}) 和 arr[${j}](${arr[j].val})。`, {[i]:'compare', [j]:'compare'}, { i: i, j: j }, sorted);
-                        if (arr[i].val <= arr[j].val) { temp.push(arr[i]); pushState(arr, 9, `arr[${i}] 较小，放入 temp 数组，左指针 i 右移。`, {[i]:'swap'}, { i: i, j: j }, sorted); i++; } 
-                        else { temp.push(arr[j]); pushState(arr, 10, `arr[${j}] 较小，放入 temp 数组，右指针 j 右移。`, {[j]:'swap'}, { i: i, j: j }, sorted); j++; }
-                    }
-                    while (i <= mid) { temp.push(arr[i]); i++; }
-                    while (j <= r) { temp.push(arr[j]); j++; }
-                    pushState(arr, 13, `扫尾完毕。准备将合并好的一整段数据从 temp 拷回原数组区间 [${l}, ${r}]。`, {}, {}, sorted);
-                    for (let p = 0; p < temp.length; p++) { arr[l + p] = temp[p]; sorted.push(l + p); pushState(arr, 14, `拷回过程：覆盖更新 arr[${l + p}]。`, {[l+p]:'sorted'}, { p: l + p }, sorted); }
-                }
-                mSort(1, n); pushState(arr, 15, `🎉 归并排序全部完成！`, {}, {}, sorted);
-            }
-        },
-        quick: {
-            title: "quick_sort.cpp",
-            code: ["void quickSort(int arr[], int l, int r) {", "    if (l >= r) return;", "    int pivot = arr[l]; int i = l, j = r;", "    while (i < j) {", "        while (i < j && arr[j] >= pivot) j--;", "        if (i < j) arr[i++] = arr[j];", "        while (i < j && arr[i] <= pivot) i++;", "        if (i < j) arr[j--] = arr[i];", "    }", "    arr[i] = pivot;", "    quickSort(arr, l, i - 1); quickSort(arr, i + 1, r);", "}"],
-            logic: "<b>挖坑标兵划分法：</b>取出首项 <code>pivot</code> 暂存，原位置沦为“基准坑”。双向交替探测，小值补左坑，大值补右坑。最后指针重叠位置即基准落脚位。<br><b>时空复杂度：</b>平均 $O(n \\log n)$，最差情况退化为 $O(n^2)$。",
-            run: function(arr) {
-                let n = arr.length - 1; let sorted = []; 
-                pushState(arr, 1, `【程序启动】 准备执行快速排序。左侧 C++ 已开辟了 <code>pivot</code> 变量空间。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "pivot"});
-                function qSort(l, r) {
-                    if (l >= r) { if(l === r) sorted.push(l); return; }
-                    let pivotObj = arr[l];
-                    pushState(arr, 3, `处理区间 [${l}, ${r}]。选中首位元素 ${pivotObj.val}，准备执行挖坑。`, {[l]:'pivot'}, { l: l, r: r }, sorted, {slotEmpty: true, slotLabel: "pivot"});
-                    pushState(arr, 3, `基准抽出飞入左侧 <code>pivot</code> 变量框中，原位置变为待填补的空虚坑位 arr[${l}]。`, {}, { l: l, r: r }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: l, slotLabel: "pivot"});
-                    let i = l, j = r;
-                    while (i < j) {
-                        pushState(arr, 5, `右指针 j 向左检索，扫查小于基准 ${pivotObj.val} 的值。`, {[j]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"});
-                        while (i < j && arr[j].val >= pivotObj.val) { j--; pushState(arr, 5, `符合规整条件，右指针继续左移。`, {[j]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"}); }
-                        if (i < j) { arr[i] = arr[j]; pushState(arr, 6, `<span style="color:var(--neon-red); font-weight:bold;">填坑：</span>发现较小值 ${arr[j].val}，飞入左坑 arr[${i}]，右端顺势转化为新空虚坑位。`, {[i]:'swap'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"}); i++; }
-                        if(i < j) pushState(arr, 7, `左指针 i 向右检索，扫查大于基准 ${pivotObj.val} 的值。`, {[i]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"});
-                        while (i < j && arr[i].val <= pivotObj.val) { i++; pushState(arr, 7, `符合规整条件，左指针继续右推。`, {[i]:'scan'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: "pivot"}); }
-                        if (i < j) { arr[j] = arr[i]; pushState(arr, 8, `<span style="color:var(--neon-red); font-weight:bold;">填坑：</span>发现较大值 ${arr[i].val}，飞入右坑 arr[${j}]，左端演变为新空坑。`, {[j]:'swap'}, { i: i, j: j }, sorted, {pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: "pivot"}); j--; }
-                    }
-                    arr[i] = pivotObj; sorted.push(i);
-                    pushState(arr, 10, `左右双指针汇合重叠。将基准值 ${pivotObj.val} 从专属区取出，飞回最终交汇坑位 [${i}] 处。`, {[i]:'sorted'}, { 'i, j': i }, sorted, {slotEmpty: true, slotLabel: "pivot"}); 
-                    qSort(l, i - 1); qSort(i + 1, r);
-                }
-                qSort(1, n); pushState(arr, 12, `所有区间划分归位完全完成！快速排序成功。`, {}, {}, sorted, {slotEmpty: true, slotLabel: "pivot"});
-            }
-        },
-        counting: { 
-            title: "counting_sort.cpp", 
-            code: [
-                "void countingSort(int arr[], int n) {",
-                "    int max_val = 0;",
-                "    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);",
-                "    int cnt[max_val + 1] = {0};",
-                "    for (int i = 1; i <= n; i++) cnt[arr[i]]++;",
-                "    int idx = 1;",
-                "    for (int i = 0; i <= max_val; i++) {",
-                "        while (cnt[i] > 0) {",
-                "            arr[idx++] = i;",
-                "            cnt[i]--;",
-                "        }",
-                "    }",
-                "}"
-            ], 
-            logic: "<b>空间换时间：</b>不通过比较大小，而是利用数组下标来确定元素的正确位置。<br><b>频数统计：</b>先遍历原数组，在 <code>cnt</code> 数组中记录每个元素出现的次数。然后再按从小到大的顺序覆盖原数组。<br><b>时空复杂度：</b>时间 $O(n + k)$，空间 $O(k)$。只适合极差小的密集数据。", 
-            run: function(arr) { 
-                let n = arr.length - 1; let sorted = [];
-                pushState(arr, 1, `开始计数排序。由于这里没有直接展现 cnt 桶的 DOM，我们将用动画模拟整个逻辑流。`, {}, {}, sorted);
-                let max_val = 0;
-                for (let i = 1; i <= n; i++) {
-                    pushState(arr, 3, `全盘扫描寻找最大值，考察 arr[${i}] = ${arr[i].val}。`, {[i]:'scan'}, { i: i }, sorted);
-                    if (arr[i].val > max_val) { max_val = arr[i].val; pushState(arr, 3, `最大值纪录刷新为 ${max_val}。`, {[i]:'pivot'}, { i: i }, sorted); }
-                }
-                pushState(arr, 5, `找到极值 ${max_val}，在内存中动态开辟等长度的 cnt 计数桶。`, {}, {}, sorted);
-                let cnt = new Array(max_val + 1).fill(0);
-                for (let i = 1; i <= n; i++) {
-                    cnt[arr[i].val]++;
-                    pushState(arr, 6, `频数统计：捕获数字 ${arr[i].val}，将其投入 cnt 桶，对应计数器加一。`, {[i]:'compare'}, { i: i }, sorted);
-                }
-                let idx = 1;
-                pushState(arr, 8, `遍历 cnt 桶数组，按从 0 到 max_val 的顺序准备提取数据重新铺设原数组。`, {}, {}, sorted);
-                for (let i = 0; i <= max_val; i++) {
-                    if (cnt[i] > 0) {
-                        pushState(arr, 10, `发现桶 cnt[${i}] 中存在 ${cnt[i]} 个元素，开始依次弹射。`, {}, {}, sorted);
-                        while (cnt[i] > 0) {
-                            arr[idx].val = i; sorted.push(idx); // mock update for visualization
-                            pushState(arr, 11, `数据回填：将数值 ${i} 放置到 arr[${idx}] 的位置。`, {[idx]:'swap'}, { idx: idx }, sorted);
-                            idx++; cnt[i]--;
-                        }
-                    }
-                }
-                pushState(arr, 15, `🎉 频数展开完毕！计数排序完美结束。`, {}, {}, sorted);
-            } 
-        },
-        radix: { 
-            title: "radix_sort.cpp", 
-            code: [
-                "void radixSort(int arr[], int n) {",
-                "    int max_val = 0;",
-                "    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);",
-                "    for (int exp = 1; max_val / exp > 0; exp *= 10) {",
-                "        int output[n + 1], cnt[10] = {0};",
-                "        for (int i = 1; i <= n; i++) cnt[(arr[i] / exp) % 10]++;",
-                "        for (int i = 1; i < 10; i++) cnt[i] += cnt[i - 1];",
-                "        for (int i = n; i >= 1; i--) {",
-                "            output[cnt[(arr[i] / exp) % 10]] = arr[i];",
-                "            cnt[(arr[i] / exp) % 10]--;",
-                "        }",
-                "        for (int i = 1; i <= n; i++) arr[i] = output[i];",
-                "    }",
-                "}"
-            ], 
-            logic: "<b>按位分配：</b>分别依据个位、十位、百位等阶梯权重，进行多轮稳健的计数装桶。<br><b>基数收集：</b>利用 0-9 桶分发，再倒序遍历原数组填充 <code>output</code> 以确保数字的相对稳定性。<br><b>时空复杂度：</b>时间 $O(d(n+k))$，空间 $O(n+k)$。", 
-            run: function(arr) { 
-                let n = arr.length - 1; let sorted = [];
-                pushState(arr, 1, `开始基数排序。`, {}, {}, sorted);
-                let max_val = 0;
-                for (let i = 1; i <= n; i++) if (arr[i].val > max_val) max_val = arr[i].val;
-                pushState(arr, 3, `检索得出数组最大值为 ${max_val}，确立最多需要排序到百/十位级别。`, {}, {}, sorted);
-
-                for (let exp = 1; Math.floor(max_val / exp) > 0; exp *= 10) {
-                    let digitName = exp === 1 ? "个位" : (exp === 10 ? "十位" : "更高位");
-                    pushState(arr, 4, `>>> 本轮开始对所有元素的【${digitName}】进行分配和收集。`, {}, {}, sorted);
-                    let output = new Array(n + 1).fill(0);
-                    let cnt = new Array(10).fill(0);
-
-                    for (let i = 1; i <= n; i++) {
-                        let digit = Math.floor(arr[i].val / exp) % 10;
-                        cnt[digit]++;
-                        pushState(arr, 7, `抓取 arr[${i}](${arr[i].val}) 的【${digitName}】: ${digit}，将其投入对应的 0-9 基数桶。`, {[i]:'scan'}, { i: i }, sorted);
-                    }
-                    for (let i = 1; i < 10; i++) cnt[i] += cnt[i - 1];
-                    pushState(arr, 8, `累加前缀和。准备进行稳定的收集和回填。`, {}, {}, sorted);
-
-                    for (let i = n; i >= 1; i--) {
-                        let digit = Math.floor(arr[i].val / exp) % 10;
-                        let pos = cnt[digit];
-                        output[pos] = arr[i]; // store object
-                        cnt[digit]--;
-                        pushState(arr, 10, `基于稳定原则逆向遍历：将 arr[${i}](${arr[i].val}) 排入辅助数组的第 ${pos} 个位置。`, {[i]:'pivot'}, { i: i }, sorted);
-                    }
-                    for (let i = 1; i <= n; i++) {
-                        arr[i] = output[i];
-                        pushState(arr, 13, `数据迁移完毕，重新刷入原数组 arr[${i}] = ${arr[i].val}。`, {[i]:'swap'}, { i: i }, sorted);
-                    }
-                    pushState(arr, 15, `【${digitName}】轮次落幕，数组开始呈现阶段性有序。`, {}, {}, sorted);
-                }
-                for(let i=1;i<=n;i++) sorted.push(i);
-                pushState(arr, 16, `🎉 所有数位收集完成，基数排序最终结束！`, {}, {}, sorted);
-            } 
+function h(tag, props, children) {
+    const node = document.createElement(tag);
+    if (props) {
+        for (const key of Object.keys(props)) {
+            const value = props[key];
+            if (value === null || value === undefined) continue;
+            if (key === 'class') node.className = value;
+            else if (key === 'text') node.textContent = value;
+            else if (key === 'dataset') Object.assign(node.dataset, value);
+            else if (key === 'style') node.style.cssText = value;
+            else node.setAttribute(key, value);
         }
-    };
-
-    const initialTestData = [38, 27, 43, 3, 9, 82, 10, 19, 50]; let states = []; let currentStateIndex = 0; let currentAlgoKey = 'bubble';
-    
-    function renderCode(codeLines) {
-        const container = document.getElementById('code-content'); container.innerHTML = '';
-        codeLines.forEach((lineText, idx) => {
-            const div = document.createElement('div'); div.className = 'code-line'; div.id = `line-${idx + 1}`;
-            div.innerHTML = lineText.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-                .replace(/\b(void|int|for|while|if|else|return|max)\b/g, '<span style="color:#c586c0;">$1</span>')
-                .replace(/\b(arr|n|l|r|i|j|k|p|mid|pivot|temp|key|max_val|cnt|output|exp|pos|digit)\b/g, '<span style="color:#9cdcfe;">$1</span>')
-                .replace(/\b(swap|max|rand)\b/g, '<span style="color:#dcdcaa;">$1</span>')
-                .replace(/\b(\d+)\b/g, '<span style="color:#b5cea8;">$1</span>')
-                .replace(/\/\/.*/g, match => `<span style="color:#6A9955;">${match}</span>`);
-            container.appendChild(div);
+    }
+    if (children) {
+        (Array.isArray(children) ? children : [children]).forEach((child) => {
+            if (child === null || child === undefined) return;
+            node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
         });
     }
+    return node;
+}
 
-    function pushState(arr, line, desc, highlights, pointers = {}, sortedArr = [], meta = null) { states.push({ arr: [...arr], line: line, desc: desc, highlights: {...highlights}, pointers: {...pointers}, sorted: [...sortedArr], meta: meta ? {...meta} : null }); }
-    
-    // 初始化数据，使用对象包装确保全局唯一 ID 用于 FLIP 动画
-    function generateStates() { 
-        states = []; 
-        let arr = [{id: 0, val: 0}];
-        initialTestData.forEach((v, i) => {
-            arr.push({id: i+1, val: v});
-        });
-        ALGORITHMS[currentAlgoKey].run(arr); 
+/**
+ * 安全富文本：仅识别成对的 `反引号` 作为行内代码，其余一律按纯文本节点插入。
+ * 任何将来由教师编辑的文本走这里都不会被当成 HTML 执行。
+ */
+function rich(target, source) {
+    const text = String(source == null ? '' : source);
+    const segments = text.split('`');
+    segments.forEach((segment, index) => {
+        if (!segment) return;
+        if (index % 2 === 1) target.appendChild(h('code', null, segment));
+        else target.appendChild(document.createTextNode(segment));
+    });
+    return target;
+}
+
+function richNode(source) { return rich(h('span'), source); }
+
+/* =========================================================================
+ * 1. 课程数据模型（可编辑内容与执行引擎分离，全部具备稳定 id，供 M2 对接）
+ * ========================================================================= */
+const SAMPLE_DATA = [38, 27, 43, 3, 9, 82, 10, 19, 50];
+
+const COURSES = {
+    bubble: {
+        id: 'bubble-m1',
+        algo: 'bubble',
+        meta: { title: '冒泡排序', tag: '教学课件' },
+        slides: [
+            {
+                id: 'intro',
+                kind: 'intro',
+                nav: '引入',
+                kicker: '第一课 · 交换类排序',
+                title: '冒泡排序',
+                lead: '给你一串打乱的数字，怎样让最大的那个"浮"到最右边？',
+                question: '不排序、只靠"比较相邻两个数"，能不能让数组一点点变整齐？',
+                points: [
+                    '每次只看相邻的两个数，不跳着看。',
+                    '左边的数更大，就交换它们的位置。',
+                    '每一趟走完，未排序部分的最大值一定停在末尾。'
+                ],
+                cta: '进入原理'
+            },
+            {
+                id: 'principle',
+                kind: 'principle',
+                nav: '原理',
+                kicker: '第二步 · 把想法说清楚',
+                title: '原理：一趟一趟把最大值送到末尾',
+                lead: '先理解思路，再看动画和代码。每个环节点"下一页"逐步展开。',
+                steps: [
+                    {
+                        id: 'p-compare',
+                        heading: '相邻比较',
+                        body: '从最左边开始，只比较相邻的两个数：先看 `arr[1]` 与 `arr[2]`，再看 `arr[2]` 与 `arr[3]`。',
+                        figure: { cards: [5, 3, 8, 1], marks: { 0: 'cmp', 1: 'cmp' }, caption: '比较 5 和 3：只看这一对相邻的数字' }
+                    },
+                    {
+                        id: 'p-swap',
+                        heading: '必要时交换',
+                        body: '若左边的数更大，就交换它们，保证"大的往右走"。5 比 3 大，所以交换。',
+                        figure: { cards: [3, 5, 8, 1], marks: { 0: 'swp', 1: 'swp' }, caption: '5 > 3，交换之后这一对就变成有序的' }
+                    },
+                    {
+                        id: 'p-pass',
+                        heading: '一趟落位',
+                        body: '继续往后比较，最大值会一路被"顶"到区间末尾。这一趟结束后，末尾那个数已经无需参与后续比较。',
+                        figure: { cards: [3, 5, 1, 8], marks: { 3: 'ok' }, caption: '一趟走完，最大值 8 停在末尾，进入"已就位"' }
+                    }
+                ]
+            },
+            {
+                id: 'anim',
+                kind: 'anim',
+                nav: '纯动画',
+                kicker: '第三步 · 先看现象',
+                title: '纯动画探索',
+                lead: '看不到代码，只观察数字如何移动。橙=正在比较，红=发生交换，绿=已经就位。'
+            },
+            {
+                id: 'code',
+                kind: 'code',
+                nav: '动画 + 代码',
+                kicker: '第四步 · 把现象和代码对上',
+                title: '动画与 C++ 代码联动',
+                lead: '左侧高亮的是当前执行的代码行，右侧同步演示数据变化。'
+            },
+            {
+                id: 'summary',
+                kind: 'summary',
+                nav: '总结',
+                kicker: '第五步 · 收束与检验',
+                title: '课堂总结与思考',
+                lead: '回顾三个关键结论，再用两道小题检验理解。',
+                points: [
+                    { id: 's-pass', tag: '位置', title: '每趟最大值落位', body: '第 k 趟结束后，未排序区间的最大值固定在末尾，最多 n-1 趟必然有序。' },
+                    { id: 's-time', tag: '时间', title: '时间复杂度 O(n²)', body: '比较次数约为 n(n-1)/2；最好情况（已有序）仍为 O(n²)，加标志位可优化到 O(n)。' },
+                    { id: 's-space', tag: '空间', title: '空间复杂度 O(1)', body: '只在交换时用一个临时变量，属于原地排序。' },
+                    { id: 's-stable', tag: '稳定', title: '稳定排序', body: '只在严格大于时交换，相等元素不会互换位置，因此保持稳定。' }
+                ],
+                quiz: [
+                    {
+                        id: 'q-stable',
+                        question: '冒泡排序为什么是稳定排序？',
+                        options: [
+                            '因为它在原数组上交换，不需要额外空间',
+                            '因为只有 arr[j] > arr[j+1] 时才交换，相等元素不会互换',
+                            '因为它的时间复杂度是 O(n²)'
+                        ],
+                        answer: 1,
+                        why: '稳定性由"相等时不动"决定：条件写成 >= 就会破坏稳定性。'
+                    },
+                    {
+                        id: 'q-count',
+                        question: '对 9 个数做冒泡排序，第一趟需要比较多少次？',
+                        options: ['8 次', '9 次', '36 次'],
+                        answer: 0,
+                        why: '第一趟要比较相邻的 8 对；9 对会越界。'
+                    }
+                ]
+            }
+        ]
     }
+};
 
-    function renderState(index) {
-        const state = states[index]; const n = state.arr.length - 1;
-        const pivotArea = document.getElementById('pivot-area'); 
-        const pivotSlot = document.getElementById('pivot-slot'); 
-        const barsArea = document.getElementById('bars-area');
-        const pivotLabel = document.getElementById('pivot-label');
-        
-        // 1. 记录旧的物理坐标 (FLIP: First)
-        const oldPositions = {};
-        document.querySelectorAll('.flip-item').forEach(el => {
+/* =========================================================================
+ * 2. 执行引擎 —— 只负责产生执行轨迹，不承载教学文案
+ * ========================================================================= */
+const ALGORITHMS = {
+    bubble: {
+        label: '冒泡排序 (Bubble Sort)',
+        title: 'bubble_sort.cpp',
+        code: [
+            'void bubbleSort(int arr[], int n) {',
+            '    for (int i = n; i > 1; i--) {',
+            '        for (int j = 1; j < i; j++) {',
+            '            if (arr[j] > arr[j + 1]) swap(arr[j], arr[j + 1]);',
+            '        }',
+            '    }',
+            '}'
+        ],
+        logic: '终点思维法：外层循环边界确定当前未排序区间的终点 i，每趟最大值向右冒泡落位到 arr[i]。时间 O(n²)，空间 O(1)，稳定。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            pushState(arr, 1, '初始化完成，待排序区间为 1 到 ' + n + '。', {}, {}, sorted);
+            for (let i = n; i > 1; i--) {
+                pushState(arr, 2, '外层循环：锁定未排序区间的终点 i = ' + i + '。', {}, { i: i }, sorted);
+                for (let j = 1; j < i; j++) {
+                    pushState(arr, 3, '比较相邻的 arr[' + j + '] 与 arr[' + (j + 1) + ']。', { [j]: 'compare', [j + 1]: 'compare' }, { i: i, j: j }, sorted);
+                    if (arr[j].val > arr[j + 1].val) {
+                        const temp = arr[j];
+                        arr[j] = arr[j + 1];
+                        arr[j + 1] = temp;
+                        pushState(arr, 4, '检测到逆序，执行 swap 交换这两个数的位置。', { [j]: 'swap', [j + 1]: 'swap' }, { i: i, j: j }, sorted);
+                    }
+                }
+                sorted.push(i);
+            }
+            sorted.push(1);
+            pushState(arr, 7, '排序结束，全部元素均已就位。', {}, {}, sorted);
+        }
+    },
+
+    selection: {
+        label: '选择排序 (Selection Sort)',
+        title: 'selection_sort.cpp',
+        code: [
+            'void selectionSort(int arr[], int n) {',
+            '    for (int i = 1; i < n; i++) {',
+            '        int min_idx = i;',
+            '        for (int j = i + 1; j <= n; j++) {',
+            '            if (arr[j] < arr[min_idx]) min_idx = j;',
+            '        }',
+            '        if (min_idx != i) swap(arr[i], arr[min_idx]);',
+            '    }',
+            '}'
+        ],
+        logic: '打擂台原理：内层在未排序区间 [i, n] 里搜寻最小值的索引 min_idx，再把它换到最前面。时间 O(n²)，空间 O(1)，非稳定。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            for (let i = 1; i < n; i++) {
+                let minIdx = i;
+                pushState(arr, 3, '第 ' + i + ' 趟：暂定最小值位置 min_idx = ' + i + '。', { [i]: 'pivot' }, { i: i, min: minIdx }, sorted);
+                for (let j = i + 1; j <= n; j++) {
+                    pushState(arr, 4, '扫描对比 arr[' + j + '] 是否小于当前的擂主元素。', { [minIdx]: 'pivot', [j]: 'scan' }, { i: i, min: minIdx, j: j }, sorted);
+                    if (arr[j].val < arr[minIdx].val) {
+                        minIdx = j;
+                        pushState(arr, 5, '发现更小元素，更新极小值标记位置 min_idx = ' + j + '。', { [minIdx]: 'pivot' }, { i: i, min: minIdx, j: j }, sorted);
+                    }
+                }
+                if (minIdx !== i) {
+                    const t = arr[i];
+                    arr[i] = arr[minIdx];
+                    arr[minIdx] = t;
+                    pushState(arr, 7, '将找到的极小值换至当前未排序区的最左端。', { [i]: 'swap', [minIdx]: 'swap' }, { i: i }, sorted);
+                }
+                sorted.push(i);
+            }
+            sorted.push(n);
+            pushState(arr, 9, '所有位置检索匹配完毕，选择排序结束。', {}, {}, sorted);
+        }
+    },
+
+    insertion: {
+        label: '插入排序 (Insertion Sort)',
+        title: 'insertion_sort.cpp',
+        code: [
+            'void insertionSort(int arr[], int n) {',
+            '    for (int i = 2; i <= n; i++) {',
+            '        int key = arr[i];',
+            '        int j = i - 1;',
+            '        while (j >= 1 && arr[j] > key) {',
+            '            arr[j + 1] = arr[j];',
+            '            j--;',
+            '        }',
+            '        arr[j + 1] = key;',
+            '    }',
+            '}'
+        ],
+        logic: '留坑挪动机制：key = arr[i] 时把待插入值存入变量框，原位形成空坑；比 key 大的元素向右移一格，最后把 key 填回坑位。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [1];
+            pushState(arr, 1, '程序启动：第一个元素天然有序，i 指针从 2 开始。左侧已开辟 key 变量空间。', {}, {}, sorted, { slotEmpty: true, slotLabel: 'key' });
+            for (let i = 2; i <= n; i++) {
+                const keyObj = arr[i];
+                let j = i - 1;
+                pushState(arr, 3, '执行 key = arr[' + i + ']：抽出数字 ' + keyObj.val + ' 飞入暂存框，原位形成空坑。', { [i]: 'pivot' }, { i: i }, sorted, { pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: i, slotLabel: 'key' });
+                while (j >= 1) {
+                    pushState(arr, 5, '核对有序区 arr[' + j + '] (' + arr[j].val + ') 是否大于暂存的 key (' + keyObj.val + ')。', { [j]: 'compare' }, { i: i, j: j }, sorted, { pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j + 1, slotLabel: 'key' });
+                    if (arr[j].val > keyObj.val) {
+                        arr[j + 1] = arr[j];
+                        pushState(arr, 6, '满足条件，执行 arr[j + 1] = arr[j]：大数右移填补坑位，原位置成为新坑。', { [j + 1]: 'swap' }, { i: i, j: j }, sorted, { pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j, slotLabel: 'key' });
+                        j--;
+                    } else {
+                        pushState(arr, 5, '条件不满足：arr[' + j + '] 不大于 key，跳出挪移循环。', { [j]: 'compare' }, { i: i, j: j }, sorted, { pivotValue: keyObj.val, pivotId: keyObj.id, pitIndex: j + 1, slotLabel: 'key' });
+                        break;
+                    }
+                }
+                arr[j + 1] = keyObj;
+                sorted.push(i);
+                pushState(arr, 9, '执行 arr[j + 1] = key：把数字从暂存框取出，飞入最终位置 arr[' + (j + 1) + ']。', { [j + 1]: 'sorted' }, { 'j+1': j + 1 }, sorted, { slotEmpty: true, slotLabel: 'key' });
+            }
+            pushState(arr, 11, '插入匹配整理结束，插入排序完成。', {}, {}, sorted, { slotEmpty: true, slotLabel: 'key' });
+        }
+    },
+
+    merge: {
+        label: '归并排序 (Merge Sort)',
+        title: 'merge_sort.cpp',
+        code: [
+            'void mergeSort(int arr[], int l, int r) {',
+            '    if (l >= r) return;',
+            '    int mid = (l + r) / 2;',
+            '    mergeSort(arr, l, mid);',
+            '    mergeSort(arr, mid + 1, r);',
+            '    int temp[r - l + 1];',
+            '    int i = l, j = mid + 1, k = 0;',
+            '    while (i <= mid && j <= r) {',
+            '        if (arr[i] <= arr[j]) temp[k++] = arr[i++];',
+            '        else temp[k++] = arr[j++];',
+            '    }',
+            '    while (i <= mid) temp[k++] = arr[i++];',
+            '    while (j <= r) temp[k++] = arr[j++];',
+            '    for (int p = 0; p < k; p++) arr[l + p] = temp[p];',
+            '}'
+        ],
+        logic: '分治合并：先把数组平分，再用辅助数组 temp 与双指针 i、j 将两个有序子数组像拉链一样合并，最后拷回原数组。时间 O(n log n)，空间 O(n)，稳定。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            pushState(arr, 1, '开始归并排序。', {}, {}, sorted);
+            function mSort(l, r) {
+                if (l >= r) { if (l === r) sorted.push(l); return; }
+                const mid = Math.floor((l + r) / 2);
+                pushState(arr, 3, '分解：将区间 [' + l + ', ' + r + '] 从中点 ' + mid + ' 拆分。', { [l]: 'scan', [r]: 'scan' }, { l: l, r: r, mid: mid }, sorted);
+                mSort(l, mid);
+                mSort(mid + 1, r);
+                pushState(arr, 6, '准备将左右两个有序区间 [' + l + ', ' + mid + '] 与 [' + (mid + 1) + ', ' + r + '] 做双指针合并。', {}, { l: l, r: r, mid: mid }, sorted);
+                const temp = [];
+                let i = l;
+                let j = mid + 1;
+                while (i <= mid && j <= r) {
+                    pushState(arr, 8, '比较双指针元素：arr[' + i + '](' + arr[i].val + ') 和 arr[' + j + '](' + arr[j].val + ')。', { [i]: 'compare', [j]: 'compare' }, { i: i, j: j }, sorted);
+                    if (arr[i].val <= arr[j].val) {
+                        temp.push(arr[i]);
+                        pushState(arr, 9, 'arr[' + i + '] 较小，放入 temp 数组，左指针 i 右移。', { [i]: 'swap' }, { i: i, j: j }, sorted);
+                        i++;
+                    } else {
+                        temp.push(arr[j]);
+                        pushState(arr, 10, 'arr[' + j + '] 较小，放入 temp 数组，右指针 j 右移。', { [j]: 'swap' }, { i: i, j: j }, sorted);
+                        j++;
+                    }
+                }
+                while (i <= mid) { temp.push(arr[i]); i++; }
+                while (j <= r) { temp.push(arr[j]); j++; }
+                pushState(arr, 13, '扫尾完毕，准备将合并结果从 temp 拷回原数组区间 [' + l + ', ' + r + ']。', {}, {}, sorted);
+                for (let p = 0; p < temp.length; p++) {
+                    arr[l + p] = temp[p];
+                    sorted.push(l + p);
+                    pushState(arr, 14, '拷回过程：覆盖更新 arr[' + (l + p) + ']。', { [l + p]: 'sorted' }, { p: l + p }, sorted);
+                }
+            }
+            mSort(1, n);
+            pushState(arr, 15, '归并排序全部完成！', {}, {}, sorted);
+        }
+    },
+
+    quick: {
+        label: '快速排序 (Quick Sort)',
+        title: 'quick_sort.cpp',
+        code: [
+            'void quickSort(int arr[], int l, int r) {',
+            '    if (l >= r) return;',
+            '    int pivot = arr[l]; int i = l, j = r;',
+            '    while (i < j) {',
+            '        while (i < j && arr[j] >= pivot) j--;',
+            '        if (i < j) arr[i++] = arr[j];',
+            '        while (i < j && arr[i] <= pivot) i++;',
+            '        if (i < j) arr[j--] = arr[i];',
+            '    }',
+            '    arr[i] = pivot;',
+            '    quickSort(arr, l, i - 1); quickSort(arr, i + 1, r);',
+            '}'
+        ],
+        logic: '挖坑标兵划分法：取出首项 pivot 暂存，原位置沦为基准坑；双向交替探测，小值补左坑、大值补右坑，双指针汇合处即基准落脚位。平均 O(n log n)，最差 O(n²)。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            pushState(arr, 1, '程序启动，准备执行快速排序。左侧已开辟 pivot 变量空间。', {}, {}, sorted, { slotEmpty: true, slotLabel: 'pivot' });
+            function qSort(l, r) {
+                if (l >= r) { if (l === r) sorted.push(l); return; }
+                const pivotObj = arr[l];
+                pushState(arr, 3, '处理区间 [' + l + ', ' + r + ']，选中首位元素 ' + pivotObj.val + ' 准备挖坑。', { [l]: 'pivot' }, { l: l, r: r }, sorted, { slotEmpty: true, slotLabel: 'pivot' });
+                pushState(arr, 3, '基准抽出飞入左侧 pivot 变量框，原位置 arr[' + l + '] 变为待填补的空坑。', {}, { l: l, r: r }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: l, slotLabel: 'pivot' });
+                let i = l;
+                let j = r;
+                while (i < j) {
+                    pushState(arr, 5, '右指针 j 向左检索，扫查小于基准 ' + pivotObj.val + ' 的值。', { [j]: 'scan' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: 'pivot' });
+                    while (i < j && arr[j].val >= pivotObj.val) {
+                        j--;
+                        pushState(arr, 5, '符合规整条件，右指针继续左移。', { [j]: 'scan' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: 'pivot' });
+                    }
+                    if (i < j) {
+                        arr[i] = arr[j];
+                        pushState(arr, 6, '填坑：发现较小值 ' + arr[j].val + '，飞入左坑 arr[' + i + ']，右端转化为新坑。', { [i]: 'swap' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: 'pivot' });
+                        i++;
+                    }
+                    if (i < j) pushState(arr, 7, '左指针 i 向右检索，扫查大于基准 ' + pivotObj.val + ' 的值。', { [i]: 'scan' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: 'pivot' });
+                    while (i < j && arr[i].val <= pivotObj.val) {
+                        i++;
+                        pushState(arr, 7, '符合规整条件，左指针继续右推。', { [i]: 'scan' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: j, slotLabel: 'pivot' });
+                    }
+                    if (i < j) {
+                        arr[j] = arr[i];
+                        pushState(arr, 8, '填坑：发现较大值 ' + arr[i].val + '，飞入右坑 arr[' + j + ']，左端演变为新坑。', { [j]: 'swap' }, { i: i, j: j }, sorted, { pivotValue: pivotObj.val, pivotId: pivotObj.id, pitIndex: i, slotLabel: 'pivot' });
+                        j--;
+                    }
+                }
+                arr[i] = pivotObj;
+                sorted.push(i);
+                pushState(arr, 10, '左右双指针汇合重叠，将基准值 ' + pivotObj.val + ' 从专属区取回，飞入最终坑位 [' + i + ']。', { [i]: 'sorted' }, { 'i, j': i }, sorted, { slotEmpty: true, slotLabel: 'pivot' });
+                qSort(l, i - 1);
+                qSort(i + 1, r);
+            }
+            qSort(1, n);
+            pushState(arr, 12, '所有区间划分归位完成，快速排序成功。', {}, {}, sorted, { slotEmpty: true, slotLabel: 'pivot' });
+        }
+    },
+
+    counting: {
+        label: '计数排序 (Counting Sort)',
+        title: 'counting_sort.cpp',
+        code: [
+            'void countingSort(int arr[], int n) {',
+            '    int max_val = 0;',
+            '    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);',
+            '    int cnt[max_val + 1] = {0};',
+            '    for (int i = 1; i <= n; i++) cnt[arr[i]]++;',
+            '    int idx = 1;',
+            '    for (int i = 0; i <= max_val; i++) {',
+            '        while (cnt[i] > 0) {',
+            '            arr[idx++] = i;',
+            '            cnt[i]--;',
+            '        }',
+            '    }',
+            '}'
+        ],
+        logic: '空间换时间：不做比较，直接用数组下标定位元素。先统计每个值出现的次数存入 cnt，再按值从小到大覆盖回原数组。时间 O(n + k)，空间 O(k)，适合极差小的密集数据。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            pushState(arr, 1, '开始计数排序。', {}, {}, sorted);
+            let maxVal = 0;
+            for (let i = 1; i <= n; i++) {
+                pushState(arr, 3, '全盘扫描寻找最大值，考察 arr[' + i + '] = ' + arr[i].val + '。', { [i]: 'scan' }, { i: i }, sorted);
+                if (arr[i].val > maxVal) {
+                    maxVal = arr[i].val;
+                    pushState(arr, 3, '最大值纪录刷新为 ' + maxVal + '。', { [i]: 'pivot' }, { i: i }, sorted);
+                }
+            }
+            pushState(arr, 5, '找到极值 ' + maxVal + '，在内存中开辟等长的 cnt 计数桶。', {}, {}, sorted);
+            const cnt = new Array(maxVal + 1).fill(0);
+            for (let i = 1; i <= n; i++) {
+                cnt[arr[i].val]++;
+                pushState(arr, 6, '频数统计：捕获数字 ' + arr[i].val + '，对应计数器加一。', { [i]: 'compare' }, { i: i }, sorted);
+            }
+            let idx = 1;
+            pushState(arr, 8, '遍历 cnt 桶数组，按 0 到 ' + maxVal + ' 的顺序准备提取数据。', {}, {}, sorted);
+            for (let i = 0; i <= maxVal; i++) {
+                if (cnt[i] > 0) {
+                    pushState(arr, 10, '发现桶 cnt[' + i + '] 中存在 ' + cnt[i] + ' 个元素，开始依次弹出。', {}, {}, sorted);
+                    while (cnt[i] > 0) {
+                        arr[idx].val = i;
+                        sorted.push(idx);
+                        pushState(arr, 11, '数据回填：将数值 ' + i + ' 放置到 arr[' + idx + '] 的位置。', { [idx]: 'swap' }, { idx: idx }, sorted);
+                        idx++;
+                        cnt[i]--;
+                    }
+                }
+            }
+            pushState(arr, 15, '频数展开完毕，计数排序结束！', {}, {}, sorted);
+        }
+    },
+
+    radix: {
+        label: '基数排序 (Radix Sort)',
+        title: 'radix_sort.cpp',
+        code: [
+            'void radixSort(int arr[], int n) {',
+            '    int max_val = 0;',
+            '    for (int i = 1; i <= n; i++) max_val = max(max_val, arr[i]);',
+            '    for (int exp = 1; max_val / exp > 0; exp *= 10) {',
+            '        int output[n + 1], cnt[10] = {0};',
+            '        for (int i = 1; i <= n; i++) cnt[(arr[i] / exp) % 10]++;',
+            '        for (int i = 1; i < 10; i++) cnt[i] += cnt[i - 1];',
+            '        for (int i = n; i >= 1; i--) {',
+            '            output[cnt[(arr[i] / exp) % 10]] = arr[i];',
+            '            cnt[(arr[i] / exp) % 10]--;',
+            '        }',
+            '        for (int i = 1; i <= n; i++) arr[i] = output[i];',
+            '    }',
+            '}'
+        ],
+        logic: '按位分配：依据个位、十位、百位逐轮做稳定的计数装桶，再倒序收集回 output，保证同一位上相对顺序不被打乱。时间 O(d(n+k))，空间 O(n+k)。',
+        run: function (arr) {
+            const n = arr.length - 1;
+            const sorted = [];
+            pushState(arr, 1, '开始基数排序。', {}, {}, sorted);
+            let maxVal = 0;
+            for (let i = 1; i <= n; i++) if (arr[i].val > maxVal) maxVal = arr[i].val;
+            pushState(arr, 3, '检索得出数组最大值为 ' + maxVal + '，据此确立需要处理的数位长度。', {}, {}, sorted);
+            for (let exp = 1; Math.floor(maxVal / exp) > 0; exp *= 10) {
+                const digitName = exp === 1 ? '个位' : (exp === 10 ? '十位' : '更高位');
+                pushState(arr, 4, '本轮开始对所有元素的' + digitName + '进行分配与收集。', {}, {}, sorted);
+                const output = new Array(n + 1).fill(0);
+                const cnt = new Array(10).fill(0);
+                for (let i = 1; i <= n; i++) {
+                    const digit = Math.floor(arr[i].val / exp) % 10;
+                    cnt[digit]++;
+                    pushState(arr, 7, '抓取 arr[' + i + '](' + arr[i].val + ') 的' + digitName + '：' + digit + '，投入对应的 0-9 基数桶。', { [i]: 'scan' }, { i: i }, sorted);
+                }
+                for (let i = 1; i < 10; i++) cnt[i] += cnt[i - 1];
+                pushState(arr, 8, '累加前缀和，准备进行稳定收集与回填。', {}, {}, sorted);
+                for (let i = n; i >= 1; i--) {
+                    const digit = Math.floor(arr[i].val / exp) % 10;
+                    const pos = cnt[digit];
+                    output[pos] = arr[i];
+                    cnt[digit]--;
+                    pushState(arr, 10, '基于稳定原则逆向遍历：将 arr[' + i + '](' + arr[i].val + ') 排入辅助数组第 ' + pos + ' 位。', { [i]: 'pivot' }, { i: i }, sorted);
+                }
+                for (let i = 1; i <= n; i++) {
+                    arr[i] = output[i];
+                    pushState(arr, 13, '数据迁移完毕，重新刷入原数组 arr[' + i + '] = ' + arr[i].val + '。', { [i]: 'swap' }, { i: i }, sorted);
+                }
+                pushState(arr, 15, digitName + '轮次落幕，数组呈现阶段性有序。', {}, {}, sorted);
+            }
+            for (let i = 1; i <= n; i++) sorted.push(i);
+            pushState(arr, 16, '所有数位收集完成，基数排序结束！', {}, {}, sorted);
+        }
+    }
+};
+
+/* =========================================================================
+ * 3. 运行时状态
+ * ========================================================================= */
+let states = [];
+let currentStateIndex = 0;
+let currentAlgoKey = 'bubble';
+let slideIndex = 0;
+let subStep = 0;
+let playTimer = null;
+let playing = false;
+let speed = 1;
+
+const MAX_VALUE = Math.max.apply(null, SAMPLE_DATA);
+let activeBarMax = 200;
+
+/**
+ * 按可视化区域的实际可用高度计算柱高上限。柱条总高 = 38 + 比例 * activeBarMax，
+ * 再留出索引标签与内边距，保证在 1366×768 全屏与约 720px 高的 iframe 中都不被裁切。
+ */
+function measureBarMax() {
+    const slot = barsArea.parentElement;
+    if (!slot || !slot.clientHeight) return activeBarMax;
+    // 预留：上下内边距 46 + 柱底 38 + 索引行 24 + 余量 10
+    return Math.max(80, slot.clientHeight - 118);
+}
+
+const stageHost = $('stage-host');
+const barsArea = h('div', { class: 'bars-area', style: 'display:flex;align-items:flex-end;justify-content:center;gap:inherit;' });
+const pivotArea = h('div', { class: 'pivot-area' });
+const pivotSlot = h('div', { class: 'pivot-slot' });
+const pivotLabel = h('div', { class: 'pivot-slot-label', text: 'pivot' });
+pivotArea.appendChild(pivotSlot);
+pivotArea.appendChild(pivotLabel);
+
+function pushState(arr, line, desc, highlights, pointers, sortedArr, meta) {
+    states.push({
+        arr: arr.map(function (o) { return { id: o.id, val: o.val }; }),
+        line: line,
+        desc: desc,
+        highlights: Object.assign({}, highlights || {}),
+        pointers: Object.assign({}, pointers || {}),
+        sorted: (sortedArr || []).slice(),
+        meta: meta ? Object.assign({}, meta) : null
+    });
+}
+
+function generateStates(algoKey) {
+    states = [];
+    currentStateIndex = 0;
+    const arr = [{ id: 0, val: 0 }];
+    SAMPLE_DATA.forEach(function (v, i) { arr.push({ id: i + 1, val: v }); });
+    ALGORITHMS[algoKey].run(arr);
+}
+
+/* =========================================================================
+ * 4. 代码高亮（DOM 构建，无 innerHTML）
+ * ========================================================================= */
+const KEYWORDS = ['void', 'int', 'for', 'while', 'if', 'else', 'return', 'const', 'bool'];
+const TYPES = ['max', 'min', 'swap'];
+
+function renderCode(lines) {
+    const box = $('code-content');
+    if (!box) return;
+    box.replaceChildren();
+    lines.forEach(function (lineText, idx) {
+        const row = h('div', { class: 'code-line', id: 'line-' + (idx + 1) });
+        tokenize(lineText).forEach(function (tok) {
+            if (tok.cls) row.appendChild(h('span', { class: tok.cls, text: tok.text }));
+            else row.appendChild(document.createTextNode(tok.text));
+        });
+        box.appendChild(row);
+    });
+}
+
+function tokenize(line) {
+    const out = [];
+    const re = /(\/\/[^\n]*)|(\b\d+\b)|([A-Za-z_]\w*)|(\s+)|([^\sA-Za-z_\d]+)/g;
+    let m;
+    let last = 0;
+    while ((m = re.exec(line)) !== null) {
+        if (m.index > last) out.push({ text: line.slice(last, m.index), cls: null });
+        const piece = m[0];
+        let cls = null;
+        if (m[1]) cls = 'tok-cmt';
+        else if (m[2]) cls = 'tok-num';
+        else if (m[3]) {
+            if (KEYWORDS.indexOf(piece) >= 0) cls = 'tok-kw';
+            else if (TYPES.indexOf(piece) >= 0) cls = 'tok-fn';
+            else if (line.charAt(m.index + piece.length) === '(') cls = 'tok-fn';
+            else cls = 'tok-type';
+        } else if (m[5]) cls = 'tok-op';
+        out.push({ text: piece, cls: cls });
+        last = m.index + piece.length;
+    }
+    if (last < line.length) out.push({ text: line.slice(last), cls: null });
+    return out;
+}
+
+/* =========================================================================
+ * 5. 数据渲染（FLIP 动画核心，逻辑沿用原有实现）
+ * ========================================================================= */
+function renderState(index, opts) {
+    opts = opts || {};
+    const animate = opts.animate !== false;
+    const state = states[index];
+    if (!state) return;
+
+    const n = state.arr.length - 1;
+    activeBarMax = measureBarMax();
+    const oldPositions = {};
+    if (animate) {
+        document.querySelectorAll('.flip-item').forEach(function (el) {
             const rect = el.getBoundingClientRect();
             oldPositions[el.dataset.id] = { x: rect.left, y: rect.top };
         });
-
-        // 2. 清空并重绘 DOM
-        barsArea.innerHTML = ''; pivotSlot.innerHTML = ''; 
-        
-        if (currentAlgoKey === 'quick' || currentAlgoKey === 'insertion') {
-            pivotArea.style.display = 'flex';
-            if (state.meta && state.meta.slotLabel) {
-                pivotLabel.innerText = state.meta.slotLabel;
-            } else {
-                pivotLabel.innerText = (currentAlgoKey === 'quick') ? "pivot" : "key";
-            }
-        } else {
-            pivotArea.style.display = 'none';
-        }
-        
-        let maxVal = Math.max(...initialTestData);
-
-        // 渲染左侧寄存槽
-        if (pivotArea.style.display === 'flex') {
-            if (state.meta && state.meta.slotEmpty) {
-                pivotSlot.className = 'pivot-slot slot-empty';
-            } else if (state.meta && state.meta.pivotValue !== undefined) {
-                pivotSlot.className = 'pivot-slot';
-                const pVal = state.meta.pivotValue; 
-                
-                // 给柱子套上专用的 FLIP 动画包裹层
-                const pAnimator = document.createElement('div');
-                pAnimator.className = 'bar-animator flip-item';
-                pAnimator.setAttribute('data-id', state.meta.pivotId);
-
-                const pBar = document.createElement('div'); pBar.className = 'bar pivot'; 
-                pBar.style.height = `${45 + (pVal / maxVal) * 190}px`; 
-                pBar.innerHTML = `<span class="bar-value">${pVal}</span>`; 
-                
-                pAnimator.appendChild(pBar);
-                pivotSlot.appendChild(pAnimator);
-            } else {
-                pivotSlot.className = 'pivot-slot slot-empty';
-            }
-        }
-
-        // 渲染主数组
-        for (let idx = 1; idx <= n; idx++) {
-            const nodeObj = state.arr[idx];
-            const val = nodeObj.val; 
-            const wrapper = document.createElement('div'); wrapper.className = 'bar-wrapper';
-            
-            let isPit = (state.meta && state.meta.pitIndex === idx);
-            
-            const animator = document.createElement('div');
-            // 只有真实存在的数字才加入 FLIP 追踪，空坑留在原地不飞
-            if (!isPit) {
-                animator.className = 'bar-animator flip-item';
-                animator.setAttribute('data-id', nodeObj.id);
-            } else {
-                animator.className = 'bar-animator';
-            }
-
-            const bar = document.createElement('div'); bar.className = 'bar';
-            bar.style.height = `${45 + (val / maxVal) * 190}px`; 
-
-            if (isPit) bar.classList.add('pit'); 
-            else if (state.sorted.includes(idx)) bar.classList.add('sorted');
-            else if (state.highlights[idx]) bar.classList.add(state.highlights[idx]);
-
-            bar.innerHTML = `<span class="bar-value">${val}</span>`; 
-            
-            animator.appendChild(bar);
-            wrapper.appendChild(animator); 
-            wrapper.innerHTML += `<span class="bar-index">[${idx}]</span>`;
-
-            if (state.pointers) {
-                let labels = []; for (const [ptrName, ptrIdx] of Object.entries(state.pointers)) if (ptrIdx === idx) labels.push(ptrName);
-                if (labels.length > 0) wrapper.innerHTML += `<div class="pointer-container"><div class="pointer-label">${labels.join(', ')}</div><div class="pointer-arrow"></div></div>`;
-            }
-            barsArea.appendChild(wrapper);
-        }
-
-        // 3. 执行 FLIP 动画核心计算
-        barsArea.offsetWidth; // 强制重绘，获取新插入元素的布局信息
-        
-        const newElements = document.querySelectorAll('.flip-item');
-        newElements.forEach(el => {
-            const id = el.dataset.id;
-            const oldPos = oldPositions[id];
-            if (oldPos) {
-                const newPos = el.getBoundingClientRect();
-                const deltaX = oldPos.x - newPos.left;
-                const deltaY = oldPos.y - newPos.top;
-                
-                if (deltaX !== 0 || deltaY !== 0) {
-                    // Invert: 无动画瞬间拉回原位置
-                    el.style.transition = 'none';
-                    el.style.transform = `translate(${deltaX}px, ${deltaY}px)`;
-                }
-            }
-        });
-
-        // 强制重排，让浏览器认可上述 Invert 状态
-        barsArea.offsetWidth;
-
-        // Play: 开启过渡，撤销 Transform，让元素平滑飞至新位置
-        newElements.forEach(el => {
-            el.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-            el.style.transform = 'translate(0, 0)';
-        });
-
-        // 更新代码高亮与解析
-        document.querySelectorAll('.code-line').forEach(el => el.classList.remove('highlight'));
-        if (state.line) { const lineEl = document.getElementById(`line-${state.line}`); if(lineEl) { lineEl.classList.add('highlight'); lineEl.scrollIntoView({ behavior: "smooth", block: "center" }); } }
-        document.getElementById('step-desc').innerHTML = state.desc;
-        document.getElementById('btn-prev').disabled = (index === 0); document.getElementById('btn-next').disabled = (index === states.length - 1);
     }
-    
-    function step(direction) { let targetIndex = currentStateIndex + direction; if (targetIndex >= 0 && targetIndex < states.length) { currentStateIndex = targetIndex; renderState(currentStateIndex); } }
-    function reset() { currentStateIndex = 0; renderState(currentStateIndex); }
-    function changeAlgorithm() { currentAlgoKey = document.getElementById('algo-select').value; document.getElementById('code-title').innerText = ALGORITHMS[currentAlgoKey].title; document.getElementById('logic-content').innerHTML = ALGORITHMS[currentAlgoKey].logic; renderCode(ALGORITHMS[currentAlgoKey].code); generateStates(); reset(); }
-    window.onload = () => { changeAlgorithm(); };
+
+    const isQuickLike = (currentAlgoKey === 'quick' || currentAlgoKey === 'insertion');
+    const showPivot = isQuickLike && (opts.mode === 'classic' || opts.mode === 'code');
+
+    pivotArea.classList.toggle('show', showPivot);
+    pivotSlot.replaceChildren();
+    pivotSlot.className = 'pivot-slot';
+    if (showPivot) {
+        if (state.meta && state.meta.slotLabel) pivotLabel.textContent = state.meta.slotLabel;
+        else pivotLabel.textContent = currentAlgoKey === 'quick' ? 'pivot' : 'key';
+
+        if (state.meta && state.meta.slotEmpty) {
+            pivotSlot.classList.add('slot-empty');
+            pivotSlot.dataset.label = pivotLabel.textContent;
+        } else if (state.meta && state.meta.pivotValue !== undefined) {
+            const animator = h('div', { class: 'bar-animator flip-item', dataset: { id: state.meta.pivotId } });
+            const bar = h('div', { class: 'bar pivot' });
+            bar.style.height = barHeight(state.meta.pivotValue) + 'px';
+            bar.appendChild(h('span', { class: 'bar-value', text: String(state.meta.pivotValue) }));
+            animator.appendChild(bar);
+            pivotSlot.appendChild(animator);
+        } else {
+            pivotSlot.classList.add('slot-empty');
+            pivotSlot.dataset.label = pivotLabel.textContent;
+        }
+    }
+
+    barsArea.replaceChildren();
+
+    for (let idx = 1; idx <= n; idx++) {
+        const nodeObj = state.arr[idx];
+        const val = nodeObj.val;
+        const wrapper = h('div', { class: 'bar-wrapper' });
+        const isPit = !!(state.meta && state.meta.pitIndex === idx);
+
+        const animator = h('div', { class: isPit ? 'bar-animator' : 'bar-animator flip-item' });
+        if (!isPit) animator.dataset.id = nodeObj.id;
+
+        const bar = h('div', { class: 'bar' });
+        let semantic = '';
+        if (isPit) bar.classList.add('pit');
+        else if (state.sorted.indexOf(idx) >= 0) { bar.classList.add('sorted'); semantic = 'is-ok'; }
+        else if (state.highlights[idx]) { bar.classList.add(state.highlights[idx]); semantic = state.highlights[idx]; }
+
+        bar.style.height = barHeight(val) + 'px';
+        bar.appendChild(h('span', { class: 'bar-value', text: String(val) }));
+
+        animator.appendChild(bar);
+        wrapper.appendChild(animator);
+        wrapper.appendChild(h('span', { class: 'bar-index', text: '[' + idx + ']' }));
+        if (semantic === 'compare') wrapper.classList.add('is-cmp');
+        else if (semantic === 'swap') wrapper.classList.add('is-swp');
+        else if (semantic === 'is-ok') wrapper.classList.add('is-ok');
+
+        if (state.pointers) {
+            const labels = [];
+            Object.keys(state.pointers).forEach(function (key) {
+                if (state.pointers[key] === idx) labels.push(key);
+            });
+            if (labels.length) {
+                const pointer = h('div', { class: 'pointer-container' }, [
+                    h('div', { class: 'pointer-label', text: labels.join(', ') }),
+                    h('div', { class: 'pointer-arrow' })
+                ]);
+                wrapper.appendChild(pointer);
+            }
+        }
+        barsArea.appendChild(wrapper);
+    }
+
+    if (animate) {
+        barsArea.offsetWidth;
+        const duration = Math.min(430, Math.round(620 / speed));
+        const newElements = document.querySelectorAll('.flip-item');
+        newElements.forEach(function (el) {
+            const oldPos = oldPositions[el.dataset.id];
+            if (!oldPos) return;
+            const newPos = el.getBoundingClientRect();
+            const dx = oldPos.x - newPos.left;
+            const dy = oldPos.y - newPos.top;
+            if (dx !== 0 || dy !== 0) {
+                el.style.transition = 'none';
+                el.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+            }
+        });
+        barsArea.offsetWidth;
+        newElements.forEach(function (el) {
+            el.style.transition = 'transform ' + duration + 'ms cubic-bezier(.34,1.4,.64,1)';
+            el.style.transform = 'translate(0,0)';
+        });
+    }
+
+    updateCodeHighlight(state);
+    updateDesc(state);
+    updateStepBadge(index);
+    updateExecButtons(index);
+}
+
+function barHeight(value) {
+    const ratio = MAX_VALUE > 0 ? value / MAX_VALUE : 0;
+    return Math.round(38 + ratio * activeBarMax);
+}
+
+function updateCodeHighlight(state) {
+    document.querySelectorAll('.code-line').forEach(function (el) { el.classList.remove('highlight'); });
+    if (!state.line) return;
+    const lineEl = $('line-' + state.line);
+    if (lineEl) {
+        lineEl.classList.add('highlight');
+        lineEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+function updateDesc(state) {
+    const box = $('step-desc');
+    if (!box) return;
+    box.replaceChildren(richNode(state.desc));
+}
+
+function updateStepBadge(index) {
+    const badge = $('step-badge');
+    if (badge) badge.textContent = '执行步 ' + (index + 1) + ' / ' + states.length;
+}
+
+function updateExecButtons(index) {
+    const prev = $('exec-prev');
+    const next = $('exec-next');
+    if (prev) prev.disabled = index <= 0;
+    if (next) next.disabled = index >= states.length - 1;
+}
+
+/* =========================================================================
+ * 6. 执行控制（与课件翻页完全分离）
+ * ========================================================================= */
+function stepExec(direction) {
+    const target = currentStateIndex + direction;
+    if (target < 0 || target >= states.length) return;
+    currentStateIndex = target;
+    renderState(currentStateIndex, { animate: true, mode: currentMode() });
+}
+
+function resetExec() {
+    pausePlayback();
+    currentStateIndex = 0;
+    renderState(currentStateIndex, { animate: false, mode: currentMode() });
+}
+
+function currentMode() {
+    if (currentAlgoKey !== 'bubble') return 'classic';
+    const slide = currentSlide();
+    if (!slide) return 'anim';
+    return slide.kind === 'code' ? 'code' : 'anim';
+}
+
+function togglePlay() {
+    if (playing) { pausePlayback(); return; }
+    if (currentStateIndex >= states.length - 1) {
+        currentStateIndex = 0;
+        renderState(currentStateIndex, { animate: false, mode: currentMode() });
+    }
+    playing = true;
+    syncPlayButton();
+    scheduleNext();
+}
+
+function scheduleNext() {
+    if (playTimer) clearTimeout(playTimer);
+    const interval = Math.round(680 / speed);
+    playTimer = setTimeout(function () {
+        playTimer = null;
+        if (!playing) return;
+        if (currentStateIndex < states.length - 1) {
+            currentStateIndex += 1;
+            renderState(currentStateIndex, { animate: true, mode: currentMode() });
+            scheduleNext();
+        } else {
+            pausePlayback();
+        }
+    }, interval);
+}
+
+function pausePlayback() {
+    playing = false;
+    if (playTimer) { clearTimeout(playTimer); playTimer = null; }
+    syncPlayButton();
+}
+
+function syncPlayButton() {
+    const btn = $('play-btn');
+    if (!btn) return;
+    btn.textContent = playing ? '⏸ 暂停' : '▶ 播放';
+}
+
+function setSpeed(value) {
+    speed = value;
+    document.querySelectorAll('.speed-btn').forEach(function (btn) {
+        btn.classList.toggle('active', Number(btn.dataset.speed) === value);
+    });
+    if (playing) scheduleNext();
+}
+
+/* =========================================================================
+ * 7. 课件导航
+ * ========================================================================= */
+function course() { return COURSES[currentAlgoKey] || null; }
+function slides() { const c = course(); return c ? c.slides : []; }
+function currentSlide() { return slides()[slideIndex] || null; }
+
+function maxSubStep(slide) {
+    if (!slide) return 0;
+    if (slide.kind === 'principle') return slide.steps.length - 1;
+    return 0;
+}
+
+function pageNext() {
+    const slide = currentSlide();
+    if (!slide) return;
+    if (subStep < maxSubStep(slide)) { subStep += 1; renderStage(); return; }
+    if (slideIndex < slides().length - 1) { slideIndex += 1; subStep = 0; renderStage(); }
+}
+
+function pagePrev() {
+    const slide = currentSlide();
+    if (!slide) return;
+    if (subStep > 0) { subStep -= 1; renderStage(); return; }
+    if (slideIndex > 0) {
+        slideIndex -= 1;
+        subStep = maxSubStep(slides()[slideIndex]);
+        renderStage();
+    }
+}
+
+function gotoSlide(index) {
+    if (index < 0 || index >= slides().length) return;
+    slideIndex = index;
+    subStep = 0;
+    renderStage();
+}
+
+function canPageNext() {
+    const slide = currentSlide();
+    if (!slide) return false;
+    return subStep < maxSubStep(slide) || slideIndex < slides().length - 1;
+}
+
+function canPagePrev() { return subStep > 0 || slideIndex > 0; }
+
+/* 切换环节时停止播放：避免离开动画环节后仍在后台推进 */
+function onStageEnter(kind) {
+    if (kind !== 'anim' && kind !== 'code') pausePlayback();
+}
+
+/* =========================================================================
+ * 8. 各环节视图构建
+ * ========================================================================= */
+function renderStage() {
+    const slide = currentSlide();
+    if (!slide) { renderClassic(); return; }
+
+    pausePlayback();
+    onStageEnter(slide.kind);
+    stageHost.replaceChildren();
+
+    let node;
+    if (slide.kind === 'intro') node = buildIntro(slide);
+    else if (slide.kind === 'principle') node = buildPrinciple(slide);
+    else if (slide.kind === 'summary') node = buildSummary(slide);
+    else node = buildWorkbench(slide);
+
+    stageHost.appendChild(node);
+    renderStageBar();
+    renderPager();
+
+    if (slide.kind === 'code') renderCode(ALGORITHMS[currentAlgoKey].code);
+
+    if (slide.kind === 'anim' || slide.kind === 'code') {
+        renderState(currentStateIndex, { animate: false, mode: slide.kind });
+    }
+}
+
+function buildSlideFrame(slide, bodyNode) {
+    const card = h('section', { class: 'slide-card', dataset: { slide: slide.id } });
+    const head = h('div', { class: 'slide-head' });
+    head.appendChild(h('span', { class: 'kicker', text: slide.kicker }));
+    head.appendChild(h('h2', { class: 'slide-title', text: slide.title }));
+    if (slide.lead) head.appendChild(rich(h('p', { class: 'slide-lead' }), slide.lead));
+    card.appendChild(head);
+    card.appendChild(bodyNode);
+    return card;
+}
+
+function buildIntro(slide) {
+    const body = h('div', { class: 'intro-grid' });
+
+    const left = h('div');
+    const qCard = h('div', { class: 'question-card', dataset: { block: 'question' } });
+    qCard.appendChild(h('div', { class: 'q-label', text: '课堂问题' }));
+    qCard.appendChild(h('p', { class: 'q-text', text: slide.question }));
+
+    const row = h('div', { class: 'num-row' });
+    SAMPLE_DATA.forEach(function (value, i) {
+        const card = h('div', { class: 'num-card' });
+        card.appendChild(h('span', { class: 'v', text: String(value) }));
+        card.appendChild(h('span', { class: 'i', text: '[' + (i + 1) + ']' }));
+        row.appendChild(card);
+    });
+    qCard.appendChild(row);
+    qCard.appendChild(h('p', { class: 'figure-caption', text: '这就是本课要处理的原始序列，共 ' + SAMPLE_DATA.length + ' 个数。' }));
+    left.appendChild(qCard);
+
+    const cta = h('div', { class: 'intro-cta' });
+    const go = h('button', { class: 'btn primary', text: slide.cta + ' →' });
+    go.addEventListener('click', function () { gotoSlide(1); });
+    cta.appendChild(go);
+    cta.appendChild(h('span', { class: 'intro-hint', text: '或用键盘 → 键翻页' }));
+    left.appendChild(cta);
+
+    const right = h('div');
+    const list = h('ul', { class: 'intro-points' });
+    slide.points.forEach(function (point) {
+        list.appendChild(h('li', null, [h('span', { class: 'dot' }), h('span', { text: point })]));
+    });
+    right.appendChild(list);
+
+    body.appendChild(left);
+    body.appendChild(right);
+    return buildSlideFrame(slide, body);
+}
+
+function buildPrinciple(slide) {
+    const body = h('div', { class: 'principle-body' });
+
+    const stack = h('div', { class: 'concept-stack' });
+    for (let i = 0; i <= subStep; i++) {
+        const step = slide.steps[i];
+        const item = h('div', { class: 'concept-item', dataset: { block: step.id } });
+        item.appendChild(h('span', { class: 'step-no', text: String(i + 1) }));
+        const text = h('div');
+        text.appendChild(h('h3', { text: step.heading }));
+        text.appendChild(rich(h('p'), step.body));
+        item.appendChild(text);
+        stack.appendChild(item);
+    }
+    body.appendChild(stack);
+
+    const active = slide.steps[subStep];
+    if (active && active.figure) body.appendChild(buildFigure(active.figure));
+
+    const foot = h('div', { class: 'principle-foot' });
+    const dots = h('div', { class: 'sub-progress' });
+    slide.steps.forEach(function (_, i) {
+        dots.appendChild(h('span', { class: i <= subStep ? 'on' : null }));
+    });
+    foot.appendChild(dots);
+    const hint = h('span', { class: 'intro-hint', text: '逐步展开 ' + (subStep + 1) + ' / ' + slide.steps.length });
+    foot.appendChild(hint);
+    body.appendChild(foot);
+
+    return buildSlideFrame(slide, body);
+}
+
+function buildFigure(figure) {
+    const wrap = h('div', { class: 'figure-card' });
+    const row = h('div', { class: 'num-row', style: 'justify-content:center;' });
+    figure.cards.forEach(function (value, i) {
+        const mark = figure.marks && figure.marks[i];
+        const card = h('div', { class: 'num-card ' + (mark === 'cmp' ? 'cmp' : mark === 'swp' ? 'swp' : mark === 'ok' ? 'ok' : '') });
+        card.appendChild(h('span', { class: 'v', text: String(value) }));
+        card.appendChild(h('span', { class: 'i', text: '[' + (i + 1) + ']' }));
+        row.appendChild(card);
+    });
+    wrap.appendChild(row);
+    const caption = h('p', { class: 'figure-caption' });
+    caption.appendChild(richNode(figure.caption));
+    wrap.appendChild(caption);
+    return wrap;
+}
+
+function buildSummary(slide) {
+    const body = h('div', { class: 'summary-grid' });
+
+    const left = h('div', { class: 'point-list' });
+    slide.points.forEach(function (point) {
+        const item = h('div', { class: 'point-item', dataset: { block: point.id } });
+        item.appendChild(h('span', { class: 'tag', text: point.tag }));
+        const text = h('div');
+        text.appendChild(h('h3', { text: point.title }));
+        text.appendChild(h('p', { text: point.body }));
+        item.appendChild(text);
+        left.appendChild(item);
+    });
+
+    const right = h('div', { class: 'quiz-card' });
+    slide.quiz.forEach(function (quiz, qi) {
+        const item = h('div', { class: 'quiz-item', dataset: { block: quiz.id } });
+        const title = h('h3');
+        title.appendChild(h('span', { class: 'qn', text: 'Q' + (qi + 1) }));
+        title.appendChild(h('span', { text: quiz.question }));
+        item.appendChild(title);
+
+        const options = h('div', { class: 'opt-list' });
+        const why = h('p', { class: 'quiz-why' });
+        why.hidden = true;
+
+        quiz.options.forEach(function (label, oi) {
+            const btn = h('button', { class: 'opt', text: label });
+            btn.addEventListener('click', function () {
+                options.querySelectorAll('.opt').forEach(function (el) {
+                    el.classList.remove('right', 'wrong');
+                });
+                if (oi === quiz.answer) {
+                    btn.classList.add('right');
+                    why.replaceChildren(richNode('答对了。' + quiz.why));
+                } else {
+                    btn.classList.add('wrong');
+                    why.replaceChildren(richNode('再想想：正确答案是「' + quiz.options[quiz.answer] + '」。' + quiz.why));
+                }
+                why.hidden = false;
+            });
+            options.appendChild(btn);
+        });
+
+        item.appendChild(options);
+        item.appendChild(why);
+        right.appendChild(item);
+    });
+
+    body.appendChild(left);
+    body.appendChild(right);
+    return buildSlideFrame(slide, body);
+}
+
+function buildWorkbench(slide) {
+    const withCode = slide.kind === 'code';
+    const body = h('div', { class: 'workbench' + (withCode ? ' with-code' : '') });
+
+    const codePane = h('div', { class: 'code-pane' });
+    const codeWindow = h('div', { class: 'code-window' });
+    const codeHeader = h('div', { class: 'code-header' }, [
+        h('div', { class: 'mac-dot red' }),
+        h('div', { class: 'mac-dot yellow' }),
+        h('div', { class: 'mac-dot green' }),
+        h('span', { class: 'code-title', id: 'code-title', text: ALGORITHMS[currentAlgoKey].title })
+    ]);
+    codeWindow.appendChild(codeHeader);
+    codeWindow.appendChild(h('div', { class: 'code-content', id: 'code-content' }));
+    codePane.appendChild(codeWindow);
+    body.appendChild(codePane);
+
+    const workPane = h('div', { class: 'work-pane' });
+
+    const visual = h('div', { class: 'visual-card' });
+    const slot = h('div', { class: 'visual-slot' });
+    slot.appendChild(pivotArea);
+    slot.appendChild(barsArea);
+    visual.appendChild(slot);
+
+    visual.appendChild(buildLegend());
+    visual.appendChild(buildExecBar());
+    workPane.appendChild(visual);
+
+    const desc = h('div', { class: 'desc-card' });
+    desc.appendChild(h('span', { class: 'desc-label', text: '当前执行状态' }));
+    desc.appendChild(h('span', { id: 'step-desc' }));
+    workPane.appendChild(desc);
+
+    body.appendChild(workPane);
+
+    const frame = buildSlideFrame(slide, body);
+    return frame;
+}
+
+function buildLegend() {
+    const legend = h('div', { class: 'legend' });
+    [['扫描', 'var(--scan)'], ['比较', 'var(--compare)'], ['交换', 'var(--swap)'], ['已就位', 'var(--sorted)']].forEach(function (pair) {
+        const item = h('span');
+        const dot = h('i');
+        dot.style.background = pair[1];
+        item.appendChild(dot);
+        item.appendChild(document.createTextNode(pair[0]));
+        legend.appendChild(item);
+    });
+    return legend;
+}
+
+function buildExecBar() {
+    const bar = h('div', { class: 'exec-bar' });
+
+    const play = h('button', { class: 'btn play', id: 'play-btn', text: '▶ 播放' });
+    play.addEventListener('click', togglePlay);
+    bar.appendChild(play);
+
+    const prev = h('button', { class: 'btn', id: 'exec-prev', text: '← 上一执行步' });
+    prev.addEventListener('click', function () { pausePlayback(); stepExec(-1); });
+    bar.appendChild(prev);
+
+    const next = h('button', { class: 'btn', id: 'exec-next', text: '下一执行步 →' });
+    next.addEventListener('click', function () { pausePlayback(); stepExec(1); });
+    bar.appendChild(next);
+
+    const reset = h('button', { class: 'btn', id: 'exec-reset', text: '⟲ 重置' });
+    reset.addEventListener('click', resetExec);
+    bar.appendChild(reset);
+
+    bar.appendChild(h('span', { class: 'step-badge', id: 'step-badge', text: '执行步 0 / 0' }));
+
+    const speedGroup = h('div', { class: 'speed-group' });
+    speedGroup.appendChild(h('span', { class: 'lbl', text: '速度' }));
+    [0.5, 1, 1.5, 2].forEach(function (value) {
+        const btn = h('button', { class: 'speed-btn' + (value === speed ? ' active' : ''), text: value + '×' });
+        btn.dataset.speed = String(value);
+        btn.addEventListener('click', function () { setSpeed(value); });
+        speedGroup.appendChild(btn);
+    });
+    bar.appendChild(speedGroup);
+
+    return bar;
+}
+
+/* =========================================================================
+ * 9. 环节导航与翻页条
+ * ========================================================================= */
+function renderStageBar() {
+    const bar = $('stagebar');
+    const list = slides();
+    if (currentAlgoKey !== 'bubble' || list.length === 0) {
+        bar.hidden = true;
+        bar.replaceChildren();
+        return;
+    }
+    bar.hidden = false;
+    bar.replaceChildren();
+    list.forEach(function (slide, index) {
+        const chip = h('button', { class: 'stage-chip' + (index === slideIndex ? ' active' : (index < slideIndex ? ' done' : '')) });
+        chip.appendChild(h('span', { class: 'idx', text: String(index + 1) }));
+        chip.appendChild(h('span', { text: slide.nav }));
+        chip.addEventListener('click', function () { gotoSlide(index); });
+        bar.appendChild(chip);
+    });
+}
+
+function renderPager() {
+    const pager = $('pager');
+    if (currentAlgoKey !== 'bubble') {
+        pager.hidden = true;
+        return;
+    }
+    pager.hidden = false;
+    const list = slides();
+    const slide = currentSlide();
+    $('pager-label').textContent = '环节 ' + (slideIndex + 1) + ' / ' + list.length + ' · ' + slide.nav;
+
+    const sub = $('pager-sub');
+    const maxSub = maxSubStep(slide);
+    sub.textContent = maxSub > 0 ? '讲解 ' + (subStep + 1) + ' / ' + (maxSub + 1) : '第 ' + (slideIndex + 1) + ' 页';
+
+    $('pager-prev').disabled = !canPagePrev();
+    $('pager-next').disabled = !canPageNext();
+    $('pager-next').textContent = canPageNext() ? '下一页 →' : '已是最后一页';
+}
+
+/* =========================================================================
+ * 10. 经典演示模式（其余 6 种算法，保持原有能力）
+ * ========================================================================= */
+function renderClassic() {
+    pausePlayback();
+    stageHost.replaceChildren();
+
+    const wrap = h('div', { class: 'slide-card' });
+    const head = h('div', { class: 'slide-head' });
+    head.appendChild(h('span', { class: 'kicker', text: '经典演示 · 单步调试' }));
+    head.appendChild(h('h2', { class: 'slide-title', text: ALGORITHMS[currentAlgoKey].label }));
+    head.appendChild(h('p', { class: 'slide-lead', text: '课堂课件目前仅覆盖冒泡排序；其余算法保留原有单步演示功能。' }));
+    wrap.appendChild(head);
+
+    const body = h('div', { class: 'workbench with-code' });
+
+    const codePane = h('div', { class: 'code-pane' });
+    const codeWindow = h('div', { class: 'code-window' });
+    codeWindow.appendChild(h('div', { class: 'code-header' }, [
+        h('div', { class: 'mac-dot red' }),
+        h('div', { class: 'mac-dot yellow' }),
+        h('div', { class: 'mac-dot green' }),
+        h('span', { class: 'code-title', id: 'code-title', text: ALGORITHMS[currentAlgoKey].title })
+    ]));
+    codeWindow.appendChild(h('div', { class: 'code-content', id: 'code-content' }));
+    codePane.appendChild(codeWindow);
+    body.appendChild(codePane);
+
+    const workPane = h('div', { class: 'work-pane' });
+    const visual = h('div', { class: 'visual-card' });
+    const slot = h('div', { class: 'visual-slot' });
+    slot.appendChild(pivotArea);
+    slot.appendChild(barsArea);
+    visual.appendChild(slot);
+    visual.appendChild(buildLegend());
+    visual.appendChild(buildExecBar());
+    workPane.appendChild(visual);
+
+    const desc = h('div', { class: 'desc-card' });
+    desc.appendChild(h('span', { class: 'desc-label', text: '当前执行状态' }));
+    desc.appendChild(h('span', { id: 'step-desc' }));
+    workPane.appendChild(desc);
+
+    const logic = h('div', { class: 'logic-box' });
+    logic.appendChild(h('h3', { text: '算法要点' }));
+    logic.appendChild(rich(h('div'), ALGORITHMS[currentAlgoKey].logic));
+    workPane.appendChild(logic);
+
+    body.appendChild(workPane);
+    wrap.appendChild(body);
+    stageHost.appendChild(wrap);
+
+    renderCode(ALGORITHMS[currentAlgoKey].code);
+    renderStageBar();
+    renderPager();
+    renderState(currentStateIndex, { animate: false, mode: 'classic' });
+}
+
+/* =========================================================================
+ * 11. 算法切换
+ * ========================================================================= */
+function initAlgoSelect() {
+    const select = $('algo-select');
+    Object.keys(ALGORITHMS).forEach(function (key) {
+        select.appendChild(h('option', { value: key, text: ALGORITHMS[key].label }));
+    });
+    select.value = currentAlgoKey;
+    select.addEventListener('change', function () {
+        changeAlgorithm(select.value);
+        select.blur();
+    });
+}
+
+function changeAlgorithm(key) {
+    pausePlayback();
+    currentAlgoKey = key;
+    slideIndex = 0;
+    subStep = 0;
+
+    const courseData = COURSES[key];
+    $('brand-title').textContent = courseData ? courseData.meta.title : ALGORITHMS[key].label;
+    $('brand-tag').textContent = courseData ? courseData.meta.tag : '经典演示';
+
+    generateStates(key);
+    renderStage();
+}
+
+/* =========================================================================
+ * 12. 全屏 / 白板（沿用原有协议与行为）
+ * ========================================================================= */
+function tellParentFullscreen(action) {
+    if (window.parent !== window) window.parent.postMessage({ type: 'lesson-fullscreen', action: action }, location.origin);
+}
+function toggleFullScreen() {
+    if (!document.fullscreenElement) {
+        tellParentFullscreen('enter');
+        document.documentElement.requestFullscreen().catch(function (err) { alert(err.message); });
+    } else {
+        if (document.exitFullscreen) document.exitFullscreen();
+    }
+}
+document.addEventListener('fullscreenchange', function () {
+    const btn = $('fullscreen-btn');
+    if (btn) btn.textContent = document.fullscreenElement ? '🔳 退出全屏' : '🖥️ 全屏演示';
+    if (!document.fullscreenElement) tellParentFullscreen('exit');
+});
+
+const canvas = $('draw-canvas');
+const ctx = canvas.getContext('2d', { willReadFrequently: true });
+let isDrawingMode = false;
+let isDrawing = false;
+let brushMode = 'draw';
+let drawHistory = [];
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = '#ef4444';
+    if (drawHistory.length === 0) saveDrawState();
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function toggleDrawingMode() {
+    isDrawingMode = !isDrawingMode;
+    const btn = $('toggle-draw-btn');
+    const panel = $('draw-tools-panel');
+    if (isDrawingMode) {
+        canvas.className = brushMode === 'erase' ? 'eraser-mode' : 'drawing-mode';
+        btn.classList.add('active');
+        btn.textContent = '❌ 退出白板';
+        panel.classList.add('show');
+    } else {
+        canvas.className = '';
+        btn.classList.remove('active');
+        btn.textContent = '🖌️ 开启白板';
+        panel.classList.remove('show');
+    }
+}
+function setBrushMode(element, mode, color) {
+    brushMode = mode;
+    document.querySelectorAll('.tool-item').forEach(function (el) { el.classList.remove('active'); });
+    element.classList.add('active');
+    if (mode === 'erase') {
+        canvas.className = 'eraser-mode';
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineWidth = 30;
+    } else {
+        canvas.className = 'drawing-mode';
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.lineWidth = 4;
+        if (color) ctx.strokeStyle = color;
+    }
+}
+function saveDrawState() {
+    if (drawHistory.length > 20) drawHistory.shift();
+    drawHistory.push(canvas.toDataURL());
+}
+function undoDraw() {
+    if (drawHistory.length > 1) {
+        drawHistory.pop();
+        const img = new Image();
+        img.src = drawHistory[drawHistory.length - 1];
+        img.onload = function () {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const prevMode = ctx.globalCompositeOperation;
+            ctx.globalCompositeOperation = 'source-over';
+            ctx.drawImage(img, 0, 0);
+            ctx.globalCompositeOperation = prevMode;
+        };
+    } else if (drawHistory.length === 1) {
+        clearCanvas();
+    }
+}
+function clearCanvas() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawHistory = [];
+    saveDrawState();
+}
+canvas.addEventListener('mousedown', function (e) {
+    if (!isDrawingMode) return;
+    saveDrawState();
+    isDrawing = true;
+    ctx.beginPath();
+    ctx.moveTo(e.clientX, e.clientY);
+});
+canvas.addEventListener('mousemove', function (e) {
+    if (!isDrawing || !isDrawingMode) return;
+    ctx.lineTo(e.clientX, e.clientY);
+    ctx.stroke();
+});
+canvas.addEventListener('mouseup', function () { isDrawing = false; });
+
+/* =========================================================================
+ * 13. 键盘：← / → 翻课件页，Shift + ← / → 切执行步，空格播放/暂停
+ * ========================================================================= */
+function isTextTarget(target) {
+    if (!target) return false;
+    const tag = target.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+/** 当前环节是否真的显示了执行步控件；没有控件时不允许用快捷键暗中改变执行位置 */
+function execControlsPresent() { return !!$('exec-next'); }
+
+window.addEventListener('keydown', function (e) {
+    if (isTextTarget(e.target)) return;
+
+    if (e.key === 'ArrowRight') {
+        if (e.shiftKey) {
+            if (execControlsPresent() && currentStateIndex < states.length - 1) {
+                e.preventDefault();
+                pausePlayback();
+                stepExec(1);
+            }
+        } else if (canPageNext()) {
+            e.preventDefault();
+            pageNext();
+        }
+        return;
+    }
+
+    if (e.key === 'ArrowLeft') {
+        if (e.shiftKey) {
+            if (execControlsPresent() && currentStateIndex > 0) {
+                e.preventDefault();
+                pausePlayback();
+                stepExec(-1);
+            }
+        } else if (canPagePrev()) {
+            e.preventDefault();
+            pagePrev();
+        }
+        return;
+    }
+
+    if (e.key === ' ' || e.code === 'Space') {
+        const slide = currentSlide();
+        const inAnim = currentAlgoKey !== 'bubble' || (slide && (slide.kind === 'anim' || slide.kind === 'code'));
+        if (execControlsPresent() && inAnim) {
+            e.preventDefault();
+            togglePlay();
+        }
+    }
+});
+
+/* 离开页面时停止计时器，避免后台空转 */
+document.addEventListener('visibilitychange', function () {
+    if (document.hidden && playing) pausePlayback();
+});
+window.addEventListener('beforeunload', function () { pausePlayback(); });
+
+/* 视口变化时重算柱高，避免 iframe 与全屏之间切换后柱条溢出 */
+window.addEventListener('resize', function () {
+    const slide = currentSlide();
+    const mode = currentAlgoKey !== 'bubble' ? 'classic' : (slide ? slide.kind : 'anim');
+    if (mode !== 'anim' && mode !== 'code' && mode !== 'classic') return;
+    if (states.length) renderState(currentStateIndex, { animate: false, mode: mode });
+});
+
+$('pager-prev').addEventListener('click', pagePrev);
+$('pager-next').addEventListener('click', pageNext);
+
+/* =========================================================================
+ * 14. 启动
+ * ========================================================================= */
+function initialSlideFromQuery() {
+    const params = new URLSearchParams(location.search);
+    const wanted = params.get('stage');
+    if (!wanted) return 0;
+    const list = COURSES.bubble.slides;
+    for (let i = 0; i < list.length; i++) {
+        if (list[i].id === wanted) return i;
+    }
+    return 0;
+}
+
+window.addEventListener('load', function () {
+    initAlgoSelect();
+    const params = new URLSearchParams(location.search);
+    const wantedAlgo = params.get('algo');
+    if (wantedAlgo && ALGORITHMS[wantedAlgo]) currentAlgoKey = wantedAlgo;
+    $('algo-select').value = currentAlgoKey;
+
+    generateStates(currentAlgoKey);
+    slideIndex = currentAlgoKey === 'bubble' ? initialSlideFromQuery() : 0;
+
+    const wantedStep = parseInt(params.get('step'), 10);
+    if (!isNaN(wantedStep)) {
+        currentStateIndex = Math.min(Math.max(wantedStep, 0), Math.max(states.length - 1, 0));
+    }
+
+    const courseData = COURSES[currentAlgoKey];
+    $('brand-title').textContent = courseData ? courseData.meta.title : ALGORITHMS[currentAlgoKey].label;
+    $('brand-tag').textContent = courseData ? courseData.meta.tag : '经典演示';
+
+    renderStage();
+});
 </script>
 </body>
 </html>
