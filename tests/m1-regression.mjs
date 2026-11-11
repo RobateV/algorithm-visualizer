@@ -220,9 +220,13 @@ function check(name, pass, detail) {
 
 const stageLabel = (cdp) => cdp.evaluate(`document.getElementById('pager-label').textContent.trim()`);
 const stepBadge = (cdp) => cdp.evaluate(`(document.getElementById('step-badge') || {}).textContent || ''`);
+// 编号改版后，步数从 data-step 读取（1-based），不再依赖徽标文案
 const stepNumber = async (cdp) => {
-    const m = (await stepBadge(cdp)).match(/(\d+)\s*\/\s*(\d+)/);
-    return m ? Number(m[1]) : -1;
+    const value = await cdp.evaluate(`(() => {
+        const b = document.getElementById('step-badge');
+        return b && b.dataset.step ? Number(b.dataset.step) : -1;
+    })()`);
+    return typeof value === 'number' ? value : -1;
 };
 
 async function t1CoursePaging(cdp) {
@@ -418,8 +422,134 @@ async function t7Iframe(cdp) {
     check('T7 退出全屏向父页面发送消息', msgsAfterExit.includes('exit'), JSON.stringify(msgsAfterExit));
 }
 
-/* -------------------------------------------------------------------- 主流程 */
+async function t8Numbering(cdp) {
+    const read = () => cdp.evaluate(`(() => {
+        const badge = document.getElementById('step-badge');
+        const id = document.getElementById('step-id');
+        const page = document.getElementById('page-code');
+        const copyStep = document.getElementById('copy-step');
+        const copyLink = document.getElementById('copy-link');
+        return {
+            badge: badge ? badge.textContent : null,
+            step: badge ? Number(badge.dataset.step) : null,
+            total: badge ? Number(badge.dataset.total) : null,
+            identity: id ? id.textContent : null,
+            page: page ? page.textContent : null,
+            copy: copyStep ? copyStep.dataset.copy : null,
+            link: copyLink ? copyLink.dataset.copy : null
+        };
+    })()`);
 
+    await goto(cdp, LESSON + '?stage=anim&event=7');
+    const anim = await read();
+    check('T8 环节页码独立于执行步显示', anim.page === 'P03 · 纯动画', anim.page);
+    check('T8 执行步编号可引用', anim.badge === 'BUB-S007', anim.badge);
+    check('T8 状态卡显示完整编号', anim.identity === '第 007 / 062 步 · BUB-S007', anim.identity);
+    check('T8 复制内容包含算法/页码/编号/指针', /^冒泡排序｜P03 纯动画｜BUB-S007｜.*｜i=\d+,j=\d+$/.test(anim.copy || ''), anim.copy);
+    check('T8 复制链接使用 1-based event', /[?&]event=7(&|$)/.test(anim.link || ''), anim.link);
+
+    await goto(cdp, LESSON + '?stage=code&event=7');
+    const code = await read();
+    check('T8 同一执行步在联动页编号一致', code.identity === anim.identity, code.identity);
+    check('T8 联动页页码不同', code.page === 'P04 · 动画 + 代码', code.page);
+
+    // ?step= 保持 0-based，?event= 为 1-based，两者必须指向同一步
+    await goto(cdp, LESSON + '?stage=anim&step=6');
+    const viaStep = await read();
+    check('T8 旧 ?step= 语义未变且与新参数等价',
+        viaStep.step === 7 && viaStep.identity === anim.identity,
+        `?step=6 → ${viaStep.identity}`);
+
+    await goto(cdp, LESSON + '?stage=anim&event=9999');
+    const clamped = await read();
+    check('T8 event 越界钳制到末步', clamped.step === clamped.total, `${clamped.step}/${clamped.total}`);
+
+    await goto(cdp, LESSON + '?algo=selection&event=3');
+    const classic = await read();
+    check('T8 经典演示使用算法前缀编号', classic.badge === 'SEL-S003', classic.badge);
+    check('T8 经典演示页码显示为经典演示', classic.page === '经典演示', classic.page);
+
+    // 前进/回退后编号必须与执行位置同步
+    await goto(cdp, LESSON + '?stage=anim&event=1');
+    await pressKey(cdp, 'ArrowRight', true);
+    await pressKey(cdp, 'ArrowRight', true);
+    const afterNext = await read();
+    await pressKey(cdp, 'ArrowLeft', true);
+    const afterPrev = await read();
+    check('T8 前进/回退后编号同步',
+        afterNext.step === 3 && afterNext.badge === 'BUB-S003' && afterPrev.step === 2 && afterPrev.badge === 'BUB-S002',
+        `${afterNext.badge} → ${afterPrev.badge}`);
+}
+
+async function t9PointerMotion(cdp) {
+    // event=4 是 j=1 的交换步，下一步 j 走到 2，指针必须跨位移动
+    await goto(cdp, LESSON + '?stage=anim&event=4');
+    await sleep(400);
+
+    // 采样指针位置，同时触发一步
+    const sampling = cdp.evaluate(`(async () => {
+        const out = [];
+        const t0 = performance.now();
+        while (performance.now() - t0 < 900) {
+            const el = document.querySelector('.pvar[data-var="j"]');
+            if (el) {
+                const r = el.getBoundingClientRect();
+                out.push({ t: Math.round(performance.now() - t0), x: Math.round(r.left + r.width / 2) });
+            }
+            await new Promise(res => requestAnimationFrame(res));
+        }
+        return out;
+    })()`);
+    await sleep(80);
+    await pressKey(cdp, 'ArrowRight', true);
+    const samples = await sampling;
+
+    const xs = samples.map((s) => s.x);
+    const unique = Array.from(new Set(xs));
+    const start = xs[0];
+    const end = xs[xs.length - 1];
+    const span = Math.abs(end - start);
+    let maxJump = 0;
+    for (let i = 1; i < xs.length; i++) maxJump = Math.max(maxJump, Math.abs(xs[i] - xs[i - 1]));
+    const hasMid = unique.some((x) => x > Math.min(start, end) + 2 && x < Math.max(start, end) - 2);
+
+    check('T9 指针目标位置确实变化', span > 20, `${start} → ${end}（${span}px）`);
+    check('T9 指针平滑移动而非瞬移',
+        hasMid && maxJump < span * 0.75,
+        `中间帧 ${unique.length} 个，最大单帧位移 ${maxJump}px / 总位移 ${span}px`);
+
+    // 指针必须指向数组索引，而不是跟随元素身份
+    const align = await cdp.evaluate(`(() => {
+        const el = document.querySelector('.pvar[data-var="j"]');
+        const idx = Number(el.dataset.index);
+        const wrapper = document.querySelectorAll('.bar-wrapper')[idx - 1];
+        if (!wrapper) return { ok: false, idx: idx };
+        const pr = el.getBoundingClientRect();
+        const wr = wrapper.getBoundingClientRect();
+        return {
+            ok: Math.abs((pr.left + pr.width / 2) - (wr.left + wr.width / 2)) < 3,
+            idx: idx,
+            delta: Math.round((pr.left + pr.width / 2) - (wr.left + wr.width / 2))
+        };
+    })()`);
+    check('T9 指针与目标索引柱位对齐', align.ok, `index=${align.idx}，偏差 ${align.delta}px`);
+
+    // 快速连续步进：不允许出现残影或额外指针
+    for (let i = 0; i < 6; i++) await pressKey(cdp, 'ArrowRight', true);
+    await sleep(500);
+    const count = await cdp.evaluate(`document.querySelectorAll('.pvar').length`);
+    const names = await cdp.evaluate(`Array.from(document.querySelectorAll('.pvar')).map(e => e.dataset.var).join(',')`);
+    check('T9 连续步进后无残影', count === 2, `指针数 ${count}（${names}）`);
+
+    // 切到原理页应清空指针层
+    const chip = await center(cdp, `document.querySelectorAll('.stage-chip')[1]`);
+    await mouseClick(cdp, chip.x, chip.y);
+    await sleep(300);
+    const remaining = await cdp.evaluate(`document.querySelectorAll('.pvar').length`);
+    check('T9 离开动画环节指针不残留', remaining === 0, `剩余 ${remaining}`);
+}
+
+/* -------------------------------------------------------------------- 主流程 */
 async function main() {
     const chrome = findChrome();
     if (!chrome) {
@@ -457,7 +587,9 @@ async function main() {
             { title: '自动播放停止', run: t4AutoplayStops },
             { title: '全屏', run: t5Fullscreen },
             { title: '白板', run: t6Whiteboard },
-            { title: 'iframe 与 postMessage', run: t7Iframe }
+            { title: 'iframe 与 postMessage', run: t7Iframe },
+            { title: '步骤编号体系', run: t8Numbering },
+            { title: '指针平滑运动', run: t9PointerMotion }
         ];
 
         for (const suite of suites) {

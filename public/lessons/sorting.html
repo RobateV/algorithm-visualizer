@@ -150,6 +150,14 @@
         color: var(--primary); background: var(--primary-soft);
         border-radius: 6px; padding: 2px 8px; margin-bottom: 8px;
     }
+    .head-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+    .head-meta .kicker { margin-bottom: 0; }
+    .page-code {
+        display: inline-flex; align-items: center;
+        font-family: Consolas, monospace; font-size: 11.5px; font-weight: 700;
+        color: var(--muted); background: #F1F5F9; border: 1px solid var(--line);
+        border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+    }
     .slide-title { margin: 0; font-size: clamp(21px, 2vw, 31px); font-weight: 800; letter-spacing: -.2px; }
     .slide-lead { margin: 8px 0 0; color: var(--muted); font-size: clamp(14px, 1.1vw, 16px); max-width: 76ch; }
 
@@ -280,6 +288,7 @@
         display: flex; flex-direction: column;
     }
     .visual-slot {
+        position: relative;
         flex: 1; min-height: 0;
         display: flex; align-items: flex-end; justify-content: center;
         gap: clamp(6px, .7vw, 14px);
@@ -318,7 +327,16 @@
     .bar-wrapper.is-swp .bar-index { color: var(--swap); }
     .bar-wrapper.is-ok  .bar-index { color: var(--sorted); }
 
-    .pointer-container { position: absolute; top: -30px; display: flex; flex-direction: column; align-items: center; gap: 2px; z-index: 6; }
+    /* 变量指针层：按变量名持续存在，位置变化走 transform 过渡，不随每次重渲染重建 */
+    .pointer-layer { position: absolute; inset: 0; pointer-events: none; z-index: 6; }
+    .pvar {
+        position: absolute; left: 0; top: 0;
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        will-change: transform; opacity: 0;
+        transition: transform var(--ptr-dur, 340ms) cubic-bezier(.33, 1, .68, 1), opacity 180ms ease;
+    }
+    .pvar.is-visible { opacity: 1; }
+    .pvar.is-leaving { opacity: 0; }
     .pointer-label {
         font-family: Consolas, monospace; font-weight: 800; font-size: 12.5px;
         color: var(--pivot); background: #fff; border: 2px solid var(--pivot);
@@ -384,10 +402,24 @@
         flex: 0 0 auto;
         border: 1px solid var(--line); border-left: 4px solid var(--primary);
         border-radius: 10px; background: #F8FBFF;
-        padding: 9px 104px 9px 14px; font-size: 13.5px; line-height: 1.65; color: #1E293B;
+        padding: 8px 104px 8px 14px; font-size: 13.5px; line-height: 1.6; color: #1E293B;
         min-height: 46px;
     }
-    .desc-card .desc-label { font-size: 11.5px; font-weight: 700; color: var(--primary); letter-spacing: .4px; display: block; margin-bottom: 2px; }
+    .desc-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 2px; }
+    .desc-card .desc-label { font-size: 11.5px; font-weight: 700; color: var(--primary); letter-spacing: .4px; }
+    .step-id {
+        font-family: Consolas, monospace; font-size: 11.5px; font-weight: 700;
+        color: #1E40AF; background: #DBEAFE; border-radius: 6px;
+        padding: 1px 8px; letter-spacing: .2px; white-space: nowrap;
+    }
+    .copy-btn {
+        border: 1px solid var(--line-strong); background: #fff;
+        color: var(--muted); border-radius: 7px; font-size: 11.5px; font-weight: 700;
+        padding: 3px 9px; cursor: pointer; white-space: nowrap; transition: all .16s;
+    }
+    .desc-head .copy-btn:first-of-type { margin-left: auto; }
+    .copy-btn:hover { border-color: var(--primary); color: var(--primary); }
+    .copy-btn.copied { border-color: var(--sorted); color: #047857; background: #ECFDF5; }
     .desc-card code, .slide-card code {
         font-family: Consolas, monospace; font-size: .92em;
         background: #E2E8F0; color: #0F172A; border-radius: 4px; padding: .5px 5px;
@@ -609,6 +641,7 @@ const COURSES = {
                 id: 'intro',
                 kind: 'intro',
                 nav: '引入',
+                code: 'P01',
                 kicker: '第一课 · 交换类排序',
                 title: '冒泡排序',
                 lead: '给你一串打乱的数字，怎样让最大的那个"浮"到最右边？',
@@ -624,6 +657,7 @@ const COURSES = {
                 id: 'principle',
                 kind: 'principle',
                 nav: '原理',
+                code: 'P02',
                 kicker: '第二步 · 把想法说清楚',
                 title: '原理：一趟一趟把最大值送到末尾',
                 lead: '先理解思路，再看动画和代码。每个环节点"下一页"逐步展开。',
@@ -652,6 +686,7 @@ const COURSES = {
                 id: 'anim',
                 kind: 'anim',
                 nav: '纯动画',
+                code: 'P03',
                 kicker: '第三步 · 先看现象',
                 title: '纯动画探索',
                 lead: '看不到代码，只观察数字如何移动。橙=正在比较，红=发生交换，绿=已经就位。'
@@ -660,6 +695,7 @@ const COURSES = {
                 id: 'code',
                 kind: 'code',
                 nav: '动画 + 代码',
+                code: 'P04',
                 kicker: '第四步 · 把现象和代码对上',
                 title: '动画与 C++ 代码联动',
                 lead: '左侧高亮的是当前执行的代码行，右侧同步演示数据变化。'
@@ -668,6 +704,7 @@ const COURSES = {
                 id: 'summary',
                 kind: 'summary',
                 nav: '总结',
+                code: 'P05',
                 kicker: '第五步 · 收束与检验',
                 title: '课堂总结与思考',
                 lead: '回顾三个关键结论，再用两道小题检验理解。',
@@ -705,6 +742,12 @@ const COURSES = {
 /* =========================================================================
  * 2. 执行引擎 —— 只负责产生执行轨迹，不承载教学文案
  * ========================================================================= */
+/** 各算法的稳定前缀，用于生成可引用的执行步编号；M2 编辑器按编号定位时依赖它 */
+const ALGO_PREFIX = {
+    bubble: 'BUB', selection: 'SEL', insertion: 'INS', merge: 'MER',
+    quick: 'QUI', counting: 'CNT', radix: 'RAD'
+};
+
 const ALGORITHMS = {
     bubble: {
         label: '冒泡排序 (Bubble Sort)',
@@ -1096,6 +1139,10 @@ const pivotLabel = h('div', { class: 'pivot-slot-label', text: 'pivot' });
 pivotArea.appendChild(pivotSlot);
 pivotArea.appendChild(pivotLabel);
 
+/** 变量指针层：挂在 .visual-slot 上，按变量名持续存在，不随每次重渲染重建 */
+const pointerLayer = h('div', { class: 'pointer-layer' });
+const pointerNodes = new Map();   // name -> { el, timer }
+
 function pushState(arr, line, desc, highlights, pointers, sortedArr, meta) {
     states.push({
         arr: arr.map(function (o) { return { id: o.id, val: o.val }; }),
@@ -1163,6 +1210,112 @@ function tokenize(line) {
 /* =========================================================================
  * 5. 数据渲染（FLIP 动画核心，逻辑沿用原有实现）
  * ========================================================================= */
+
+/** 指针目标位置：以 .visual-slot 的坐标为基准，取第 index 根柱子的中心与顶边 */
+function pointerTarget(index) {
+    const wrapper = barsArea.children[index - 1];
+    if (!wrapper) return null;
+    return {
+        x: wrapper.offsetLeft + wrapper.offsetWidth / 2,
+        y: wrapper.offsetTop - 4
+    };
+}
+
+function applyPointerTransform(el, x, y) {
+    el.style.transform = 'translate(' + x + 'px,' + y + 'px) translate(-50%,-100%)';
+}
+
+function clearPointers() {
+    pointerNodes.forEach(function (rec) {
+        if (rec.timer) clearTimeout(rec.timer);
+        rec.el.remove();
+    });
+    pointerNodes.clear();
+}
+
+/**
+ * 按变量名维护指针节点。同一变量在相邻步骤之间复用同一个 DOM 节点，
+ * 因此位置变化可以走 CSS transform 过渡，而不是瞬移。
+ */
+function renderPointers(state, opts) {
+    opts = opts || {};
+    const animate = opts.animate !== false;
+    const duration = opts.duration || 340;
+    pointerLayer.style.setProperty('--ptr-dur', duration + 'ms');
+
+    const wanted = new Map();
+    const pointers = state.pointers || {};
+    Object.keys(pointers).forEach(function (name) {
+        const idx = pointers[name];
+        if (typeof idx !== 'number' || idx < 1) return;
+        const pos = pointerTarget(idx);
+        if (pos) {
+            pos.index = idx;
+            wanted.set(name, pos);
+        }
+    });
+
+    // 同一根柱子上有多个变量时横向错开，避免标签互相遮挡
+    const byX = new Map();
+    wanted.forEach(function (pos, name) {
+        const key = Math.round(pos.x);
+        if (!byX.has(key)) byX.set(key, []);
+        byX.get(key).push(name);
+    });
+    byX.forEach(function (names) {
+        if (names.length < 2) return;
+        names.forEach(function (name, i) {
+            wanted.get(name).x += (i - (names.length - 1) / 2) * 32;
+        });
+    });
+
+    // 本轮不存在的指针：淡出后移除
+    pointerNodes.forEach(function (rec, name) {
+        if (wanted.has(name)) return;
+        if (rec.timer) clearTimeout(rec.timer);
+        rec.el.classList.remove('is-visible');
+        rec.el.classList.add('is-leaving');
+        rec.timer = setTimeout(function () {
+            rec.el.remove();
+            pointerNodes.delete(name);
+        }, 220);
+    });
+
+    wanted.forEach(function (pos, name) {
+        const rec = pointerNodes.get(name);
+        if (!rec) {
+            const el = h('div', { class: 'pvar', dataset: { var: name } }, [
+                h('div', { class: 'pointer-label', text: name }),
+                h('div', { class: 'pointer-arrow' })
+            ]);
+            el.dataset.index = String(pos.index);
+            el.style.transition = 'none';
+            applyPointerTransform(el, pos.x, pos.y);
+            pointerLayer.appendChild(el);
+            void el.offsetWidth;
+            el.style.transition = '';
+            requestAnimationFrame(function () { el.classList.add('is-visible'); });
+            pointerNodes.set(name, { el: el, timer: null });
+            return;
+        }
+        if (rec.timer) { clearTimeout(rec.timer); rec.timer = null; }
+        rec.el.classList.remove('is-leaving');
+        rec.el.classList.add('is-visible');
+        rec.el.dataset.index = String(pos.index);
+
+        if (animate) {
+            applyPointerTransform(rec.el, pos.x, pos.y);
+        } else {
+            // 切阶段/切算法/resize 时直接归位，不做补间
+            const prev = rec.el.style.transition;
+            rec.el.style.transition = 'none';
+            applyPointerTransform(rec.el, pos.x, pos.y);
+            void rec.el.offsetWidth;
+            rec.el.style.transition = prev;
+        }
+    });
+}
+
 function renderState(index, opts) {
     opts = opts || {};
     const animate = opts.animate !== false;
@@ -1232,25 +1385,13 @@ function renderState(index, opts) {
         else if (semantic === 'swap') wrapper.classList.add('is-swp');
         else if (semantic === 'is-ok') wrapper.classList.add('is-ok');
 
-        if (state.pointers) {
-            const labels = [];
-            Object.keys(state.pointers).forEach(function (key) {
-                if (state.pointers[key] === idx) labels.push(key);
-            });
-            if (labels.length) {
-                const pointer = h('div', { class: 'pointer-container' }, [
-                    h('div', { class: 'pointer-label', text: labels.join(', ') }),
-                    h('div', { class: 'pointer-arrow' })
-                ]);
-                wrapper.appendChild(pointer);
-            }
-        }
         barsArea.appendChild(wrapper);
     }
 
+    const flipDuration = Math.min(430, Math.round(620 / speed));
+
     if (animate) {
         barsArea.offsetWidth;
-        const duration = Math.min(430, Math.round(620 / speed));
         const newElements = document.querySelectorAll('.flip-item');
         newElements.forEach(function (el) {
             const oldPos = oldPositions[el.dataset.id];
@@ -1265,10 +1406,13 @@ function renderState(index, opts) {
         });
         barsArea.offsetWidth;
         newElements.forEach(function (el) {
-            el.style.transition = 'transform ' + duration + 'ms cubic-bezier(.34,1.4,.64,1)';
+            el.style.transition = 'transform ' + flipDuration + 'ms cubic-bezier(.34,1.4,.64,1)';
             el.style.transform = 'translate(0,0)';
         });
     }
+
+    // 指针层独立于柱子：位置按“数组索引”计算，用同一时长做 transform 过渡
+    renderPointers(state, { animate: animate, duration: flipDuration });
 
     updateCodeHighlight(state);
     updateDesc(state);
@@ -1298,8 +1442,110 @@ function updateDesc(state) {
 }
 
 function updateStepBadge(index) {
+    const state = states[index];
+    if (!state) return;
+
     const badge = $('step-badge');
-    if (badge) badge.textContent = '执行步 ' + (index + 1) + ' / ' + states.length;
+    if (badge) {
+        badge.textContent = stepCode(index);
+        badge.dataset.step = String(index + 1);
+        badge.dataset.total = String(states.length);
+    }
+
+    const identity = $('step-id');
+    if (identity) identity.textContent = stepIdentity(index);
+
+    const copyStep = $('copy-step');
+    if (copyStep) copyStep.dataset.copy = stepCopyText(index);
+
+    const copyLink = $('copy-link');
+    if (copyLink) copyLink.dataset.copy = stepLink(index);
+}
+
+/* ================= 可引用的编号体系（教师按编号定位修改） ================= */
+
+function algoPrefix() { return ALGO_PREFIX[currentAlgoKey] || 'ALG'; }
+
+function paddedStep(index) { return String(index + 1).padStart(3, '0'); }
+
+function paddedTotal() { return String(states.length).padStart(3, '0'); }
+
+/** 可引用的执行步编号，例如 BUB-S007；同一轨迹在纯动画与联动页共用同一编号 */
+function stepCode(index) { return algoPrefix() + '-S' + paddedStep(index); }
+
+/** 课件页码与名称：P03 纯动画；经典演示没有课件页码 */
+function pageInfo() {
+    if (isClassicMode()) return { code: '', label: '经典演示' };
+    const slide = currentSlide();
+    if (!slide) return { code: '', label: '经典演示' };
+    return { code: slide.code || '', label: slide.nav };
+}
+
+function stepIdentity(index) {
+    return '第 ' + paddedStep(index) + ' / ' + paddedTotal() + ' 步 · ' + stepCode(index);
+}
+
+function algoTitle() {
+    const course = COURSES[currentAlgoKey];
+    return course ? course.meta.title : ALGORITHMS[currentAlgoKey].label;
+}
+
+/** 复制用的一行定位描述：算法｜页面｜步骤编号｜执行说明｜指针 */
+function stepCopyText(index) {
+    const state = states[index];
+    if (!state) return '';
+    const page = pageInfo();
+    const pointerText = Object.keys(state.pointers || {})
+        .map(function (name) { return name + '=' + state.pointers[name]; })
+        .join(',');
+    return [
+        algoTitle(),
+        page.code ? (page.code + ' ' + page.label) : page.label,
+        stepCode(index),
+        String(state.desc).replace(/`/g, ''),
+        pointerText || '无指针'
+    ].join('｜');
+}
+
+/** 带定位参数的链接：保留旧的 0-based ?step=，链接统一用 1-based ?event= */
+function stepLink(index) {
+    const params = new URLSearchParams();
+    if (isClassicMode()) {
+        params.set('algo', currentAlgoKey);
+    } else {
+        const slide = currentSlide();
+        if (slide) params.set('stage', slide.id);
+    }
+    params.set('event', String(index + 1));
+    return location.origin + location.pathname + '?' + params.toString();
+}
+
+function legacyCopy(text) {
+    const area = h('textarea', { style: 'position:fixed;left:-9999px;top:0;opacity:0;' });
+    area.value = text;
+    document.body.appendChild(area);
+    area.select();
+    try { document.execCommand('copy'); } catch (err) { /* 无权限时静默降级 */ }
+    area.remove();
+}
+
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).catch(function () { legacyCopy(text); });
+    }
+    legacyCopy(text);
+    return Promise.resolve();
+}
+
+function flashCopied(btn) {
+    if (!btn) return;
+    const original = btn.textContent;
+    btn.classList.add('copied');
+    btn.textContent = '已复制';
+    setTimeout(function () {
+        btn.classList.remove('copied');
+        btn.textContent = original;
+    }, 1200);
 }
 
 function updateExecButtons(index) {
@@ -1440,6 +1686,7 @@ function renderStage() {
     pausePlayback();
     onStageEnter(slide.kind);
     stageHost.replaceChildren();
+    if (slide.kind !== 'anim' && slide.kind !== 'code') clearPointers();
 
     let node;
     if (slide.kind === 'intro') node = buildIntro(slide);
@@ -1461,12 +1708,41 @@ function renderStage() {
 function buildSlideFrame(slide, bodyNode) {
     const card = h('section', { class: 'slide-card', dataset: { slide: slide.id } });
     const head = h('div', { class: 'slide-head' });
-    head.appendChild(h('span', { class: 'kicker', text: slide.kicker }));
+    const meta = h('div', { class: 'head-meta' });
+    meta.appendChild(h('span', { class: 'kicker', text: slide.kicker }));
+    if (slide.code) {
+        meta.appendChild(h('span', { class: 'page-code', id: 'page-code', text: slide.code + ' · ' + slide.nav }));
+    }
+    head.appendChild(meta);
     head.appendChild(h('h2', { class: 'slide-title', text: slide.title }));
     if (slide.lead) head.appendChild(rich(h('p', { class: 'slide-lead' }), slide.lead));
     card.appendChild(head);
     card.appendChild(bodyNode);
     return card;
+}
+
+/** 执行状态卡：显式展示「第 007 / 062 步 · BUB-S007」并提供复制入口 */
+function buildDescCard() {
+    const desc = h('div', { class: 'desc-card' });
+    const head = h('div', { class: 'desc-head' });
+    head.appendChild(h('span', { class: 'desc-label', text: '当前执行状态' }));
+    head.appendChild(h('span', { class: 'step-id', id: 'step-id', text: '—' }));
+
+    const copyStep = h('button', { class: 'copy-btn', id: 'copy-step', text: '复制步骤信息' });
+    copyStep.addEventListener('click', function () {
+        copyToClipboard(copyStep.dataset.copy || '').then(function () { flashCopied(copyStep); });
+    });
+    head.appendChild(copyStep);
+
+    const copyLink = h('button', { class: 'copy-btn', id: 'copy-link', text: '复制本步链接' });
+    copyLink.addEventListener('click', function () {
+        copyToClipboard(copyLink.dataset.copy || '').then(function () { flashCopied(copyLink); });
+    });
+    head.appendChild(copyLink);
+
+    desc.appendChild(head);
+    desc.appendChild(h('span', { id: 'step-desc' }));
+    return desc;
 }
 
 function buildIntro(slide) {
@@ -1637,16 +1913,14 @@ function buildWorkbench(slide) {
     const slot = h('div', { class: 'visual-slot' });
     slot.appendChild(pivotArea);
     slot.appendChild(barsArea);
+    slot.appendChild(pointerLayer);
     visual.appendChild(slot);
 
     visual.appendChild(buildLegend());
     visual.appendChild(buildExecBar());
     workPane.appendChild(visual);
 
-    const desc = h('div', { class: 'desc-card' });
-    desc.appendChild(h('span', { class: 'desc-label', text: '当前执行状态' }));
-    desc.appendChild(h('span', { id: 'step-desc' }));
-    workPane.appendChild(desc);
+    workPane.appendChild(buildDescCard());
 
     body.appendChild(workPane);
 
@@ -1752,7 +2026,10 @@ function renderClassic() {
 
     const wrap = h('div', { class: 'slide-card' });
     const head = h('div', { class: 'slide-head' });
-    head.appendChild(h('span', { class: 'kicker', text: '经典演示 · 单步调试' }));
+    const meta = h('div', { class: 'head-meta' });
+    meta.appendChild(h('span', { class: 'kicker', text: '经典演示 · 单步调试' }));
+    meta.appendChild(h('span', { class: 'page-code', id: 'page-code', text: '经典演示' }));
+    head.appendChild(meta);
     head.appendChild(h('h2', { class: 'slide-title', text: ALGORITHMS[currentAlgoKey].label }));
     head.appendChild(h('p', { class: 'slide-lead', text: '课堂课件目前仅覆盖冒泡排序；其余算法保留原有单步演示功能。' }));
     wrap.appendChild(head);
@@ -1776,15 +2053,13 @@ function renderClassic() {
     const slot = h('div', { class: 'visual-slot' });
     slot.appendChild(pivotArea);
     slot.appendChild(barsArea);
+    slot.appendChild(pointerLayer);
     visual.appendChild(slot);
     visual.appendChild(buildLegend());
     visual.appendChild(buildExecBar());
     workPane.appendChild(visual);
 
-    const desc = h('div', { class: 'desc-card' });
-    desc.appendChild(h('span', { class: 'desc-label', text: '当前执行状态' }));
-    desc.appendChild(h('span', { id: 'step-desc' }));
-    workPane.appendChild(desc);
+    workPane.appendChild(buildDescCard());
 
     const logic = h('div', { class: 'logic-box' });
     logic.appendChild(h('h3', { text: '算法要点' }));
@@ -1818,6 +2093,7 @@ function initAlgoSelect() {
 
 function changeAlgorithm(key) {
     pausePlayback();
+    clearPointers();
     currentAlgoKey = key;
     slideIndex = 0;
     subStep = 0;
@@ -2047,9 +2323,14 @@ window.addEventListener('load', function () {
     generateStates(currentAlgoKey);
     slideIndex = currentAlgoKey === 'bubble' ? initialSlideFromQuery() : 0;
 
+    // ?event= 为 1-based（复制链接用）；?step= 保持原有 0-based 语义不变
+    const wantedEvent = parseInt(params.get('event'), 10);
     const wantedStep = parseInt(params.get('step'), 10);
-    if (!isNaN(wantedStep)) {
-        currentStateIndex = Math.min(Math.max(wantedStep, 0), Math.max(states.length - 1, 0));
+    let targetIndex = null;
+    if (!isNaN(wantedEvent)) targetIndex = wantedEvent - 1;
+    else if (!isNaN(wantedStep)) targetIndex = wantedStep;
+    if (targetIndex !== null) {
+        currentStateIndex = Math.min(Math.max(targetIndex, 0), Math.max(states.length - 1, 0));
     }
 
     const courseData = COURSES[currentAlgoKey];
