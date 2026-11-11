@@ -42,3 +42,6 @@ next-env.d.ts
 
 # local launcher logs
 /.launcher-logs/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
