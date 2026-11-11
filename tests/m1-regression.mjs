@@ -549,6 +549,102 @@ async function t9PointerMotion(cdp) {
     check('T9 离开动画环节指针不残留', remaining === 0, `剩余 ${remaining}`);
 }
 
+/* ------------------------------------------------------------------ 原理页布局 */
+
+async function measurePrinciple(cdp) {
+    return cdp.evaluate(`(() => {
+        const fig = document.querySelector('.figure-card');
+        const nums = document.querySelector('.figure-nums');
+        const stack = document.querySelector('.concept-stack');
+        const card = document.querySelector('.slide-card');
+        if (!fig || !nums || !stack) return null;
+        const f = fig.getBoundingClientRect();
+        const n = nums.getBoundingClientRect();
+        const s = stack.getBoundingClientRect();
+        return {
+            figTop: f.top,
+            figHeight: f.height,
+            numCenterY: n.top + n.height / 2,
+            stackTop: s.top,
+            stackBottom: s.bottom,
+            revealed: document.querySelectorAll('.concept-item.is-revealed').length,
+            slots: document.querySelectorAll('.concept-item').length,
+            headings: Array.from(document.querySelectorAll('.concept-item.is-revealed h3')).map(e => e.textContent),
+            page: (document.getElementById('page-code') || {}).textContent,
+            subLabel: (document.getElementById('pager-sub') || {}).textContent,
+            overflow: card ? card.scrollHeight - card.clientHeight : 0
+        };
+    })()`);
+}
+
+/** 依次走 1/3 → 2/3 → 3/3 → 2/3 → 1/3，返回五次测量结果 */
+async function walkPrinciple(cdp) {
+    await goto(cdp, LESSON + '?stage=principle');
+    await sleep(320);
+    const seq = [await measurePrinciple(cdp)];
+    for (let i = 0; i < 2; i++) {
+        await clickSelector(cdp, '#pager-next');
+        await sleep(280);
+        seq.push(await measurePrinciple(cdp));
+    }
+    for (let i = 0; i < 2; i++) {
+        await clickSelector(cdp, '#pager-prev');
+        await sleep(280);
+        seq.push(await measurePrinciple(cdp));
+    }
+    return seq;
+}
+
+function spreadOf(seq, key) {
+    const values = seq.map((r) => r[key]);
+    return Math.max(...values) - Math.min(...values);
+}
+
+async function t10PrincipleLayout(cdp) {
+    const tol = 3;
+    const seq = await walkPrinciple(cdp);
+
+    const stable = (key) => spreadOf(seq, key) <= tol;
+    check('T10 图示区顶部稳定', stable('figTop'), `Δ=${spreadOf(seq, 'figTop').toFixed(1)}px`);
+    check('T10 图示区高度稳定', stable('figHeight'), `Δ=${spreadOf(seq, 'figHeight').toFixed(1)}px`);
+    check('T10 数字中心 Y 稳定', stable('numCenterY'), `Δ=${spreadOf(seq, 'numCenterY').toFixed(1)}px`);
+    check('T10 说明区上下边界稳定',
+        stable('stackTop') && stable('stackBottom'),
+        `top Δ=${spreadOf(seq, 'stackTop').toFixed(1)}px，bottom Δ=${spreadOf(seq, 'stackBottom').toFixed(1)}px`);
+
+    check('T10 三条讲解依次揭晓并可回退',
+        JSON.stringify(seq.map((r) => r.revealed)) === JSON.stringify([1, 2, 3, 2, 1]),
+        JSON.stringify(seq.map((r) => r.revealed)));
+
+    check('T10 讲解文字正确',
+        JSON.stringify(seq[2].headings) === JSON.stringify(['相邻比较', '必要时交换', '一趟落位']),
+        seq[2].headings.join(' / '));
+
+    check('T10 三个槽位常驻不增删',
+        seq.every((r) => r.slots === 3),
+        seq.map((r) => r.slots).join(','));
+
+    check('T10 页码与讲解进度正确',
+        seq[0].page === 'P02 · 原理' && seq[0].subLabel === '讲解 1 / 3' && seq[4].subLabel === '讲解 1 / 3',
+        `${seq[0].page}｜${seq[0].subLabel}`);
+
+    check('T10 原理页无纵向溢出',
+        seq.every((r) => r.overflow <= 2),
+        `最大溢出 ${Math.max(...seq.map((r) => r.overflow))}px`);
+
+    // 720px 高的 iframe 场景：同样不允许跳动
+    await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1120, height: 720, deviceScaleFactor: 1, mobile: false });
+    await sleep(200);
+    const compact = await walkPrinciple(cdp);
+    check('T10 720px iframe 下图示与说明同样稳定',
+        spreadOf(compact, 'figTop') <= tol && spreadOf(compact, 'numCenterY') <= tol && spreadOf(compact, 'stackTop') <= tol,
+        `figTop Δ=${spreadOf(compact, 'figTop').toFixed(1)}，num Δ=${spreadOf(compact, 'numCenterY').toFixed(1)}，stack Δ=${spreadOf(compact, 'stackTop').toFixed(1)}`);
+    check('T10 720px iframe 下不裁切',
+        compact.every((r) => r.overflow <= 2),
+        `最大溢出 ${Math.max(...compact.map((r) => r.overflow))}px`);
+    await cdp.send('Emulation.clearDeviceMetricsOverride');
+}
+
 /* -------------------------------------------------------------------- 主流程 */
 async function main() {
     const chrome = findChrome();
@@ -589,7 +685,8 @@ async function main() {
             { title: '白板', run: t6Whiteboard },
             { title: 'iframe 与 postMessage', run: t7Iframe },
             { title: '步骤编号体系', run: t8Numbering },
-            { title: '指针平滑运动', run: t9PointerMotion }
+            { title: '指针平滑运动', run: t9PointerMotion },
+            { title: '原理页布局稳定', run: t10PrincipleLayout }
         ];
 
         for (const suite of suites) {
