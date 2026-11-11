@@ -36,3 +36,9 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+
+# local OI Wiki static mirror (not shipped; see OI-WIKI-NOTICE.md)
+/public/oi-wiki/
+
+# local launcher logs
+/.launcher-logs/

@@ -1,23 +1,75 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Code2, Home as HomeIcon, Menu, Play, RotateCcw, Search, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, BookOpen, Code2, ExternalLink, Home as HomeIcon, Menu, Play, RotateCcw, Search, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 type Algorithm = { name: string; brief: string; ready?: boolean; lesson?: string; demo?: 'bubble' };
-type Topic = { name: string; overview: string; algorithms: Algorithm[] };
+type ComplexityRow = { name: string; best: string; average: string; worst: string; space: string; stable: string };
+type Theory = {
+  intro: string;
+  concepts: { title: string; content: string }[];
+  complexity?: ComplexityRow[];
+  sourceHref: string;
+};
+type Topic = { name: string; overview: string; algorithms: Algorithm[]; theory?: Theory };
 type Category = { name: string; topics: Topic[] };
 
 const categories: Category[] = [
   { name: '算法基础', topics: [
-    { name: '排序', overview: '将一组数据按规则重新排列。教具中可直接切换冒泡、选择、插入、归并、快速、计数与基数排序。', algorithms: [
+    { name: '排序', overview: '将一组数据按规则重新排列。教具中可直接切换冒泡、选择、插入、归并、快速、计数与基数排序。', theory: {
+      intro: '排序算法把一组具有可比较关系的数据，按照指定顺序重新排列。学习排序时，不只要记住代码，还要比较算法的时间复杂度、额外空间、稳定性，以及它更适合什么样的数据。',
+      concepts: [
+        { title: '稳定性', content: '如果两个元素的关键字相等，排序后它们的相对先后顺序仍然不变，就称这种排序是稳定的。稳定性在多关键字排序中尤其重要。' },
+        { title: '时间复杂度', content: '描述数据规模增大时，比较、交换或移动次数的增长速度。需要同时关注平均情况与最坏情况。' },
+        { title: '空间复杂度', content: '衡量算法除原数组外还需要多少额外存储。只使用常数额外空间的算法通常称为原地排序。' },
+        { title: '比较与非比较排序', content: '冒泡、选择、插入、归并和快速排序依赖元素比较；计数与基数排序利用值域或数位信息，可以突破比较排序的复杂度下界。' },
+      ],
+      complexity: [
+        { name: '冒泡排序', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', space: 'O(1)', stable: '是' },
+        { name: '选择排序', best: 'O(n²)', average: 'O(n²)', worst: 'O(n²)', space: 'O(1)', stable: '否' },
+        { name: '插入排序', best: 'O(n)', average: 'O(n²)', worst: 'O(n²)', space: 'O(1)', stable: '是' },
+        { name: '归并排序', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n log n)', space: 'O(n)', stable: '是' },
+        { name: '快速排序', best: 'O(n log n)', average: 'O(n log n)', worst: 'O(n²)', space: 'O(log n)', stable: '否' },
+        { name: '计数排序', best: 'O(n + k)', average: 'O(n + k)', worst: 'O(n + k)', space: 'O(k)', stable: '可实现为是' },
+        { name: '基数排序', best: 'O(d(n + k))', average: 'O(d(n + k))', worst: 'O(d(n + k))', space: 'O(n + k)', stable: '是' },
+      ],
+      sourceHref: 'https://oi-wiki.org/basic/sort-intro/',
+    }, algorithms: [
       { name: '排序算法演示', brief: '在同一课堂教具中比较七种常见排序的过程、代码与复杂度。', ready: true, lesson: '/lessons/sorting.html' },
     ] },
-    { name: '二分', overview: '在单调空间中每次排除一半答案，重点是区间边界与循环不变量。', algorithms: [{ name: '二分查找', brief: '在有序序列中查找目标或插入位置。' }, { name: '二分答案', brief: '将最优化问题转为可行性判定。' }, { name: '实数二分', brief: '在精度范围内逼近连续答案。' }] },
-    { name: '前缀和与差分', overview: '将重复区间计算转为一次预处理。', algorithms: [{ name: '一维前缀和', brief: '两次前缀和相减得到区间和。' }, { name: '二维前缀和', brief: '快速统计矩形区域。' }, { name: '差分', brief: '把区间修改压缩为端点修改。' }] },
-    { name: '贪心', overview: '每一步选择当前看来最优的方案，并用性质证明其正确性。', algorithms: [{ name: '区间贪心', brief: '按端点排序解决区间选择问题。' }, { name: '构造贪心', brief: '从局部规则构造全局答案。' }] },
+    { name: '二分', overview: '在单调空间中每次排除一半答案，重点是区间边界、循环不变量、check 函数的单调性与实数精度。', theory: {
+      intro: '二分的本质不是“在数组中找数”，而是利用单调性维护一个始终包含答案的候选区间。每次检查中点后，都能确定地排除至少一半不可能成为答案的范围。',
+      concepts: [
+        { title: '单调性', content: '必须能在中点处作出方向明确的判断。例如某个容量可行后，更大的容量也一定可行，真假分界点才可以被二分定位。' },
+        { title: '循环不变量', content: '每轮开始和结束时，都要保证答案仍在当前区间中。理解这个不变量，比死记 l、r、mid 的写法更可靠。' },
+        { title: '整数边界', content: '闭区间模板通常使用 l ≤ r，并用 mid+1 或 mid-1 排除中点；寻找第一个可行值时常使用 l < r、r=mid 与 l=mid+1。' },
+        { title: '实数精度', content: '实数二分直接用 mid 更新端点，通常采用固定迭代次数或区间宽度小于 ε 作为终止条件。' },
+      ],
+      sourceHref: 'https://oi-wiki.org/basic/binary/',
+    }, algorithms: [{ name: '二分查找', brief: '在有序序列中维护闭区间，逐步定位目标值。', ready: true, lesson: '/lessons/binary-search.html?mode=search' }, { name: '二分答案', brief: '把最优化问题转化为具有单调性的可行性判定。', ready: true, lesson: '/lessons/binary-search.html?mode=answer' }, { name: '实数二分', brief: '通过固定轮数不断缩小连续区间，逼近实数答案。', ready: true, lesson: '/lessons/binary-search.html?mode=real' }] },
+    { name: '前缀和与差分', overview: '用一次预处理换取快速区间查询，或把批量区间修改压缩为两个端点的变化。', theory: {
+      intro: '前缀和记录“从起点累计到当前位置”的结果，因此区间信息可以由两个前缀相减得到；差分是它的逆运算，记录相邻元素的变化，使一次区间加法只需要修改两个端点。',
+      concepts: [
+        { title: '一维前缀和', content: '定义 s[i] 为前 i 个元素之和，区间 [l,r] 的和等于 s[r]-s[l-1]，预处理后每次查询只需常数时间。' },
+        { title: '二维前缀和', content: '定义 s[i][j] 为左上矩形的总和，使用容斥减去查询矩形上方和左方，并加回被重复减去的左上区域。' },
+        { title: '差分数组', content: '定义 d[i]=a[i]-a[i-1]。区间 [l,r] 加 v，只需令 d[l]+=v、d[r+1]-=v，最后求前缀和还原。' },
+        { title: '适用场景', content: '前缀和适合多次静态区间查询；差分适合多次区间修改后统一输出结果。若查询与修改交错，需要更强的数据结构。' },
+      ],
+      sourceHref: 'https://oi-wiki.org/basic/prefix-sum/',
+    }, algorithms: [{ name: '一维前缀和', brief: '构建 s 数组，并用两个前缀值回答区间和。', ready: true, lesson: '/lessons/prefix-sum-difference.html?mode=prefix1d' }, { name: '二维前缀和', brief: '构建二维累计矩阵，通过四个前缀量完成矩形容斥。', ready: true, lesson: '/lessons/prefix-sum-difference.html?mode=prefix2d' }, { name: '差分', brief: '用左右端点标记区间增量，再通过前缀和一次还原。', ready: true, lesson: '/lessons/prefix-sum-difference.html?mode=difference' }] },
+    { name: '贪心', overview: '在每一步作出当前最有利且不可反悔的选择；重点不只是写出策略，还要证明局部选择一定能导向全局最优。', theory: {
+      intro: '贪心算法把求解过程分成若干步，每一步只保留一个当前最优选择。它通常代码简短，但正确性依赖问题结构：如果一次局部选择会破坏未来的最优解，就不能直接使用贪心。',
+      concepts: [
+        { title: '贪心选择性质', content: '存在一个全局最优解，它包含当前作出的局部最优选择。只有满足这一性质，作出选择后才可以放心不回退。' },
+        { title: '排序与决策顺序', content: '许多贪心题要先排序，再按固定顺序扫描。区间选择按右端点从小到大处理，尽量为后面的区间留下空间。' },
+        { title: '交换论证', content: '假设某个最优解没有采用贪心选择，证明可以把其中一个选择替换成贪心选择，并且答案不会变差。' },
+        { title: '反例检查', content: '先用小数据寻找反例，尤其检查“选最大、选最小、选最近”等直觉策略。若找不到不代表正确，还必须给出严格证明。' },
+      ],
+      sourceHref: 'https://oi-wiki.org/basic/greedy/',
+    }, algorithms: [{ name: '区间选择', brief: '按右端点排序，选择最多个互不重叠的区间。', ready: true, lesson: '/lessons/greedy.html?mode=interval' }, { name: '构造贪心：删数取最小', brief: '用单调栈及时删除高位大数字，构造删除 K 位后的最小数。', ready: true, lesson: '/lessons/greedy.html?mode=construct' }] },
   ] },
   { name: '搜索', topics: [
     { name: '深度优先搜索', overview: '沿一条分支不断深入，适合枚举、连通块和回溯。', algorithms: [{ name: 'DFS', brief: '递归或栈实现的深度遍历。' }, { name: '回溯法', brief: '撤销选择后继续尝试其他分支。' }, { name: '剪枝', brief: '提前排除不可能的状态。' }] },
@@ -65,27 +117,61 @@ export default function AlgorithmMap() {
   const [algorithmIndex, setAlgorithmIndex] = useState(0);
   const [search, setSearch] = useState('');
   const [step, setStep] = useState(0);
+  const scrollBeforeFullscreen = useRef(0);
   const category = categories[categoryIndex];
   const topic = category.topics[topicIndex];
   const algorithm = topic.algorithms[algorithmIndex];
+  const lessonUrl = algorithm.lesson;
   const searchResults = useMemo(() => categories.flatMap((group) => group.topics.map((item) => ({ group, item }))).filter(({ group, item }) => `${group.name}${item.name}${item.algorithms.map((a) => a.name).join('')}`.toLowerCase().includes(search.trim().toLowerCase())), [search]);
   const selectCategory = (index: number) => { setCategoryIndex(index); setTopicIndex(0); setAlgorithmIndex(0); setStep(0); };
   const selectTopic = (index: number) => { setTopicIndex(index); setAlgorithmIndex(0); setStep(0); };
   const selectAlgorithm = (index: number) => { setAlgorithmIndex(index); setStep(0); };
+  useEffect(() => {
+    const handleLessonFullscreen = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin || event.data?.type !== 'lesson-fullscreen') return;
+      if (event.data.action === 'enter') {
+        scrollBeforeFullscreen.current = window.scrollY;
+        return;
+      }
+      if (event.data.action === 'exit') {
+        const savedPosition = scrollBeforeFullscreen.current;
+        requestAnimationFrame(() => requestAnimationFrame(() => window.scrollTo({ top: savedPosition, behavior: 'instant' })));
+        window.setTimeout(() => window.scrollTo({ top: savedPosition, behavior: 'instant' }), 120);
+      }
+    };
+    window.addEventListener('message', handleLessonFullscreen);
+    return () => window.removeEventListener('message', handleLessonFullscreen);
+  }, []);
   return <main className="min-h-screen bg-white text-slate-800">
-    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-14 max-w-[1550px] items-center gap-4 px-5"><button onClick={() => selectCategory(0)} className="flex items-center gap-3 font-semibold text-slate-900"><span className="grid size-8 place-items-center rounded-md bg-slate-900 text-white"><Sparkles size={15} /></span><span className="text-lg">信奥算法地图</span></button><span className="hidden text-xs text-slate-400 md:block">算法可视化课堂</span><div className="ml-auto hidden items-center gap-3 md:flex"><a href="/oi-wiki/" className="text-sm font-medium text-sky-700 hover:underline">OI Wiki 镜像</a><Menu size={20} className="text-slate-600" /><label className="relative w-52"><Search className="absolute left-3 top-2.5 size-4 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 rounded-none border-0 bg-slate-100 pl-9 shadow-none" placeholder="搜索" /></label></div></div>
+    <header className="border-b border-slate-200 bg-white"><div className="mx-auto flex h-14 max-w-[1550px] items-center gap-4 px-5"><button onClick={() => selectCategory(0)} className="flex items-center gap-3 font-semibold text-slate-900"><span className="grid size-8 place-items-center rounded-md bg-slate-900 text-white"><Sparkles size={15} /></span><span className="text-lg">信奥算法地图</span></button><span className="hidden text-xs text-slate-400 md:block">算法可视化课堂</span><div className="ml-auto hidden items-center gap-3 md:flex"><a href="https://oi-wiki.org/" target="_blank" rel="noreferrer" className="text-sm font-medium text-sky-700 hover:underline">OI Wiki 官网</a><Menu size={20} className="text-slate-600" /><label className="relative w-52"><Search className="absolute left-3 top-2.5 size-4 text-slate-400" /><Input value={search} onChange={(event) => setSearch(event.target.value)} className="h-9 rounded-none border-0 bg-slate-100 pl-9 shadow-none" placeholder="搜索" /></label></div></div>
       <nav className="border-t border-slate-100"><div className="mx-auto flex max-w-[1550px] overflow-x-auto px-5">{categories.map((item, index) => <button key={item.name} onClick={() => selectCategory(index)} className={`shrink-0 border-b-2 px-4 py-3 text-sm transition ${categoryIndex === index ? 'border-sky-600 font-bold text-sky-700' : 'border-transparent text-slate-600 hover:text-sky-700'}`}>{item.name}</button>)}</div></nav>
     </header>
     <div className="mx-auto grid max-w-[1550px] grid-cols-1 lg:grid-cols-[228px_minmax(0,1fr)]">
       <aside className="border-b border-slate-200 bg-white lg:min-h-[calc(100vh-101px)] lg:border-b-0 lg:border-r"><div className="px-5 py-6 lg:sticky lg:top-0"><div className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-700"><HomeIcon size={15} className="text-sky-600" />{category.name}</div><div className="flex gap-1 overflow-x-auto lg:block lg:space-y-1">{category.topics.map((item, index) => <button key={item.name} onClick={() => selectTopic(index)} className={`shrink-0 rounded-md px-3 py-2 text-left text-sm transition lg:block lg:w-full ${topicIndex === index ? 'bg-sky-50 font-bold text-sky-700' : 'text-slate-600 hover:bg-slate-50'}`}>{item.name}</button>)}</div><div className="mt-8 hidden rounded-lg border-l-2 border-sky-500 bg-sky-50 p-3 text-xs leading-5 text-sky-800 lg:block"><b>课堂使用</b><br />先从左侧选择知识点，再在右侧切换具体算法。</div></div></aside>
       <section className="min-w-0 px-5 py-7 lg:px-10"><div className="border-b border-slate-200 pb-5"><p className="text-xs text-slate-400">首页 / {category.name} / {topic.name}</p><div className="mt-3 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-3xl font-normal tracking-tight text-slate-800">{topic.name}</h1><p className="mt-3 max-w-3xl leading-7 text-slate-600">{topic.overview}</p></div><Badge variant="outline" className="border-slate-200 text-slate-500">{topic.algorithms.length} 个算法</Badge></div></div>
         <div className="mt-5 flex flex-wrap gap-2 border-b border-slate-200 pb-5">{topic.algorithms.map((item, index) => <button key={item.name} onClick={() => selectAlgorithm(index)} className={`rounded-md border px-3 py-2 text-sm transition ${algorithmIndex === index ? 'border-sky-600 bg-sky-600 font-bold text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-sky-300'}`}>{item.name}{item.ready && <span className="ml-1.5 text-[10px] opacity-80">●</span>}</button>)}</div>
-        <div className="mt-6 flex items-center gap-2"><Code2 size={18} className="text-sky-600" /><h2 className="text-xl font-bold text-slate-800">{algorithm.name} 可视化</h2></div><p className="mt-2 text-sm text-slate-500">{algorithm.brief}</p>
-        <div className="mt-5">{algorithm.ready && algorithm.lesson ? <div className="overflow-hidden border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm"><span className="font-bold">课堂互动教具</span><a href={algorithm.lesson} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">全屏打开</a></div><iframe title={`${algorithm.name} 互动演示`} className="h-[720px] w-full" src={algorithm.lesson} /></div> : algorithm.demo === 'bubble' ? <BubblePlayer step={step} setStep={setStep} /> : <Placeholder topic={topic.name} algorithm={algorithm.name} />}</div>
+        <TheoryPanel topic={topic} />
+        <div className="mt-10 flex items-center gap-2 border-t border-slate-200 pt-8"><Code2 size={18} className="text-sky-600" /><h2 className="text-xl font-bold text-slate-800">动画演示 · {algorithm.name}</h2></div><p className="mt-2 text-sm text-slate-500">{algorithm.brief}</p>
+        <div className="mt-5">{algorithm.ready && lessonUrl ? <div className="overflow-hidden border border-slate-200 bg-white"><div className="flex items-center justify-between border-b border-slate-200 px-4 py-2 text-sm"><span className="font-bold">课堂互动教具</span><a href={lessonUrl} target="_blank" rel="noreferrer" className="text-sky-600 hover:underline">全屏打开</a></div><iframe title={`${algorithm.name} 互动演示`} className="h-[720px] w-full" src={lessonUrl} /></div> : <Placeholder topic={topic.name} algorithm={algorithm.name} />}</div>
         {search && <div className="mt-10 border-t border-slate-200 pt-5"><h2 className="font-bold">搜索结果</h2><div className="mt-3 grid gap-2 sm:grid-cols-2">{searchResults.map(({ group, item }) => <button key={`${group.name}-${item.name}`} onClick={() => { const ci = categories.indexOf(group); selectCategory(ci); setTopicIndex(group.topics.indexOf(item)); }} className="border border-slate-200 p-3 text-left hover:border-sky-300"><p className="text-xs text-sky-600">{group.name}</p><p className="mt-1 font-bold">{item.name}</p><p className="mt-1 text-xs text-slate-500">{item.algorithms.map((a) => a.name).join(' · ')}</p></button>)}</div></div>}
       </section>
     </div>
   </main>;
+}
+
+function TheoryPanel({ topic }: { topic: Topic }) {
+  const theory = topic.theory;
+  return <section className="mt-7" aria-labelledby="theory-title">
+    <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><BookOpen size={19} className="text-sky-600" /><h2 id="theory-title" className="text-xl font-bold text-slate-800">理论讲解</h2></div>{theory && <a href={theory.sourceHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-sky-700 hover:underline">查看 OI Wiki 原文 <ExternalLink size={14} /></a>}</div>
+    <div className="mt-4 border border-slate-200 bg-white">
+      <div className="border-l-4 border-sky-500 bg-sky-50 px-5 py-4 text-[15px] leading-7 text-slate-700">{theory?.intro ?? topic.overview}</div>
+      {theory ? <>
+        <div className="grid gap-px bg-slate-200 sm:grid-cols-2 xl:grid-cols-4">{theory.concepts.map((concept) => <article key={concept.title} className="bg-white p-5"><h3 className="font-bold text-slate-800">{concept.title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{concept.content}</p></article>)}</div>
+        {theory.complexity && <div className="p-5"><h3 className="font-bold text-slate-800">常见排序算法对比</h3><p className="mt-1 text-xs leading-5 text-slate-500">n 表示元素数量，k 表示值域大小，d 表示处理的数位数量；快速排序的空间复杂度按平均递归深度计算。</p><div className="mt-4 overflow-x-auto"><table className="w-full min-w-[760px] border-collapse text-left text-sm"><thead><tr className="bg-slate-100 text-slate-600"><th className="border border-slate-200 px-3 py-2">算法</th><th className="border border-slate-200 px-3 py-2">最好</th><th className="border border-slate-200 px-3 py-2">平均</th><th className="border border-slate-200 px-3 py-2">最坏</th><th className="border border-slate-200 px-3 py-2">额外空间</th><th className="border border-slate-200 px-3 py-2">稳定</th></tr></thead><tbody>{theory.complexity.map((row) => <tr key={row.name} className="even:bg-slate-50"><td className="border border-slate-200 px-3 py-2 font-medium text-slate-800">{row.name}</td><td className="border border-slate-200 px-3 py-2">{row.best}</td><td className="border border-slate-200 px-3 py-2">{row.average}</td><td className="border border-slate-200 px-3 py-2">{row.worst}</td><td className="border border-slate-200 px-3 py-2">{row.space}</td><td className="border border-slate-200 px-3 py-2">{row.stable}</td></tr>)}</tbody></table></div></div>}
+        <div className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-xs leading-5 text-slate-500">本页理论内容依据 OI Wiki 对应章节重新整理排版，原内容采用 CC BY-SA 4.0 协议。</div>
+      </> : <div className="p-5"><h3 className="text-sm font-bold text-slate-700">本章包含</h3><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{topic.algorithms.map((item) => <article key={item.name} className="border border-slate-200 p-4"><h4 className="font-medium text-slate-800">{item.name}</h4><p className="mt-1 text-sm leading-6 text-slate-500">{item.brief}</p></article>)}</div><p className="mt-4 text-xs text-slate-400">详细理论内容与来源标注将在该知识点的动画教具完成时一并补充。</p></div>}
+    </div>
+  </section>;
 }
 
 function BubblePlayer({ step, setStep }: { step: number; setStep: (value: number | ((old: number) => number)) => void }) {

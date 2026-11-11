@@ -290,8 +290,9 @@
 
 <script>
     // ================= 全屏与白板系统 =================
-    function toggleFullScreen() { if (!document.fullscreenElement) { document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
-    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; });
+    function tellParentFullscreen(action) { if (window.parent !== window) window.parent.postMessage({ type: 'lesson-fullscreen', action }, location.origin); }
+    function toggleFullScreen() { if (!document.fullscreenElement) { tellParentFullscreen('enter'); document.documentElement.requestFullscreen().catch(err => alert(err.message)); } else { if (document.exitFullscreen) document.exitFullscreen(); } }
+    document.addEventListener('fullscreenchange', () => { document.getElementById('fullscreen-btn').innerHTML = document.fullscreenElement ? "🔳 退出全屏" : "🖥️ 全屏演示"; if (!document.fullscreenElement) tellParentFullscreen('exit'); });
     
     window.addEventListener('keydown', (e) => { 
         if (e.key === 'ArrowRight') document.getElementById('btn-next').click(); 
