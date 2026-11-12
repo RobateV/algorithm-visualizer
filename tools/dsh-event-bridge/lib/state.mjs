@@ -26,6 +26,7 @@ function emptyState() {
     seenComments: {},
     acceptedSha: {},
     attempts: {},
+    tasks: {},
     watermark: { since: '', lastCommentId: 0 },
     updatedAt: null
   };
@@ -69,6 +70,7 @@ export class BridgeState {
     this.inboxFile = path.join(dir, 'inbox.jsonl');
     this.rejectedFile = path.join(dir, 'rejected.jsonl');
     this.errorFile = path.join(dir, 'errors.jsonl');
+    this.resultsFile = path.join(dir, 'results.jsonl');
     this.pauseFile = path.join(dir, 'PAUSED');
     this.state = emptyState();
     this.blocked = null;   // { reason } — 非空表示拒绝接收，直到人工修复
@@ -110,7 +112,11 @@ export class BridgeState {
    * 保证重启任意次都不会把计数叠加，是幂等操作。
    */
   async #rebuildFromLogs() {
-    const [inbox, rejected] = await Promise.all([readJsonLines(this.inboxFile), readJsonLines(this.rejectedFile)]);
+    const [inbox, rejected, results] = await Promise.all([
+      readJsonLines(this.inboxFile),
+      readJsonLines(this.rejectedFile),
+      readJsonLines(this.resultsFile)
+    ]);
 
     for (const rec of [...inbox, ...rejected]) {
       if (rec && rec.commentId != null) {
@@ -129,6 +135,26 @@ export class BridgeState {
     }
     this.state.attempts = attempts;
     this.state.acceptedSha = acceptedSha;
+
+    // 执行结果也从持久日志重建，避免重启后重放已成功的任务
+    const tasks = {};
+    for (const rec of results) {
+      if (rec && rec.key) tasks[rec.key] = { status: rec.status, attempts: rec.attempts, at: rec.at };
+    }
+    this.state.tasks = { ...this.state.tasks, ...tasks };
+  }
+
+  getTaskOutcome(key) {
+    return this.state.tasks[key] || null;
+  }
+
+  /** 执行结果先落持久日志再写状态，重启后据此拒绝重放 */
+  async recordTaskOutcome(key, outcome) {
+    const record = { at: new Date().toISOString(), key, ...outcome };
+    await appendDurable(this.resultsFile, record);
+    this.state.tasks[key] = { status: record.status, attempts: record.attempts, at: record.at };
+    await this.#save();
+    return record;
   }
 
   async #save() {

@@ -7,7 +7,7 @@
  * - 超时、取消、失败都只影响本次任务，不抛出到调用方
  * - 不在这里拼任务文本，也不读取 GitHub；调用方负责校验后再进来
  */
-import { acquireLock, releaseLock, GLOBAL_LOCK_KEY } from './lock.mjs';
+import { acquireLock, releaseLock, renewLock, GLOBAL_LOCK_KEY, DEFAULT_STALE_MS } from './lock.mjs';
 import { buildDshArgv, runDsh } from './dsh-cli.mjs';
 
 export const MAX_RETRIES = 2;
@@ -50,16 +50,25 @@ export async function runTaskWithGuards({
   }
 
   // 先拿任务锁，再拿全局锁：同一任务并发时能明确返回 locked，而不是笼统的繁忙
-  const taskLock = await acquireLock(lockDir, taskKey);
+  // 锁的陈旧阈值必须大于单任务超时，否则长任务跑到一半就会被第二个实例接管
+  const lockStaleMs = Math.max(DEFAULT_STALE_MS, timeoutMs * 2);
+
+  const taskLock = await acquireLock(lockDir, taskKey, { staleMs: lockStaleMs });
   if (!taskLock.acquired) {
     return { status: 'locked', reason: '同一任务正在执行', attempts: [] };
   }
 
-  const globalLock = await acquireLock(lockDir, GLOBAL_LOCK_KEY);
+  const globalLock = await acquireLock(lockDir, GLOBAL_LOCK_KEY, { staleMs: lockStaleMs });
   if (!globalLock.acquired) {
-    await releaseLock(taskLock.file);
+    await releaseLock(taskLock.file, taskLock.token);
     return { status: 'skipped', reason: 'global-lock-busy', attempts: [] };
   }
+
+  // 执行期间持续续期，保证"仍在跑"的锁不会被判陈旧
+  const heartbeat = setInterval(() => {
+    renewLock(taskLock.file, taskLock.token).catch(() => {});
+    renewLock(globalLock.file, globalLock.token).catch(() => {});
+  }, Math.max(5000, Math.floor(lockStaleMs / 4)));
 
   const attempts = [];
   try {
@@ -79,7 +88,8 @@ export async function runTaskWithGuards({
     if (circuit) circuit.recordFailure();
     return { status: 'failed', reason: '重试次数用尽', attempts };
   } finally {
-    await releaseLock(taskLock.file);
-    await releaseLock(globalLock.file);
+    clearInterval(heartbeat);
+    await releaseLock(taskLock.file, taskLock.token);
+    await releaseLock(globalLock.file, globalLock.token);
   }
 }

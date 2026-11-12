@@ -39,19 +39,36 @@ export function buildResultReport({
   ].join('\n');
 }
 
-/** 只做判断，不产生副作用；返回拒绝原因数组 */
-export function checkWritebackGuards({ enabled = false, prState, expectedHeadSha, currentHeadSha, branch } = {}) {
+const SHA_RE = /^[0-9a-f]{40}$/;
+const REQUIRED_IO = ['commit', 'push', 'comment', 'refresh'];
+
+/** 只做判断，不产生副作用；返回拒绝原因数组（fail-closed：字段缺失也拒绝） */
+export function checkWritebackGuards({ enabled = false, prState, expectedHeadSha, currentHeadSha, branch, io } = {}) {
   const reasons = [];
   if (enabled !== true) reasons.push('write-back 未启用（默认禁止真实推送）');
-  if (prState && prState !== 'open') reasons.push(`PR 状态为 ${prState}，拒绝回写`);
-  if (expectedHeadSha && currentHeadSha && expectedHeadSha !== currentHeadSha) {
+
+  if (prState !== 'open') reasons.push(`PR 状态缺失或非 open：${prState === undefined ? '(缺失)' : prState}`);
+
+  if (!SHA_RE.test(String(expectedHeadSha || ''))) reasons.push('expectedHeadSha 缺失或不是 40 位十六进制');
+  if (!SHA_RE.test(String(currentHeadSha || ''))) reasons.push('currentHeadSha 缺失或不是 40 位十六进制');
+  if (SHA_RE.test(String(expectedHeadSha || '')) && SHA_RE.test(String(currentHeadSha || '')) && expectedHeadSha !== currentHeadSha) {
     reasons.push('PR HEAD 已变化，拒绝覆盖他人提交');
   }
-  if (branch !== undefined && branch !== null) {
-    if (PROTECTED_BRANCHES.has(String(branch)) || String(branch).startsWith('main/')) {
-      reasons.push(`不允许写入受保护分支：${branch}`);
+
+  if (!branch || typeof branch !== 'string') {
+    reasons.push('缺少目标分支');
+  } else if (PROTECTED_BRANCHES.has(branch) || branch.startsWith('main/')) {
+    reasons.push(`不允许写入受保护分支：${branch}`);
+  }
+
+  if (!io || typeof io !== 'object') {
+    reasons.push('缺少 IO 实现（commit/push/comment/refresh）');
+  } else {
+    for (const name of REQUIRED_IO) {
+      if (typeof io[name] !== 'function') reasons.push(`缺少 IO 实现：${name}`);
     }
   }
+
   return reasons;
 }
 
@@ -75,7 +92,8 @@ export async function performWriteback(params) {
     prState: params.prState,
     expectedHeadSha: params.expectedHeadSha,
     currentHeadSha: params.currentHeadSha,
-    branch: params.branch
+    branch: params.branch,
+    io
   });
   if (reasons.length) return { ok: false, reasons, pushed: false, commented: false };
 
@@ -93,6 +111,20 @@ export async function performWriteback(params) {
   });
 
   if (dryRun) return { ok: true, dryRun: true, body, pushed: false, commented: false };
+
+  // push 前复查：防止校验与推送之间别人推进了 PR
+  let latest;
+  try {
+    latest = await io.refresh();
+  } catch (err) {
+    return { ok: false, reasons: [`push 前复查失败：${err.message}`], pushed: false, commented: false };
+  }
+  if (!latest || latest.state !== 'open') {
+    return { ok: false, reasons: ['push 前复查：PR 状态不是 open'], pushed: false, commented: false };
+  }
+  if (latest.headSha !== params.expectedHeadSha) {
+    return { ok: false, reasons: ['push 前复查：PR HEAD 已变化'], pushed: false, commented: false };
+  }
 
   const result = { ok: true, dryRun: false, body, pushed: false, commented: false, commit: null };
   if (typeof io.commit === 'function') result.commit = await io.commit(message);

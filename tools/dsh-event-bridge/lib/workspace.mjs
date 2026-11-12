@@ -49,6 +49,11 @@ export async function prepareWorktree({ projectRoot, workRoot, record, dryRun = 
   if (dryRun) return { ...plan, created: false };
 
   await mkdir(path.resolve(workRoot), { recursive: true });
+
+  // 重试同一任务时目录可能已存在：先删目录，再 prune 掉陈旧登记，最后 add
+  await rm(plan.dir, { recursive: true, force: true }).catch(() => {});
+  await git('git', ['-C', projectRoot, 'worktree', 'prune']).catch(() => {});
+
   await git('git', ['-C', projectRoot, 'worktree', 'add', '--detach', plan.dir, plan.baseSha]);
 
   // 创建后按真实路径再校验一次，防止符号链接把目录指到别处

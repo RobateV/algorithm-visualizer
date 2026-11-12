@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * DSH 受限执行器（第一段：二次校验 + 工作区隔离）
+ * DSH 受限执行器 CLI（M2.6）
  *
- * 本版本**不执行任何代码**：只从收件箱读取任务，重新校验后给出工作区计划。
- * 默认 `--plan`：不创建 worktree、不调用 dsh、不写 GitHub。
+ * 主链路：收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写
  *
- * 用法：
- *   node executor.mjs --plan                 # 只打印计划（默认）
- *   node executor.mjs --plan --prepare-workspace   # 真正创建隔离 worktree（仍不执行任务）
+ * 当前能力边界（诚实声明）：
+ * - 真实 `dsh` **没有接线**：`--execute` 只接受 `--mock-dsh`
+ * - 回写默认关闭；`--writeback-dry-run` 只生成 [DSH-RESULT] 文本，不推送
+ * - 未启用常驻、无人值守
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -15,15 +15,32 @@ import { pathToFileURL } from 'node:url';
 
 import { loadConfig, validateConfig } from './lib/config.mjs';
 import { createGitHubClient } from './lib/github.mjs';
-import { refetchAndVerify } from './lib/task-refetch.mjs';
-import { prepareWorktree } from './lib/workspace.mjs';
 import { BridgeState } from './lib/state.mjs';
 import { createCircuitBreaker } from './lib/lock.mjs';
-import { runTaskWithGuards } from './lib/runner.mjs';
+import { orchestrateAll, orchestrateTask } from './lib/orchestrator.mjs';
 
-/** 本版本恒为 false：执行器没有任何启动 dsh 的默认路径 */
+/** 兼容旧调用：只做计划，不产生副作用 */
+export async function planTasks({ records, client, cfg, projectRoot, workRoot, log = () => {}, state }) {
+  const stubState = state || {
+    getTaskOutcome: () => null,
+    recordTaskOutcome: async () => {},
+    isPaused: async () => ({ paused: false })
+  };
+  const out = [];
+  for (const record of records) {
+    const r = await orchestrateTask({
+      record,
+      deps: { client, cfg, state: stubState, projectRoot, workRoot, run: async () => ({ code: 0 }) },
+      options: { execute: false, log }
+    });
+    if (r.status === 'rejected') out.push({ ok: false, record, reasons: r.reasons });
+    else out.push({ ok: true, record, task: r.task, workspace: r.workspace });
+  }
+  return out;
+}
+
+/** 恒为 false：本版本没有任何启动真实 dsh 的代码路径 */
 export const EXECUTES_CODE = false;
-export const MAX_RETRIES = 2;
 
 export async function readInbox(stateDir) {
   let raw = '';
@@ -41,56 +58,28 @@ export async function readInbox(stateDir) {
       const rec = JSON.parse(text);
       if (rec && rec.status === 'accepted') out.push(rec);
     } catch {
-      // 半行丢弃
+      /* 半行丢弃 */
     }
   }
   return out;
 }
 
-/**
- * 对一批收件箱记录做二次校验与工作区计划。
- * @param {{records:object[], client:object, cfg:object, projectRoot:string, workRoot:string,
- *          prepare?:boolean, log?:Function}} params
- */
-export async function planTasks({ records, client, cfg, projectRoot, workRoot, prepare = false, log = () => {} }) {
-  const results = [];
-  for (const record of records) {
-    const check = await refetchAndVerify({ client, record, cfg });
-    if (!check.ok) {
-      log(`✗ 拒绝任务 ${record.reviewId}（评论 ${record.commentId}）：${check.reasons.join('；')}`);
-      results.push({ ok: false, record, reasons: check.reasons });
-      continue;
-    }
-
-    let workspace;
-    try {
-      workspace = await prepareWorktree({ projectRoot, workRoot, record, dryRun: !prepare });
-    } catch (err) {
-      log(`✗ 工作区准备失败 ${record.reviewId}：${err.message}`);
-      results.push({ ok: false, record, reasons: [err.message] });
-      continue;
-    }
-
-    log(`✓ 校验通过 ${record.reviewId} / PR #${record.prNumber} / SHA ${String(record.headSha).slice(0, 7)}` +
-        `｜工作区 ${workspace.created ? '已创建' : '计划'}：${workspace.dir}`);
-    results.push({ ok: true, record, task: check.task, pr: check.pr, workspace });
-  }
-  return results;
-}
-
 function parseArgs(argv) {
-  const out = { state: '', prepare: false, limit: 0, api: false, pause: false, resume: false, execute: false, mock: false, allowRealDsh: false, timeoutMs: 15 * 60 * 1000 };
+  const out = {
+    state: '', limit: 0, api: false, pause: false, resume: false,
+    execute: false, mock: false, branch: '', timeoutMs: 15 * 60 * 1000, writebackDryRun: false
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--state') out.state = argv[++i] || '';
     else if (a === '--limit') out.limit = Number.parseInt(argv[++i] || '0', 10) || 0;
-    else if (a === '--prepare-workspace') out.prepare = true;
     else if (a === '--api') out.api = true;
     else if (a === '--pause') out.pause = true;
     else if (a === '--resume') out.resume = true;
     else if (a === '--execute') out.execute = true;
     else if (a === '--mock-dsh') out.mock = true;
-    else if (a === '--allow-real-dsh') out.allowRealDsh = true;
+    else if (a === '--branch') out.branch = argv[++i] || '';
+    else if (a === '--writeback-dry-run') out.writebackDryRun = true;
     else if (a === '--timeout-ms') out.timeoutMs = Number.parseInt(argv[++i] || '0', 10) || out.timeoutMs;
   }
   return out;
@@ -98,90 +87,86 @@ function parseArgs(argv) {
 
 const log = (msg) => process.stdout.write(`[${new Date().toISOString()}] ${msg}\n`);
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
+export async function runCli(argv, deps = {}) {
+  const args = parseArgs(argv);
   let cfg;
   try {
     cfg = loadConfig();
   } catch (err) {
     log('✗ 配置错误：' + err.message);
-    process.exitCode = 2;
-    return;
+    return 2;
   }
   if (args.state) cfg.stateDir = args.state;
 
   const errors = validateConfig(cfg, { requireToken: args.api });
   if (errors.length) {
     for (const e of errors) log('✗ 配置错误：' + e);
-    process.exitCode = 2;
-    return;
+    return 2;
+  }
+
+  const state = deps.state || await new BridgeState(cfg.stateDir).init();
+  if (args.pause) { await state.setPaused(true, 'manual'); log('⏸ 执行器已暂停'); return 0; }
+  if (args.resume) { await state.setPaused(false, ''); log('▶ 执行器已恢复'); return 0; }
+
+  if (args.execute && !args.mock) {
+    log('✗ 真实 DSH 尚未接线：--execute 必须搭配 --mock-dsh（需教师授权后才接入真实执行）');
+    return 2;
   }
 
   log('──────────────────────────────────────────────');
-  log('DSH 受限执行器 · 第一段（二次校验 + 工作区隔离）');
-  log('本版本不执行代码：不调用 dsh、不写 GitHub、默认不创建 worktree。');
+  log('DSH 受限执行器 · 主链路（二次校验 → 隔离工作区 → 执行 → 结果）');
+  log(args.execute
+    ? '模式：execute（仅 Mock DSH；不运行真实开发任务）'
+    : '模式：plan（不创建 worktree、不执行）');
   log('──────────────────────────────────────────────');
-
-  const state = await new BridgeState(cfg.stateDir).init();
-  if (args.pause) { await state.setPaused(true, 'manual'); log('⏸ 执行器已暂停'); return; }
-  if (args.resume) { await state.setPaused(false, ''); log('▶ 执行器已恢复'); return; }
-
-  if (args.execute && !args.mock && !args.allowRealDsh) {
-    log('✗ --execute 需要显式指定 --mock-dsh 或 --allow-real-dsh（默认 dry-run，不会执行）');
-    process.exitCode = 2;
-    return;
-  }
 
   const records = (await readInbox(cfg.stateDir)).slice(0, args.limit || undefined);
   if (!records.length) {
-    log('收件箱里没有待处理任务；先用接收器接收一条 [DSH-REVIEW-TASK] 评论。');
-    return;
+    log('收件箱里没有待处理任务。');
+    return 0;
   }
 
-  const client = createGitHubClient({ token: cfg.token, repo: cfg.repo, timeoutMs: cfg.requestTimeoutMs });
-  const projectRoot = process.cwd();
-  const workRoot = path.resolve(projectRoot, '..', '.dsh-worktrees');
-
-  const results = await planTasks({
-    records,
+  const client = deps.client || createGitHubClient({ token: cfg.token, repo: cfg.repo, timeoutMs: cfg.requestTimeoutMs });
+  const projectRoot = deps.projectRoot || process.cwd();
+  const depsBundle = {
     client,
     cfg,
+    state,
     projectRoot,
-    workRoot,
-    prepare: args.prepare,
-    log
+    workRoot: deps.workRoot || path.resolve(projectRoot, '..', '.dsh-worktrees'),
+    lockDir: deps.lockDir || path.join(cfg.stateDir, 'locks'),
+    run: deps.run || (async ({ timeoutMs }) => ({ code: 0, timedOut: false, cancelled: false, durationMs: Math.min(timeoutMs, 1) })),
+    io: deps.io || null
+  };
+
+  const results = await orchestrateAll({
+    records,
+    deps: depsBundle,
+    options: {
+      execute: args.execute,
+      timeoutMs: args.timeoutMs,
+      branch: args.branch,
+      writebackEnabled: args.execute && args.writebackDryRun && Boolean(args.branch),
+      writebackDryRun: true,
+      circuit: deps.circuit || createCircuitBreaker({ threshold: 3 }),
+      log
+    }
   });
 
-  const ok = results.filter((r) => r.ok).length;
-  log(`本轮结束：${results.length} 条任务，校验通过 ${ok} 条`);
-
-  if (!args.execute) {
-    log('（dry-run：未执行任何代码。要验证执行流程请加 --execute --mock-dsh）');
-    return;
+  for (const r of results) {
+    const tag = r.status === 'planned' ? '计划' : r.status;
+    log(`  → ${r.key || ''} ${tag}` + (r.reasons ? `：${r.reasons.join('；')}` : '') +
+        (r.workspace ? `｜工作区 ${r.workspace.created ? '已创建' : '计划'}：${r.workspace.dir}` : ''));
   }
 
-  const circuit = createCircuitBreaker({ threshold: 3 });
-  const mockRun = async ({ timeoutMs }) => ({ code: 0, timedOut: false, cancelled: false, durationMs: timeoutMs > 0 ? 1 : 1 });
-
-  for (const item of results.filter((r) => r.ok)) {
-    const outcome = await runTaskWithGuards({
-      taskKey: item.workspace.key,
-      taskText: `[mock] ${item.record.reviewId}`,
-      cwd: item.workspace.dir,
-      lockDir: path.join(cfg.stateDir, 'locks'),
-      timeoutMs: args.timeoutMs,
-      run: args.mock ? mockRun : undefined,
-      isPaused: () => state.isPaused(),
-      circuit,
-      log
-    });
-    log(`  → ${item.record.reviewId}: ${outcome.status}` + (outcome.reason ? `（${outcome.reason}）` : ''));
-  }
-  log('执行段结束：本版本仅用于验证编排，未修改任何仓库内容。');
+  const summary = results.reduce((acc, r) => { acc[r.status] = (acc[r.status] || 0) + 1; return acc; }, {});
+  log(`本轮结束：${results.length} 条任务 ${JSON.stringify(summary)}`);
+  if (!args.execute) log('（plan 模式：未创建 worktree、未执行任何代码）');
+  return 0;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((err) => {
+  runCli(process.argv.slice(2)).then((code) => { process.exitCode = code; }).catch((err) => {
     log('✗ 执行器异常：' + (err && err.stack ? err.stack : err));
     process.exitCode = 1;
   });

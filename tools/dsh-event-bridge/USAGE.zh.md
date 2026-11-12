@@ -40,7 +40,9 @@ node executor.mjs --api --prepare-workspace
 | 参数 | 含义 |
 | --- | --- |
 | `--mock-dsh` | 用内置 mock 执行器，**不启动真实 dsh** |
-| `--allow-real-dsh` | 允许真正调用 `dsh --profile headless`（本版默认不用） |
+
+> **真实 DSH 尚未接线**：`--execute` 现在只接受 `--mock-dsh`；代码里没有启动 `dsh` 的路径。
+> 接入真实执行需要教师明确授权后单独实现（见第 6 节）。
 
 ## 3. 查看状态与产物
 
@@ -71,7 +73,7 @@ node executor.mjs --api --prepare-workspace
 
 ## 6. 如何授权真实执行（需教师两次确认）
 
-1. **第一次**：确认工作区隔离与测试通过，允许 `--allow-real-dsh` 做一次限定试运行。
+1. **第一次**：确认工作区隔离与测试通过后，再新增真实 `dsh` 调用（当前未接线）。
 2. **第二次**：确认试运行结果后，允许打开回写：
    ```js
    performWriteback({ enabled: true, dryRun: false, ... })
