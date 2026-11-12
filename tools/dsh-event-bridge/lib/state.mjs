@@ -204,6 +204,12 @@ export class BridgeState {
     this.state.paused = Boolean(paused);
     this.state.pausedReason = reason;
     await this.#save();
+    // 跨进程信号：独立进程执行 --pause 后，长驻进程通过 PAUSED 文件也能看到
+    if (this.state.paused) {
+      await writeFile(this.pauseFile, reason || 'paused', 'utf8').catch(() => {});
+    } else {
+      await unlink(this.pauseFile).catch(() => {});
+    }
   }
 
   getWatermark() {

@@ -62,6 +62,19 @@ export async function orchestrateTask({ record, deps, options }) {
     return { status: 'exhausted', reason: 'attempts-exhausted', key, attempts: usedBefore };
   }
 
+  // 全局门禁：暂停 / blocked / 熔断在拿锁与准备目录之前就拦住
+  const pauseState = typeof deps.state.isPaused === 'function'
+    ? await deps.state.isPaused()
+    : { paused: false };
+  if (pauseState.paused) {
+    log(`⏸ 已暂停（${pauseState.reason || '未知原因'}），跳过任务 ${record.reviewId}`);
+    return { status: 'skipped', reason: `paused${pauseState.reason ? '：' + pauseState.reason : ''}`, key };
+  }
+  if (options.circuit && options.circuit.isOpen()) {
+    log('⛔ 熔断已打开，跳过任务 ' + record.reviewId);
+    return { status: 'skipped', reason: 'circuit-open', key };
+  }
+
   const check = await refetchAndVerify({ client: deps.client, record, cfg: deps.cfg });
   if (!check.ok) {
     return { status: 'rejected', reasons: check.reasons, key };
@@ -76,6 +89,12 @@ export async function orchestrateTask({ record, deps, options }) {
   const locked = await withTaskLocks(
     { lockDir: deps.lockDir, taskKey: workspaceKeyOf(record), timeoutMs: options.timeoutMs },
     async () => {
+      // 等锁期间可能被外部 --pause：进入锁后立刻复查，避免已暂停还去建目录
+      const insidePause = typeof deps.state.isPaused === 'function'
+        ? await deps.state.isPaused()
+        : { paused: false };
+      if (insidePause.paused) return { skippedInsideLock: true, reason: insidePause.reason };
+
       await assertCleanProject({ projectRoot: deps.projectRoot });
       const workspace = await prepareWorktree({ projectRoot: deps.projectRoot, workRoot: deps.workRoot, record, dryRun: false });
       const cwd = workspace.realPath || workspace.dir;
@@ -99,6 +118,10 @@ export async function orchestrateTask({ record, deps, options }) {
 
   if (locked.status === 'locked' || locked.status === 'skipped') {
     return { status: locked.status, reason: locked.reason, key, attempts: usedBefore };
+  }
+  if (locked.skippedInsideLock) {
+    log(`⏸ 进入锁后发现已暂停，跳过任务 ${record.reviewId}`);
+    return { status: 'skipped', reason: 'paused', key, attempts: usedBefore };
   }
 
   const { workspace, result } = locked;
