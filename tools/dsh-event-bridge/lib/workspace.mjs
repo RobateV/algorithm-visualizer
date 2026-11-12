@@ -6,7 +6,7 @@
  * - 目标目录必须落在允许的工作区根目录内（解析真实路径后再判一次，防符号链接逃逸）
  * - 默认 dryRun=true：只计算计划，不创建任何目录
  */
-import { realpath, mkdir, rm } from 'node:fs/promises';
+import { realpath, mkdir, rm, access } from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -50,9 +50,27 @@ export async function prepareWorktree({ projectRoot, workRoot, record, dryRun = 
 
   await mkdir(path.resolve(workRoot), { recursive: true });
 
-  // 重试同一任务时目录可能已存在：先删目录，再 prune 掉陈旧登记，最后 add
-  await rm(plan.dir, { recursive: true, force: true }).catch(() => {});
-  await git('git', ['-C', projectRoot, 'worktree', 'prune']).catch(() => {});
+  // 已有同名目录：只有在"确属本仓库登记的 worktree 且 HEAD 与任务一致"时才复用，
+  // 其余情况一律 fail-closed，绝不在锁外递归删除别人的工作区。
+  let existed = false;
+  try { await access(plan.dir); existed = true; } catch { /* 不存在 */ }
+
+  if (existed) {
+    const listed = (await git('git', ['-C', projectRoot, 'worktree', 'list', '--porcelain'])).stdout;
+    const registered = String(listed)
+      .split('\n')
+      .filter((line) => line.startsWith('worktree '))
+      .map((line) => path.resolve(line.slice('worktree '.length).trim()));
+    if (!registered.includes(path.resolve(plan.dir))) {
+      throw new Error('目标目录已存在且不是本仓库登记的 worktree，拒绝清理');
+    }
+    const head = (await git('git', ['-C', plan.dir, 'rev-parse', 'HEAD'])).stdout.trim();
+    if (head !== plan.baseSha) {
+      throw new Error('同名工作区属于其它提交，拒绝复用');
+    }
+    const real = await realpath(plan.dir);
+    return { ...plan, created: false, reused: true, realPath: real };
+  }
 
   await git('git', ['-C', projectRoot, 'worktree', 'add', '--detach', plan.dir, plan.baseSha]);
 

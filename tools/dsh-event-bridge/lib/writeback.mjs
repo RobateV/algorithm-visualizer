@@ -42,8 +42,8 @@ export function buildResultReport({
 const SHA_RE = /^[0-9a-f]{40}$/;
 const REQUIRED_IO = ['commit', 'push', 'comment', 'refresh'];
 
-/** 只做判断，不产生副作用；返回拒绝原因数组（fail-closed：字段缺失也拒绝） */
-export function checkWritebackGuards({ enabled = false, prState, expectedHeadSha, currentHeadSha, branch, io } = {}) {
+/** 纯报告/纯校验用：不要求 IO，可在 dry-run 下单独使用 */
+export function checkReportGuards({ enabled = false, prState, expectedHeadSha, currentHeadSha, branch } = {}) {
   const reasons = [];
   if (enabled !== true) reasons.push('write-back 未启用（默认禁止真实推送）');
 
@@ -61,6 +61,13 @@ export function checkWritebackGuards({ enabled = false, prState, expectedHeadSha
     reasons.push(`不允许写入受保护分支：${branch}`);
   }
 
+  return reasons;
+}
+
+/** 真实回写用：在报告守门之上，额外要求 IO 四件套齐全 */
+export function checkWritebackGuards(params = {}) {
+  const reasons = checkReportGuards(params);
+  const io = params.io;
   if (!io || typeof io !== 'object') {
     reasons.push('缺少 IO 实现（commit/push/comment/refresh）');
   } else {
@@ -68,7 +75,6 @@ export function checkWritebackGuards({ enabled = false, prState, expectedHeadSha
       if (typeof io[name] !== 'function') reasons.push(`缺少 IO 实现：${name}`);
     }
   }
-
   return reasons;
 }
 
@@ -87,14 +93,22 @@ export async function performWriteback(params) {
   const io = params.io || {};
   const message = params.message || 'chore: guarded executor result';
 
-  const reasons = checkWritebackGuards({
-    enabled,
-    prState: params.prState,
-    expectedHeadSha: params.expectedHeadSha,
-    currentHeadSha: params.currentHeadSha,
-    branch: params.branch,
-    io
-  });
+  const reasons = dryRun
+    ? checkReportGuards({
+      enabled,
+      prState: params.prState,
+      expectedHeadSha: params.expectedHeadSha,
+      currentHeadSha: params.currentHeadSha,
+      branch: params.branch
+    })
+    : checkWritebackGuards({
+      enabled,
+      prState: params.prState,
+      expectedHeadSha: params.expectedHeadSha,
+      currentHeadSha: params.currentHeadSha,
+      branch: params.branch,
+      io
+    });
   if (reasons.length) return { ok: false, reasons, pushed: false, commented: false };
 
   const body = buildResultReport({

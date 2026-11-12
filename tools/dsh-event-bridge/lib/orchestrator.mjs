@@ -1,20 +1,20 @@
 /**
- * 单一编排器：把「收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写」串起来。
+ * 单一编排器：收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写。
  *
- * 依赖全部注入（client / state / run / io / git），因此可以在测试里用
- * Mock GitHub + Mock DSH + Mock 回写完整跑一遍主链路，而不是分别测各模块。
- *
- * 安全约束：
- * - `execute=false` 时不创建 worktree、不执行、不写 GitHub（只给计划）
- * - 执行前必须重新校验评论，且只把**校验通过的任务正文**交给 DSH
- * - 执行前要求主工作区干净；worktree 真实存在才作为 cwd
- * - 已成功过的任务（持久结果）直接跳过，不重放
+ * 复审修复要点：
+ * - **工作区准备在任务锁内**（P0-A）：与执行共用 withTaskLocks，锁外绝不触碰目录
+ * - **总尝试次数跨重启累计**（P0-B）：同一任务 key 最多 3 次（1 初试 + 2 重试），
+ *   每次尝试的结果都持久化；超过上限自动暂停并要求人工处理
  */
 import { access } from 'node:fs/promises';
 import { refetchAndVerify } from './task-refetch.mjs';
-import { prepareWorktree, assertCleanProject } from './workspace.mjs';
-import { runTaskWithGuards } from './runner.mjs';
+import { prepareWorktree, assertCleanProject, taskKey as workspaceKeyOf } from './workspace.mjs';
+import { withTaskLocks, performAttempts, MAX_RETRIES } from './runner.mjs';
+import { buildDshArgv } from './dsh-cli.mjs';
 import { performWriteback } from './writeback.mjs';
+
+/** 同一任务允许的总尝试次数（跨重启累计） */
+export const TOTAL_ATTEMPTS = 1 + MAX_RETRIES;
 
 export const TASK_CONTRACT_HEADER = [
   '你正在一个隔离的 git worktree 中执行受限任务。',
@@ -27,7 +27,6 @@ export function outcomeKeyOf(record) {
   return `${record.prNumber}:${record.headSha}:${record.commentId}`;
 }
 
-/** 把已校验的任务数据构造成固定契约；正文只来自 GitHub 评论，不拼接命令 */
 export function buildTaskContract({ task, prNumber, headSha }) {
   const detail = String(task.detail || '').trim();
   if (!detail) throw new Error('任务正文为空');
@@ -44,8 +43,7 @@ export function buildTaskContract({ task, prNumber, headSha }) {
 
 /**
  * @param {{record:object, deps:object, options:object}} params
- * deps: { client, cfg, state, projectRoot, workRoot, lockDir, run, io, git }
- * options: { execute, timeoutMs, circuit, branch, writebackEnabled, writebackDryRun, tests, log }
+ * deps: { client, cfg, state, projectRoot, workRoot, lockDir, run, io }
  */
 export async function orchestrateTask({ record, deps, options }) {
   options = options || {};
@@ -55,6 +53,13 @@ export async function orchestrateTask({ record, deps, options }) {
   const previous = deps.state.getTaskOutcome(key);
   if (previous && previous.status === 'succeeded') {
     return { status: 'skipped', reason: 'already-succeeded', key };
+  }
+
+  const usedBefore = previous && Number.isFinite(previous.attempts) ? previous.attempts : 0;
+  if (usedBefore >= TOTAL_ATTEMPTS) {
+    await deps.state.setPaused(true, `任务 ${record.reviewId} 已达总尝试上限 ${TOTAL_ATTEMPTS}`);
+    log(`⏸ 任务 ${record.reviewId} 已用尽 ${TOTAL_ATTEMPTS} 次尝试，自动暂停并等待人工处理`);
+    return { status: 'exhausted', reason: 'attempts-exhausted', key, attempts: usedBefore };
   }
 
   const check = await refetchAndVerify({ client: deps.client, record, cfg: deps.cfg });
@@ -67,35 +72,52 @@ export async function orchestrateTask({ record, deps, options }) {
     return { status: 'planned', workspace, task: check.task, key };
   }
 
-  // 执行路径：先确保主工作区干净，再真正创建隔离工作区
-  await assertCleanProject({ projectRoot: deps.projectRoot });
-  const workspace = await prepareWorktree({ projectRoot: deps.projectRoot, workRoot: deps.workRoot, record, dryRun: false });
-  const cwd = workspace.realPath || workspace.dir;
-  await access(cwd);   // 目录必须真实存在，否则不把 cwd 交给 DSH
+  // 锁覆盖"清理/准备工作区 + 执行"，并发任务在锁外不会碰到同一目录
+  const locked = await withTaskLocks(
+    { lockDir: deps.lockDir, taskKey: workspaceKeyOf(record), timeoutMs: options.timeoutMs },
+    async () => {
+      await assertCleanProject({ projectRoot: deps.projectRoot });
+      const workspace = await prepareWorktree({ projectRoot: deps.projectRoot, workRoot: deps.workRoot, record, dryRun: false });
+      const cwd = workspace.realPath || workspace.dir;
+      await access(cwd);
 
-  const taskText = buildTaskContract({ task: check.task, prNumber: record.prNumber, headSha: record.headSha });
+      const taskText = buildTaskContract({ task: check.task, prNumber: record.prNumber, headSha: record.headSha });
+      const remaining = TOTAL_ATTEMPTS - usedBefore;
+      const maxRetries = Math.min(MAX_RETRIES, Math.max(0, remaining - 1));
+      const result = await performAttempts({
+        argv: buildDshArgv(taskText),
+        cwd,
+        timeoutMs: options.timeoutMs,
+        run: deps.run,
+        maxRetries,
+        circuit: options.circuit,
+        log
+      });
+      return { workspace, result };
+    }
+  );
 
-  const runResult = await runTaskWithGuards({
-    taskKey: workspace.key,
-    taskText,
-    cwd,
-    lockDir: deps.lockDir,
-    timeoutMs: options.timeoutMs,
-    run: deps.run,
-    isPaused: () => deps.state.isPaused(),
-    circuit: options.circuit,
-    log
-  });
+  if (locked.status === 'locked' || locked.status === 'skipped') {
+    return { status: locked.status, reason: locked.reason, key, attempts: usedBefore };
+  }
+
+  const { workspace, result } = locked;
+  const totalAttempts = usedBefore + (Array.isArray(result.attempts) ? result.attempts.length : 0);
 
   const outcome = {
-    status: runResult.status,
-    attempts: Array.isArray(runResult.attempts) ? runResult.attempts.length : 0,
+    status: result.status,
+    attempts: totalAttempts,
     reviewId: record.reviewId,
     headSha: record.headSha,
-    reason: runResult.reason || null
+    reason: result.reason || null
   };
   await deps.state.recordTaskOutcome(key, outcome);
-  log(`· ${record.reviewId} 执行结果：${outcome.status}（尝试 ${outcome.attempts} 次）`);
+  log(`· ${record.reviewId} 执行结果：${result.status}（累计尝试 ${totalAttempts}/${TOTAL_ATTEMPTS}）`);
+
+  if (result.status !== 'succeeded' && totalAttempts >= TOTAL_ATTEMPTS) {
+    await deps.state.setPaused(true, `任务 ${record.reviewId} 已达总尝试上限 ${TOTAL_ATTEMPTS}`);
+    log(`⏸ 任务 ${record.reviewId} 用尽重试，自动暂停并等待人工处理`);
+  }
 
   let writeback = null;
   if (options.writebackEnabled) {
@@ -110,19 +132,18 @@ export async function orchestrateTask({ record, deps, options }) {
       prState: check.pr.state,
       branch: options.branch,
       newSha: options.newSha || null,
-      status: outcome.status === 'succeeded' ? 'succeeded' : 'failed',
-      attempts: outcome.attempts,
+      status: result.status === 'succeeded' ? 'succeeded' : 'failed',
+      attempts: totalAttempts,
       tests: options.tests || '',
-      errors: outcome.reason ? [outcome.reason] : [],
+      errors: result.reason ? [result.reason] : [],
       io: deps.io
     });
-    log(`· 回写：${writeback.ok ? (writeback.dryRun ? 'dry-run 生成报告' : '已回写') : '被拒绝（' + writeback.reasons.join('；') + '）'}`);
+    log(`· 回写：${writeback.ok ? (writeback.dryRun ? 'dry-run 报告' : '已回写') : '被拒绝（' + writeback.reasons.join('；') + '）'}`);
   }
 
-  return { status: runResult.status, workspace, task: check.task, runResult, outcome, writeback, key };
+  return { status: result.status, workspace, task: check.task, runResult: result, outcome, writeback, key };
 }
 
-/** 批量编排：串行执行，任一任务失败不影响后续（除非熔断打开） */
 export async function orchestrateAll({ records, deps, options }) {
   const results = [];
   for (const record of records) {

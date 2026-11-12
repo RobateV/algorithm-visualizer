@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, access, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -118,7 +118,7 @@ test('主工作区有未提交改动时拒绝执行', async () => {
 
   await assert.rejects(() => orchestrateTask({
     record: recordFor(body, head),
-    deps: { client: mockGitHub({ body, headSha: head }), cfg: CFG, state: { getTaskOutcome: () => null, recordTaskOutcome: async () => {} }, projectRoot: repo, workRoot: path.join(base, 'wt'), run: async () => ({ code: 0 }) },
+    deps: { client: mockGitHub({ body, headSha: head }), cfg: CFG, state: { getTaskOutcome: () => null, recordTaskOutcome: async () => {}, setPaused: async () => {} }, projectRoot: repo, workRoot: path.join(base, 'wt'), lockDir: path.join(base, 'locks'), run: async () => ({ code: 0 }) },
     options: { execute: true }
   }), /未提交改动/);
   await rm(base, { recursive: true, force: true });
@@ -285,7 +285,110 @@ test('运行中超过 staleMs 的锁不会被第二个执行器接管', async ()
   await rm(dir, { recursive: true, force: true });
 });
 
-/* ============================================ 任务契约 */
+/* ============================================ P0-A：并发不互相破坏 */
+
+test('并发同一任务：第二个拿不到锁，且不会删除第一个的工作区', async () => {
+  const { base, repo, head } = await makeRepo();
+  const body = bodyFor({ sha: head });
+  const record = recordFor(body, head);
+  const stateDir = path.join(base, 'state');
+  const state = await new BridgeState(stateDir).init();
+  let runs = 0;
+  let release;
+  const gate = new Promise((r) => { release = r; });
+
+  const deps = {
+    client: mockGitHub({ body, headSha: head }), cfg: CFG, state,
+    projectRoot: repo, workRoot: path.join(base, 'wt'), lockDir: path.join(stateDir, 'locks'),
+    run: async () => { runs += 1; await gate; return { code: 0, timedOut: false, cancelled: false, durationMs: 1 }; }
+  };
+
+  const first = orchestrateTask({ record, deps, options: { execute: true, timeoutMs: 60000 } });
+  await new Promise((r) => setTimeout(r, 400));
+  const second = await orchestrateTask({ record, deps, options: { execute: true, timeoutMs: 60000 } });
+  assert.equal(second.status, 'locked', '第二个必须被任务锁挡住');
+
+  release();
+  const firstResult = await first;
+  assert.equal(firstResult.status, 'succeeded');
+  assert.equal(runs, 1, '同一任务只执行一次');
+  await access(firstResult.workspace.realPath || firstResult.workspace.dir);
+  await rm(base, { recursive: true, force: true });
+});
+
+/* ============================================ P0-B：总尝试次数跨重启累计 */
+
+test('失败任务跨多次重启也不会突破总尝试上限', async () => {
+  const { base, repo, head } = await makeRepo();
+  const body = bodyFor({ sha: head });
+  const record = recordFor(body, head);
+  const stateDir = path.join(base, 'state');
+  const opts = { execute: true, timeoutMs: 2000 };
+  const failRun = async () => ({ code: 1, timedOut: false, cancelled: false, durationMs: 1 });
+  let totalRuns = 0;
+
+  // 模拟 4 次"重启"：每次都重新 init 状态
+  const statuses = [];
+  for (let i = 0; i < 4; i++) {
+    const state = await new BridgeState(stateDir).init();
+    const r = await orchestrateTask({
+      record,
+      deps: {
+        client: mockGitHub({ body, headSha: head }), cfg: CFG, state,
+        projectRoot: repo, workRoot: path.join(base, 'wt'), lockDir: path.join(stateDir, 'locks'),
+        run: async () => { totalRuns += 1; return failRun(); }
+      },
+      options: opts
+    });
+    statuses.push(r.status);
+    if (r.status === 'failed') assert.ok(totalRuns <= 3, '总尝试次数不得超过 3');
+  }
+
+  assert.equal(totalRuns, 3, '总共只允许 1 次初试 + 2 次重试');
+  assert.equal(statuses[0], 'failed');
+  assert.equal(statuses[3], 'exhausted', '达到上限后应停止并等待人工处理');
+
+  const finalState = await new BridgeState(stateDir).init();
+  assert.equal(finalState.getTaskOutcome(`${record.prNumber}:${record.headSha}:${record.commentId}`).attempts, 3);
+  const paused = await finalState.isPaused();
+  assert.equal(paused.paused, true, '超过上限应自动暂停');
+  await rm(base, { recursive: true, force: true });
+});
+
+/* ============================================ P1：dry-run 报告不需要 IO */
+
+test('dry-run 报告不需要 IO 也能生成', async () => {
+  const r = await performWriteback({
+    enabled: true, dryRun: true, taskId: 't', prNumber: 4, baseSha: SHA,
+    expectedHeadSha: SHA, currentHeadSha: SHA, prState: 'open', branch: 'feat/x',
+    status: 'succeeded', tests: 'ok'
+  });
+  assert.equal(r.ok, true);
+  assert.match(r.body, /^\[DSH-RESULT\]/);
+});
+
+/* ============================================ P1：锁的陈旧判定基于真实 mtime */
+
+test('未过期但无续期的锁不会被接管；真正陈旧的锁可以接管', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'dsh-stale-'));
+  const lock = await acquireLock(dir, 'k2', { staleMs: 1000 });
+  const now = Date.now();
+
+  // 让 mtime 看起来是 200ms 前：仍新鲜，不可接管
+  const fresh = new Date(now - 200);
+  await utimes(lock.file, fresh, fresh);
+  const blocked = await acquireLock(dir, 'k2', { staleMs: 1000 });
+  assert.equal(blocked.acquired, false, '未超过 staleMs 的锁不可被接管');
+
+  // 让 mtime 看起来是 5 秒前：已陈旧，可接管
+  const stale = new Date(now - 5000);
+  await utimes(lock.file, stale, stale);
+  const taken = await acquireLock(dir, 'k2', { staleMs: 1000 });
+  assert.equal(taken.acquired, true);
+  assert.equal(taken.stolen, true);
+  await rm(dir, { recursive: true, force: true });
+});
+
 
 test('任务契约包含固定边界与真实正文', () => {
   const text = buildTaskContract({ task: { detail: DETAIL, reviewId: 'r1' }, prNumber: 4, headSha: SHA });
