@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * DSH 受限执行器 CLI（M2.6）
+ * DSH 受限执行器 CLI（M2.7）
  *
  * 主链路：收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写
  *
- * 当前能力边界（诚实声明）：
- * - 真实 `dsh` **没有接线**：`--execute` 只接受 `--mock-dsh`
+ * 能力边界（准确描述）：
+ * - **默认**没有任何执行代码的路径：只做 plan
+ * - Mock：`--execute --mock-dsh`，不启动真实 dsh
+ * - 真实：`--execute --real-dsh --grant <file> --isolation-confirmed`，
+ *   一次性授权、严格单次、失败不重试；未授权时不存在真实执行路径
  * - 回写默认关闭；`--writeback-dry-run` 只生成 [DSH-RESULT] 文本，不推送
- * - 未启用常驻、无人值守
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -18,6 +20,8 @@ import { createGitHubClient } from './lib/github.mjs';
 import { BridgeState } from './lib/state.mjs';
 import { createCircuitBreaker } from './lib/lock.mjs';
 import { orchestrateAll, orchestrateTask } from './lib/orchestrator.mjs';
+import { loadGrant } from './lib/grant.mjs';
+import { runDsh } from './lib/dsh-cli.mjs';
 
 /** 兼容旧调用：只做计划，不产生副作用 */
 export async function planTasks({ records, client, cfg, projectRoot, workRoot, log = () => {}, state }) {
@@ -39,7 +43,7 @@ export async function planTasks({ records, client, cfg, projectRoot, workRoot, l
   return out;
 }
 
-/** 恒为 false：本版本没有任何启动真实 dsh 的代码路径 */
+/** 默认配置下不会执行代码；真实执行需一次性授权 + 隔离确认，且严格单次 */
 export const EXECUTES_CODE = false;
 
 export async function readInbox(stateDir) {
@@ -67,7 +71,8 @@ export async function readInbox(stateDir) {
 function parseArgs(argv) {
   const out = {
     state: '', limit: 0, api: false, pause: false, resume: false,
-    execute: false, mock: false, branch: '', timeoutMs: 15 * 60 * 1000, writebackDryRun: false
+    execute: false, mock: false, real: false, grant: '', isolationConfirmed: false,
+    branch: '', timeoutMs: 15 * 60 * 1000, writebackDryRun: false
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -78,6 +83,9 @@ function parseArgs(argv) {
     else if (a === '--resume') out.resume = true;
     else if (a === '--execute') out.execute = true;
     else if (a === '--mock-dsh') out.mock = true;
+    else if (a === '--real-dsh') out.real = true;
+    else if (a === '--grant') out.grant = argv[++i] || '';
+    else if (a === '--isolation-confirmed') out.isolationConfirmed = true;
     else if (a === '--branch') out.branch = argv[++i] || '';
     else if (a === '--writeback-dry-run') out.writebackDryRun = true;
     else if (a === '--timeout-ms') out.timeoutMs = Number.parseInt(argv[++i] || '0', 10) || out.timeoutMs;
@@ -108,15 +116,34 @@ export async function runCli(argv, deps = {}) {
   if (args.pause) { await state.setPaused(true, 'manual'); log('⏸ 执行器已暂停'); return 0; }
   if (args.resume) { await state.setPaused(false, ''); log('▶ 执行器已恢复'); return 0; }
 
-  if (args.execute && !args.mock) {
-    log('✗ 真实 DSH 尚未接线：--execute 必须搭配 --mock-dsh（需教师授权后才接入真实执行）');
+  if (args.execute && !args.mock && !args.real) {
+    log('✗ --execute 必须显式指定 --mock-dsh（默认）或 --real-dsh --grant <file>');
     return 2;
   }
+  if (args.execute && args.mock && args.real) {
+    log('✗ --mock-dsh 与 --real-dsh 不能同时使用');
+    return 2;
+  }
+  if (args.real && !args.grant) {
+    log('✗ --real-dsh 需要一次性授权文件：--grant <path>');
+    return 2;
+  }
+
+  let grant = null;
+  if (args.real) {
+    try {
+      grant = await loadGrant(args.grant);
+    } catch (err) {
+      log('✗ 授权文件错误：' + err.message);
+      return 2;
+    }
+  }
+  const mode = args.real ? 'real' : 'mock';
 
   log('──────────────────────────────────────────────');
   log('DSH 受限执行器 · 主链路（二次校验 → 隔离工作区 → 执行 → 结果）');
   log(args.execute
-    ? '模式：execute（仅 Mock DSH；不运行真实开发任务）'
+    ? `模式：execute / ${mode}${mode === 'real' ? '（一次性授权）' : '（Mock，不启动真实 dsh）'}`
     : '模式：plan（不创建 worktree、不执行）');
   log('──────────────────────────────────────────────');
 
@@ -135,7 +162,9 @@ export async function runCli(argv, deps = {}) {
     projectRoot,
     workRoot: deps.workRoot || path.resolve(projectRoot, '..', '.dsh-worktrees'),
     lockDir: deps.lockDir || path.join(cfg.stateDir, 'locks'),
-    run: deps.run || (async ({ timeoutMs }) => ({ code: 0, timedOut: false, cancelled: false, durationMs: Math.min(timeoutMs, 1) })),
+    run: deps.run || (mode === 'real'
+      ? runDsh
+      : async ({ timeoutMs }) => ({ code: 0, timedOut: false, cancelled: false, durationMs: Math.min(timeoutMs, 1) })),
     io: deps.io || null
   };
 
@@ -144,6 +173,10 @@ export async function runCli(argv, deps = {}) {
     deps: depsBundle,
     options: {
       execute: args.execute,
+      mode,
+      grant,
+      grantPath: args.grant,
+      isolationConfirmed: args.isolationConfirmed,
       timeoutMs: args.timeoutMs,
       branch: args.branch,
       writebackEnabled: args.execute && args.writebackDryRun && Boolean(args.branch),
