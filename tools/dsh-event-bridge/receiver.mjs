@@ -125,7 +125,7 @@ export async function runOnce({ comments, state, cfg, resolvePr, source = 'fixtu
       continue;
     }
 
-    const record = await state.accept({ commentId, task, source });
+    const record = await state.accept({ commentId, task, source, body: comment.body || '' });
     log(`✓ 收到任务 ${task.reviewId} / PR #${task.prNumber} / SHA ${task.expectedHeadSha.slice(0, 7)} / attempt ${task.attempt}（仅记录，未执行）`);
     results.push({ status: 'accepted', commentId, task: record });
     } catch (err) {

@@ -11,7 +11,12 @@
  *    必须人工执行 --repair 才能恢复（修复时会先备份损坏文件）。
  */
 import { mkdir, readFile, writeFile, rename, access, unlink, open, copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
+
+export function sha256(text) {
+  return createHash('sha256').update(String(text), 'utf8').digest('hex');
+}
 
 function emptyState() {
   return {
@@ -21,6 +26,7 @@ function emptyState() {
     seenComments: {},
     acceptedSha: {},
     attempts: {},
+    tasks: {},
     watermark: { since: '', lastCommentId: 0 },
     updatedAt: null
   };
@@ -64,6 +70,7 @@ export class BridgeState {
     this.inboxFile = path.join(dir, 'inbox.jsonl');
     this.rejectedFile = path.join(dir, 'rejected.jsonl');
     this.errorFile = path.join(dir, 'errors.jsonl');
+    this.resultsFile = path.join(dir, 'results.jsonl');
     this.pauseFile = path.join(dir, 'PAUSED');
     this.state = emptyState();
     this.blocked = null;   // { reason } — 非空表示拒绝接收，直到人工修复
@@ -105,7 +112,11 @@ export class BridgeState {
    * 保证重启任意次都不会把计数叠加，是幂等操作。
    */
   async #rebuildFromLogs() {
-    const [inbox, rejected] = await Promise.all([readJsonLines(this.inboxFile), readJsonLines(this.rejectedFile)]);
+    const [inbox, rejected, results] = await Promise.all([
+      readJsonLines(this.inboxFile),
+      readJsonLines(this.rejectedFile),
+      readJsonLines(this.resultsFile)
+    ]);
 
     for (const rec of [...inbox, ...rejected]) {
       if (rec && rec.commentId != null) {
@@ -124,6 +135,26 @@ export class BridgeState {
     }
     this.state.attempts = attempts;
     this.state.acceptedSha = acceptedSha;
+
+    // 执行结果也从持久日志重建，避免重启后重放已成功的任务
+    const tasks = {};
+    for (const rec of results) {
+      if (rec && rec.key) tasks[rec.key] = { status: rec.status, attempts: rec.attempts, at: rec.at };
+    }
+    this.state.tasks = { ...this.state.tasks, ...tasks };
+  }
+
+  getTaskOutcome(key) {
+    return this.state.tasks[key] || null;
+  }
+
+  /** 执行结果先落持久日志再写状态，重启后据此拒绝重放 */
+  async recordTaskOutcome(key, outcome) {
+    const record = { at: new Date().toISOString(), key, ...outcome };
+    await appendDurable(this.resultsFile, record);
+    this.state.tasks[key] = { status: record.status, attempts: record.attempts, at: record.at };
+    await this.#save();
+    return record;
   }
 
   async #save() {
@@ -173,6 +204,12 @@ export class BridgeState {
     this.state.paused = Boolean(paused);
     this.state.pausedReason = reason;
     await this.#save();
+    // 跨进程信号：独立进程执行 --pause 后，长驻进程通过 PAUSED 文件也能看到
+    if (this.state.paused) {
+      await writeFile(this.pauseFile, reason || 'paused', 'utf8').catch(() => {});
+    } else {
+      await unlink(this.pauseFile).catch(() => {});
+    }
   }
 
   getWatermark() {
@@ -202,8 +239,9 @@ export class BridgeState {
   /**
    * 接收：**先写收件箱（fsync）再更新状态**。
    * 收件箱写失败时直接抛错，评论保持"未处理"，下轮重试。
+   * 同时记录正文 sha256 摘要，供执行前二次校验"评论未被编辑"。
    */
-  async accept({ commentId, task, source }) {
+  async accept({ commentId, task, source, body = '' }) {
     const now = new Date().toISOString();
     const record = {
       at: now,
@@ -215,7 +253,8 @@ export class BridgeState {
       headSha: task.expectedHeadSha,
       reviewId: task.reviewId,
       attempt: task.attempt,
-      detailLength: task.detail.length
+      detailLength: task.detail.length,
+      bodyDigest: sha256(body)
     };
 
     await appendDurable(this.inboxFile, record);     // 1) 事实来源先落盘

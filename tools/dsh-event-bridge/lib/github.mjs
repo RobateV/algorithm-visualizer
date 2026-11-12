@@ -70,6 +70,22 @@ export function createGitHubClient({ token, repo, timeoutMs = 15000, fetchImpl =
       if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`);
       const pr = await res.json();
       return { number: pr.number, state: pr.state, headSha: pr.head && pr.head.sha ? String(pr.head.sha) : '' };
+    },
+
+    /** 读取单条评论；已删除返回 null（调用方据此拒绝任务） */
+    async getComment(id) {
+      const res = await request(`https://api.github.com/repos/${repo}/issues/comments/${id}`);
+      if (res.status === 404) return null;
+      if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const c = await res.json();
+      return {
+        id: c.id,
+        body: c.body || '',
+        user: { login: c.user && c.user.login },
+        issueUrl: c.issue_url || '',
+        createdAt: c.created_at || '',
+        updatedAt: c.updated_at || ''
+      };
     }
   };
 }
