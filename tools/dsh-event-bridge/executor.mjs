@@ -20,7 +20,6 @@ import { prepareWorktree } from './lib/workspace.mjs';
 import { BridgeState } from './lib/state.mjs';
 import { createCircuitBreaker } from './lib/lock.mjs';
 import { runTaskWithGuards } from './lib/runner.mjs';
-import { buildDshArgv } from './lib/dsh-cli.mjs';
 
 /** 本版本恒为 false：执行器没有任何启动 dsh 的默认路径 */
 export const EXECUTES_CODE = false;
