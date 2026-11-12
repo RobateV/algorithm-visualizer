@@ -96,3 +96,26 @@ export async function assertCleanProject({ projectRoot, git = runGit }) {
   const { stdout } = await git('git', ['-C', projectRoot, 'status', '--porcelain']);
   if (String(stdout).trim()) throw new Error('主工作区存在未提交改动，拒绝执行');
 }
+
+/**
+ * 一次性真实试运行的副作用校验（不依赖 DSH 自述）：
+ * - HEAD 必须仍是任务基线（等于发生了 commit）
+ * - 改动路径必须落在允许清单内
+ * @returns {Promise<string[]>} 问题列表，空数组表示合规
+ */
+export async function verifyOneShotSideEffects({ worktree, baseSha, allowedPaths = [], git = runGit }) {
+  const problems = [];
+
+  const head = (await git('git', ['-C', worktree, 'rev-parse', 'HEAD'])).stdout.trim();
+  if (head !== baseSha) problems.push('HEAD 发生变化（一次性试运行禁止 commit）');
+
+  const status = (await git('git', ['-C', worktree, 'status', '--porcelain'])).stdout.trim();
+  const changed = status
+    ? status.split('\n').map((line) => line.slice(3).trim()).filter(Boolean)
+    : [];
+  const allowed = (allowedPaths || []).map((p) => String(p).replace(/\/+$/, ''));
+  const violations = changed.filter((p) => !allowed.some((a) => p === a || p.startsWith(a + '/')));
+  if (violations.length) problems.push('改动了未授权路径：' + violations.join(', '));
+
+  return problems;
+}

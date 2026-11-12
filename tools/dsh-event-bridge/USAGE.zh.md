@@ -121,16 +121,21 @@ node executor.mjs --api --prepare-workspace
 }
 ```
 
-有效期不得超过 24 小时；`maxRuns` 必须是 1。
+有效期不得超过 24 小时；`maxRuns` 必须是 1；**`workRoot` 必填**，必须是规范化绝对路径，
+且与执行器实际使用的工作根目录完全一致（省略、空值、相对路径都会被拒绝）。
 
-### 8.2 启动一次
+### 7.2 启动一次
 
 ```powershell
 node executor.mjs --execute --real-dsh --grant .\grant.json --isolation-confirmed --state .\.local-state
 ```
 
-执行器会：校验授权 → 加锁 → 在工作区根目录准备 worktree → **消费授权（文件改名）** →
-写入 `reserved` → 启动 `dsh` → 记录结果。授权只能被消费一次。
+执行器会：校验授权 → 加锁 → 准备工作区 → **先写 `reserved` 预留** → **消费授权（改名）** →
+启动 `dsh`（**严格一次，失败/超时都不重试**）→ 检查副作用 → 记录结果。
+
+首次 one-shot 的任务契约会明确禁止 `git commit` / `push` / PR 评论 / `merge` / 部署，
+只允许改动 `tests/automation-smoke/` 下的文件；执行后**本地校验** `HEAD` 未变、
+改动路径都在允许范围内，越界即判失败并留痕。
 
 ### 8.3 查看结果
 

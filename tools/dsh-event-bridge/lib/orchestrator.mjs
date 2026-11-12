@@ -1,14 +1,14 @@
 /**
  * 单一编排器：收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写。
  *
- * 复审修复要点：
- * - **工作区准备在任务锁内**（P0-A）：与执行共用 withTaskLocks，锁外绝不触碰目录
- * - **总尝试次数跨重启累计**（P0-B）：同一任务 key 最多 3 次（1 初试 + 2 重试），
- *   每次尝试的结果都持久化；超过上限自动暂停并要求人工处理
+ * 真实执行（mode='real'）额外约束：
+ * - 必须一次性授权 + 隔离确认，且**严格只启动一次**（失败/超时都不重试）
+ * - 启动前顺序：durable `reserved` 预留 → 消费授权；消费失败保留预留并暂停
+ * - 执行后本地校验副作用：HEAD 不得变化、改动只能在允许路径内
  */
 import { access } from 'node:fs/promises';
 import { refetchAndVerify } from './task-refetch.mjs';
-import { prepareWorktree, assertCleanProject, taskKey as workspaceKeyOf } from './workspace.mjs';
+import { prepareWorktree, assertCleanProject, verifyOneShotSideEffects, taskKey as workspaceKeyOf } from './workspace.mjs';
 import { withTaskLocks, performAttempts, MAX_RETRIES } from './runner.mjs';
 import { buildDshArgv } from './dsh-cli.mjs';
 import { performWriteback } from './writeback.mjs';
@@ -25,15 +25,28 @@ export const TASK_CONTRACT_HEADER = [
   '完成任务后只提交普通 commit，并简述改动与测试结果。'
 ].join('\n');
 
+/** 一次性真实试运行的契约：只允许本地 smoke 文件改动，明令禁止一切对外副作用 */
+export const ONE_SHOT_CONTRACT_HEADER = [
+  '你正在一个隔离的 git worktree 中执行【一次性本地冒烟测试】。',
+  '严格禁止：git commit、git push、创建或评论 Pull Request、merge、部署、安装依赖以外的网络操作。',
+  '禁止修改测试目录以外的任何文件，禁止执行删除操作。',
+  '只做最小文本改动，然后停止；不要提交、不要推送、不要发起任何 GitHub 操作。'
+].join('\n');
+
+export const DEFAULT_ALLOWED_PATHS = ['tests/automation-smoke/'];
+
 export function outcomeKeyOf(record) {
   return `${record.prNumber}:${record.headSha}:${record.commentId}`;
 }
 
-export function buildTaskContract({ task, prNumber, headSha }) {
+export function buildTaskContract({ task, prNumber, headSha, oneShot = false, allowedPaths = DEFAULT_ALLOWED_PATHS }) {
   const detail = String(task.detail || '').trim();
   if (!detail) throw new Error('任务正文为空');
+  const header = oneShot
+    ? [ONE_SHOT_CONTRACT_HEADER, `允许改动的路径：${allowedPaths.join('、')}`].join('\n')
+    : TASK_CONTRACT_HEADER;
   return [
-    TASK_CONTRACT_HEADER,
+    header,
     '',
     `PR: #${prNumber}`,
     `目标提交: ${headSha}`,
@@ -53,8 +66,8 @@ export async function orchestrateTask({ record, deps, options }) {
   const mode = options.mode === 'real' ? 'real' : 'mock';
   const key = outcomeKeyOf(record);
 
-  const previous = deps.state.getTaskOutcome(key);
-  const previousMode = (previous && previous.mode) || 'mock';
+  const previous = deps.state.getTaskOutcome(key, mode);
+  const previousMode = (previous && previous.mode) || mode;
 
   // Mock 成功不能让真实任务被跳过；只有同模式成功才算完成
   if (previous && previous.status === 'succeeded' && previousMode === mode) {
@@ -138,8 +151,8 @@ export async function orchestrateTask({ record, deps, options }) {
       await access(cwd);
 
       if (mode === 'real') {
-        // 先原子消费授权（改名成功才算拿到），再做 durable 预留；崩溃时宁可烧掉授权也不重跑
-        await consumeGrant(options.grantPath);
+        // 顺序：先 durable 预留，再消费授权。消费失败时保留 reserved 并暂停，
+        // 宁可误暂停也不允许静默再次运行（预留记录会让下次启动转人工确认）。
         await deps.state.recordTaskOutcome(key, {
           status: 'reserved',
           mode: 'real',
@@ -147,12 +160,26 @@ export async function orchestrateTask({ record, deps, options }) {
           reviewId: record.reviewId,
           headSha: record.headSha
         });
-        log('🔐 已消费一次性授权并写入执行前预留');
+        try {
+          await consumeGrant(options.grantPath);
+        } catch (err) {
+          await deps.state.setPaused(true, `授权消费失败（${err.message}），需人工核查`);
+          return { grantConsumeFailed: true, reason: err.message };
+        }
+        log('🔐 已写入执行前预留并消费一次性授权');
       }
 
-      const taskText = buildTaskContract({ task: check.task, prNumber: record.prNumber, headSha: record.headSha });
+      const allowedPaths = options.allowedPaths || DEFAULT_ALLOWED_PATHS;
+      const taskText = buildTaskContract({
+        task: check.task,
+        prNumber: record.prNumber,
+        headSha: record.headSha,
+        oneShot: mode === 'real',
+        allowedPaths
+      });
       const remaining = TOTAL_ATTEMPTS - usedBefore;
-      const maxRetries = Math.min(MAX_RETRIES, Math.max(0, remaining - 1));
+      // 真实模式严格单次：失败/超时都不重启 DSH
+      const maxRetries = mode === 'real' ? 0 : Math.min(MAX_RETRIES, Math.max(0, remaining - 1));
       const result = await performAttempts({
         argv: buildDshArgv(taskText),
         cwd,
@@ -162,9 +189,30 @@ export async function orchestrateTask({ record, deps, options }) {
         circuit: options.circuit,
         log
       });
+      // 一次性真实试运行：不信任 DSH 自述，执行后自己检查 HEAD 与改动路径
+      if (mode === 'real') {
+        const problems = await verifyOneShotSideEffects({
+          worktree: cwd,
+          baseSha: record.headSha,
+          allowedPaths,
+          git: deps.git
+        });
+        if (problems.length) {
+          log('⛔ 一次性试运行越界：' + problems.join('；'));
+          return {
+            workspace,
+            violations: problems,
+            result: { ...result, status: 'failed', reason: '越界：' + problems.join('；') }
+          };
+        }
+      }
       return { workspace, result };
     }
   );
+
+  if (locked.grantConsumeFailed) {
+    return { status: 'rejected', reasons: [`授权消费失败：${locked.reason}`], key, mode, attempts: usedBefore };
+  }
 
   if (locked.status === 'locked' || locked.status === 'skipped') {
     return { status: locked.status, reason: locked.reason, key, attempts: usedBefore };

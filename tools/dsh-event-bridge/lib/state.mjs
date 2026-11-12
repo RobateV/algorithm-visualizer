@@ -139,20 +139,24 @@ export class BridgeState {
     // 执行结果也从持久日志重建，避免重启后重放已成功的任务
     const tasks = {};
     for (const rec of results) {
-      if (rec && rec.key) tasks[rec.key] = { status: rec.status, mode: rec.mode || 'mock', attempts: rec.attempts, at: rec.at };
+      if (!rec || !rec.key) continue;
+      const mode = rec.mode || 'mock';
+      tasks[`${rec.key}:${mode}`] = { status: rec.status, mode, attempts: rec.attempts, at: rec.at };
     }
     this.state.tasks = { ...this.state.tasks, ...tasks };
   }
 
-  getTaskOutcome(key) {
-    return this.state.tasks[key] || null;
+  /** 按 mode 分别追踪：Mock 的尝试次数不会消耗真实一次性配额 */
+  getTaskOutcome(key, mode = 'mock') {
+    return this.state.tasks[`${key}:${mode}`] || null;
   }
 
   /** 执行结果先落持久日志再写状态，重启后据此拒绝重放 */
   async recordTaskOutcome(key, outcome) {
-    const record = { at: new Date().toISOString(), key, ...outcome };
+    const mode = outcome.mode || 'mock';
+    const record = { at: new Date().toISOString(), key, mode, ...outcome };
     await appendDurable(this.resultsFile, record);
-    this.state.tasks[key] = { status: record.status, mode: record.mode || 'mock', attempts: record.attempts, at: record.at };
+    this.state.tasks[`${key}:${mode}`] = { status: record.status, mode, attempts: record.attempts, at: record.at };
     await this.#save();
     return record;
   }

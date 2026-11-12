@@ -16,6 +16,7 @@ const OTHER = 'd0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0';
 const REPO = 'RobateV/algorithm-visualizer';
 const DETAIL = 'M2.7 冒烟测试：仅在隔离 worktree 新增一行标记。';
 const CFG = { repo: REPO, allowedActors: ['RobateV'], allowedPrs: [4], maxAttempts: 3, marker: '[DSH-REVIEW-TASK]', maxBodyLength: 20000 };
+const WORK_ROOT = path.join(tmpdir(), 'wt');
 
 const bodyFor = (sha = SHA, reviewId = 'work-real-001') =>
   `[DSH-REVIEW-TASK]\nrepo: ${REPO}\npr_number: 4\nexpected_head_sha: ${sha}\nreview_id: ${reviewId}\nattempt: 1\n---\n${DETAIL}`;
@@ -54,6 +55,7 @@ function grantFor(overrides = {}) {
     headSha: SHA,
     commentId: 9101,
     bodyDigest: sha256(bodyFor()),
+    workRoot: WORK_ROOT,
     maxRuns: 1,
     issuedAt: new Date(now - 60_000).toISOString(),
     expiresAt: new Date(now + 30 * 60_000).toISOString(),
@@ -171,7 +173,7 @@ test('真实执行：授权 SHA 与任务不符时拒绝', async () => {
 test('真实执行成功：消费授权、记录 mode=real、且只跑一次', async () => {
   const { base, repo, head } = await makeRepo();
   const body = bodyFor(head);
-  const good = grantFor({ headSha: head, bodyDigest: sha256(body) });
+  const good = grantFor({ headSha: head, bodyDigest: sha256(body), workRoot: path.join(base, 'wt') });
   const grantPath = path.join(base, 'grant.json');
   await writeFile(grantPath, JSON.stringify(good), 'utf8');
 
@@ -191,7 +193,7 @@ test('真实执行成功：消费授权、记录 mode=real、且只跑一次', a
   assert.equal(result.status, 'succeeded');
   assert.equal(calls.length, 1);
   assert.equal(await grantExists(grantPath), false, '授权应被消费');
-  const outcome = state.getTaskOutcome(`${4}:${head}:9101`);
+  const outcome = state.getTaskOutcome(`${4}:${head}:9101`, 'real');
   assert.equal(outcome.mode, 'real', '真实执行结果必须标记 real');
 
   // 再次执行同一任务：已成功且同模式 → 跳过，不再跑
@@ -223,9 +225,9 @@ test('Mock 的成功不会让真实任务被跳过', async () => {
 
   const mockRun = await orchestrateTask({ record: recordFor(body, head), deps, options: { execute: true, mode: 'mock', timeoutMs: 5000 } });
   assert.equal(mockRun.status, 'succeeded');
-  assert.equal(state.getTaskOutcome(`${4}:${head}:9101`).mode, 'mock');
+  assert.equal(state.getTaskOutcome(`${4}:${head}:9101`, 'mock').mode, 'mock');
 
-  const good = grantFor({ headSha: head, bodyDigest: sha256(body) });
+  const good = grantFor({ headSha: head, bodyDigest: sha256(body), workRoot: path.join(base, 'wt') });
   const grantPath = path.join(base, 'grant.json');
   await writeFile(grantPath, JSON.stringify(good), 'utf8');
   const realRun = await orchestrateTask({
@@ -256,12 +258,12 @@ test('执行前预留：进程中断后标记 interrupted 并暂停，不自动�
       projectRoot: repo, workRoot: path.join(base, 'wt'), lockDir: path.join(stateDir, 'locks'),
       run: async () => { runs += 1; return { code: 0 }; }
     },
-    options: { execute: true, mode: 'real', grant: grantFor({ headSha: head, bodyDigest: sha256(body) }), grantPath: path.join(base, 'missing.json'), isolationConfirmed: true, timeoutMs: 5000 }
+    options: { execute: true, mode: 'real', grant: grantFor({ headSha: head, bodyDigest: sha256(body), workRoot: path.join(base, 'wt') }), grantPath: path.join(base, 'missing.json'), isolationConfirmed: true, timeoutMs: 5000 }
   });
 
   assert.equal(result.status, 'interrupted');
   assert.equal(runs, 0, '中断记录不允许自动重跑');
-  assert.equal(state.getTaskOutcome(`${4}:${head}:9101`).status, 'interrupted');
+  assert.equal(state.getTaskOutcome(`${4}:${head}:9101`, 'real').status, 'interrupted');
   assert.equal((await state.isPaused()).paused, true, '应自动暂停等待人工确认');
   await rm(base, { recursive: true, force: true });
 });
@@ -269,7 +271,7 @@ test('执行前预留：进程中断后标记 interrupted 并暂停，不自动�
 test('真实执行抛错时保留 reserved，重启后判定 interrupted', async () => {
   const { base, repo, head } = await makeRepo();
   const body = bodyFor(head);
-  const good = grantFor({ headSha: head, bodyDigest: sha256(body) });
+  const good = grantFor({ headSha: head, bodyDigest: sha256(body), workRoot: path.join(base, 'wt') });
   const grantPath = path.join(base, 'grant.json');
   await writeFile(grantPath, JSON.stringify(good), 'utf8');
   const stateDir = path.join(base, 'state');
@@ -286,6 +288,6 @@ test('真实执行抛错时保留 reserved，重启后判定 interrupted', async
   }), /模拟进程被杀/);
 
   const reopened = await new BridgeState(stateDir).init();
-  assert.equal(reopened.getTaskOutcome(`${4}:${head}:9101`).status, 'reserved', '必须留下 reserved 证据');
+  assert.equal(reopened.getTaskOutcome(`${4}:${head}:9101`, 'real').status, 'reserved', '必须留下 reserved 证据');
   await rm(base, { recursive: true, force: true });
 });

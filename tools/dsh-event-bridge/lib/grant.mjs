@@ -20,10 +20,25 @@
  * }
  */
 import { readFile, rename, access } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 const SHA_RE = /^[0-9a-f]{40}$/;
 const MAX_GRANT_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * 规范化绝对路径：相对路径视为非法（返回 null）；
+ * 存在时解析符号链接，避免"授权写 A、实际跑在 A 的软链 B"。
+ */
+export function normalizeRoot(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  if (!path.isAbsolute(value)) return null;
+  try {
+    return realpathSync.native(value);
+  } catch {
+    return path.normalize(path.resolve(value));
+  }
+}
 
 /**
  * 校验授权是否允许本次任务执行。返回原因数组（空数组表示通过）。
@@ -49,9 +64,12 @@ export function validateGrant(grant, expected) {
 
   if (!grant.bodyDigest || grant.bodyDigest !== expected.bodyDigest) reasons.push('评论正文摘要不一致（可能已被编辑）');
 
-  if (grant.workRoot && path.resolve(grant.workRoot) !== path.resolve(expected.workRoot)) {
-    reasons.push('工作根目录与授权不一致');
-  }
+  // 工作根目录必须存在、必须是绝对路径、必须与预期严格一致（不接受省略/空值/相对路径）
+  const grantRoot = normalizeRoot(grant.workRoot);
+  const expectedRoot = normalizeRoot(expected.workRoot);
+  if (!grantRoot) reasons.push('workRoot 缺失、为空或不是绝对路径');
+  else if (!expectedRoot) reasons.push('预期工作根目录无效');
+  else if (grantRoot !== expectedRoot) reasons.push('工作根目录与授权不一致');
 
   if (Number(grant.maxRuns) !== 1) reasons.push('一次性授权要求 maxRuns = 1');
 

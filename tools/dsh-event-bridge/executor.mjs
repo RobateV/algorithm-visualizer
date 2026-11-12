@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 /**
- * DSH 受限执行器 CLI（M2.6）
+ * DSH 受限执行器 CLI（M2.7）
  *
  * 主链路：收件箱 → 二次校验 → 隔离工作区 → 执行 → 结果持久化 →（授权时）回写
  *
- * 当前能力边界（诚实声明）：
- * - 真实 `dsh` **没有接线**：`--execute` 只接受 `--mock-dsh`
+ * 能力边界（准确描述）：
+ * - **默认**没有任何执行代码的路径：只做 plan
+ * - Mock：`--execute --mock-dsh`，不启动真实 dsh
+ * - 真实：`--execute --real-dsh --grant <file> --isolation-confirmed`，
+ *   一次性授权、严格单次、失败不重试；未授权时不存在真实执行路径
  * - 回写默认关闭；`--writeback-dry-run` 只生成 [DSH-RESULT] 文本，不推送
- * - 未启用常驻、无人值守
  */
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -41,7 +43,7 @@ export async function planTasks({ records, client, cfg, projectRoot, workRoot, l
   return out;
 }
 
-/** 恒为 false：本版本没有任何启动真实 dsh 的代码路径 */
+/** 默认配置下不会执行代码；真实执行需一次性授权 + 隔离确认，且严格单次 */
 export const EXECUTES_CODE = false;
 
 export async function readInbox(stateDir) {
