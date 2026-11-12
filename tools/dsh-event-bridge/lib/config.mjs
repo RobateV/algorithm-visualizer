@@ -33,6 +33,29 @@ function parsePositiveInt(value, fallback) {
 }
 
 /**
+ * PR 白名单解析：**未设置**时回退默认值（不允许隐式放行全部）。
+ * - 显式设置 DSH_BRIDGE_ALLOW_ALL_PRS=1 才允许空列表（放行全部）
+ * - 显式设置但含非法元素 → 抛错，启动失败（fail-closed）
+ */
+export function parseAllowedPrs(env) {
+  const raw = env.DSH_BRIDGE_ALLOWED_PRS;
+  if (raw === undefined || raw === null || String(raw).trim() === '') {
+    if (String(env.DSH_BRIDGE_ALLOW_ALL_PRS || '').trim() === '1') return [];
+    return DEFAULTS.allowedPrs.slice();
+  }
+  const parts = String(raw).split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length === 0) throw new Error('DSH_BRIDGE_ALLOWED_PRS 被设置为空值；如需放行全部，请显式设置 DSH_BRIDGE_ALLOW_ALL_PRS=1');
+  const nums = [];
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) throw new Error(`DSH_BRIDGE_ALLOWED_PRS 含非法 PR 编号：${part}`);
+    const n = Number.parseInt(part, 10);
+    if (!Number.isInteger(n) || n <= 0) throw new Error(`DSH_BRIDGE_ALLOWED_PRS 含非法 PR 编号：${part}`);
+    nums.push(n);
+  }
+  return nums;
+}
+
+/**
  * @param {Record<string, string | undefined>} env
  * @returns {{repo:string, allowedActors:string[], allowedPrs:number[], pollIntervalMs:number,
  *            maxAttempts:number, stateDir:string, maxBodyLength:number, requestTimeoutMs:number,
@@ -42,7 +65,7 @@ export function loadConfig(env = process.env) {
   const cfg = {
     repo: env.DSH_BRIDGE_REPO || DEFAULTS.repo,
     allowedActors: parseList(env.DSH_BRIDGE_ACTORS).length ? parseList(env.DSH_BRIDGE_ACTORS) : DEFAULTS.allowedActors,
-    allowedPrs: parseList(env.DSH_BRIDGE_ALLOWED_PRS).map((n) => Number.parseInt(n, 10)).filter(Number.isFinite),
+    allowedPrs: parseAllowedPrs(env),
     pollIntervalMs: parsePositiveInt(env.DSH_BRIDGE_POLL_MS, DEFAULTS.pollIntervalMs),
     maxAttempts: parsePositiveInt(env.DSH_BRIDGE_MAX_ATTEMPTS, DEFAULTS.maxAttempts),
     stateDir: env.DSH_BRIDGE_STATE_DIR || DEFAULTS.stateDir,

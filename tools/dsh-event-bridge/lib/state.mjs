@@ -99,7 +99,11 @@ export class BridgeState {
     return this;
   }
 
-  /** 用持久日志（inbox/rejected）补全去重集合，使 state.json 可被安全重建 */
+  /**
+   * 用持久日志（inbox/rejected）补全去重集合，使 state.json 可被安全重建。
+   * attempts / acceptedSha **每次从日志独立重算**（先清空再统计），
+   * 保证重启任意次都不会把计数叠加，是幂等操作。
+   */
   async #rebuildFromLogs() {
     const [inbox, rejected] = await Promise.all([readJsonLines(this.inboxFile), readJsonLines(this.rejectedFile)]);
 
@@ -108,11 +112,18 @@ export class BridgeState {
         this.state.seenComments[String(rec.commentId)] = rec.at || new Date().toISOString();
       }
     }
+
+    const attempts = {};
+    const acceptedSha = {};
     for (const rec of inbox) {
-      if (!rec || !rec.headSha || !rec.prNumber) continue;
-      this.state.acceptedSha[`${rec.prNumber}:${rec.headSha}`] = rec.at || new Date().toISOString();
-      if (rec.reviewId) this.state.attempts[rec.reviewId] = (this.state.attempts[rec.reviewId] || 0) + 1;
+      if (!rec) continue;
+      if (rec.reviewId) attempts[rec.reviewId] = (attempts[rec.reviewId] || 0) + 1;
+      if (rec.headSha && rec.prNumber) {
+        acceptedSha[`${rec.prNumber}:${rec.headSha}`] = rec.at || new Date().toISOString();
+      }
     }
+    this.state.attempts = attempts;
+    this.state.acceptedSha = acceptedSha;
   }
 
   async #save() {

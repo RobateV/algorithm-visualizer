@@ -109,6 +109,9 @@ node receiver.mjs --repair
 | 状态文件损坏 | **fail-closed 暂停**，需 `--repair` |
 | 状态文件写盘失败（Windows 占用） | 重试 5 次后降级为直接覆盖写并记录错误 |
 | 同一 `review_id` 超过 `maxAttempts` | 拒绝，避免无限重试 |
+| 评论分页超过 `maxPages` 仍有下一页 | **显式报错、本轮不推进水位**（不返回不完整快照） |
+| 本轮任意一条处理失败 | **不推进水位**，下轮用同一 `since` 重读，靠评论 id 去重 |
+| 重启 | `attempts`/`acceptedSha` 每次从 inbox 独立重算，**不会叠加** |
 
 ## 配置项
 
@@ -117,7 +120,8 @@ node receiver.mjs --repair
 | `DSH_BRIDGE_TOKEN` | 空 | 只读 PAT；`--api` 模式必填 |
 | `DSH_BRIDGE_REPO` | `RobateV/algorithm-visualizer` | 仓库白名单 |
 | `DSH_BRIDGE_ACTORS` | `RobateV` | 作者白名单（逗号分隔） |
-| `DSH_BRIDGE_ALLOWED_PRS` | `4` | 限定接受的 PR 编号（试运行默认只放行 PR #4；设为空表示不限制） |
+| `DSH_BRIDGE_ALLOWED_PRS` | `4` | 限定接受的 PR 编号；**未设置时回退 [4]**，不要靠"空值"放行全部 |
+| `DSH_BRIDGE_ALLOW_ALL_PRS` | 空 | 设为 `1` 才允许放行全部 PR（显式、需授权） |
 | `DSH_BRIDGE_POLL_MS` | `15000` | 轮询间隔，不得低于 5000 |
 | `DSH_BRIDGE_MAX_ATTEMPTS` | `3` | 同一 `review_id` 的最大尝试次数（1–5） |
 | `DSH_BRIDGE_BOOTSTRAP_DAYS` | `7` | 首次运行回溯的天数 |

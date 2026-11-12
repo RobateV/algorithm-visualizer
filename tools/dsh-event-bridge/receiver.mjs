@@ -168,18 +168,26 @@ export function shiftBack(iso, seconds) {
   return new Date(t - seconds * 1000).toISOString();
 }
 
+/** 本轮结果是否允许推进水位：只要有一条处理失败就不推进 */
+export function canAdvanceWatermark(results) {
+  return !(results || []).some((r) => r && r.status === 'error');
+}
+
 /** 依据水位决定本轮 since；首次运行从 bootstrapDays 天前开始，避免拉整库历史 */
 export function resolveSince(watermark, bootstrapDays, now = Date.now()) {
   if (watermark && watermark.since) return watermark.since;
   return new Date(now - bootstrapDays * 24 * 60 * 60 * 1000).toISOString();
 }
 
-/** 按 Link 分页把所有页拉全，最多 maxPages 页 */
+/** 按 Link 分页把所有页拉全；一旦达到页数上限仍有下一页，显式失败（不返回不完整快照） */
 export async function fetchAllComments(client, { since, perPage = 100, maxPages = 50 }) {
   const all = [];
   let next = 1;
   let pages = 0;
-  while (next && pages < maxPages) {
+  while (next) {
+    if (pages >= maxPages) {
+      throw new Error(`评论分页超过 ${maxPages} 页上限，本轮快照不完整；水位保持不变，请提高 DSH_BRIDGE_MAX_PAGES 或缩短离线时间`);
+    }
     const res = await client.listIssueComments({ since, page: next, perPage });
     all.push(...res.comments);
     next = res.nextPage;
@@ -193,7 +201,14 @@ const log = (msg) => process.stdout.write(`[${stamp()}] ${msg}\n`);
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
-  const cfg = loadConfig();
+  let cfg;
+  try {
+    cfg = loadConfig();
+  } catch (err) {
+    log('✗ 配置错误：' + err.message);
+    process.exitCode = 2;
+    return;
+  }
   if (args.state) cfg.stateDir = args.state;
 
   const errors = validateConfig(cfg, { requireToken: args.api });
@@ -254,7 +269,14 @@ async function main() {
       const outcome = await runOnce({ comments, state, cfg, resolvePr, source: 'api', log });
       if (outcome.skipped) return;
 
-      // 只有本轮正常处理完才推进水位；用重叠窗口吸收时钟偏差与同秒边界，重复部分由 id 去重兜底
+      // 有任意一条处理失败（如 PR GET 超时）时不推进水位，保证恢复后还能重新拉到
+      if (!canAdvanceWatermark(outcome.results)) {
+        const failed = outcome.results.filter((r) => r.status === 'error').length;
+        log(`⚠ 本轮有 ${failed} 条处理失败，保持水位不变，下轮重试`);
+        return;
+      }
+
+      // 只有本轮全部正常处理完才推进水位；用重叠窗口吸收时钟偏差与同秒边界，重复部分由 id 去重兜底
       let maxStamp = '';
       let maxId = 0;
       for (const c of comments) {

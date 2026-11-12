@@ -7,7 +7,8 @@ import path from 'node:path';
 import { parseTaskBlock, validateTask, isAllowedAuthor } from '../lib/validate.mjs';
 import { BridgeState } from '../lib/state.mjs';
 import { parseNextPage } from '../lib/github.mjs';
-import { runOnce, pullNumberFromComment, EXECUTES_CODE, fetchAllComments, resolveSince, shiftBack } from '../receiver.mjs';
+import { loadConfig } from '../lib/config.mjs';
+import { runOnce, pullNumberFromComment, EXECUTES_CODE, fetchAllComments, resolveSince, shiftBack, canAdvanceWatermark } from '../receiver.mjs';
 
 const SHA = 'c7b172fea1bde714f758df1e875340a1681e7d4e';
 const OLD_SHA = '0123456789abcdef0123456789abcdef01234567';
@@ -236,7 +237,7 @@ test('101 条评论会翻页取全，不漏任务', async () => {
   assert.equal(all[100].id, 101);
 });
 
-test('分页有上限，避免异常 Link 导致无限循环', async () => {
+test('分页达到上限且仍有下一页时必须显式失败', async () => {
   const calls = [];
   const fake = {
     async listIssueComments({ page }) {
@@ -244,8 +245,79 @@ test('分页有上限，避免异常 Link 导致无限循环', async () => {
       return { comments: [{ id: page }], nextPage: page + 1 };
     }
   };
-  await fetchAllComments(fake, { since: '2026-01-01T00:00:00Z', maxPages: 3 });
-  assert.deepEqual(calls, [1, 2, 3]);
+  await assert.rejects(
+    () => fetchAllComments(fake, { since: '2026-01-01T00:00:00Z', maxPages: 3 }),
+    /分页超过 3 页上限/
+  );
+  assert.deepEqual(calls, [1, 2, 3], '不应继续请求第 4 页');
+});
+
+test('51 页 backlog 不能被静默截断', async () => {
+  const fake = {
+    async listIssueComments({ page }) {
+      return { comments: Array.from({ length: 100 }, (_, i) => ({ id: page * 1000 + i })), nextPage: page < 51 ? page + 1 : null };
+    }
+  };
+  await assert.rejects(
+    () => fetchAllComments(fake, { since: '2026-01-01T00:00:00Z', maxPages: 50 }),
+    /快照不完整/
+  );
+});
+
+/* ============================================================ 配置白名单 */
+
+test('未设置 ALLOWED_PRS 时回退默认 [4]，不放行全部', () => {
+  const cfg = loadConfig({});
+  assert.deepEqual(cfg.allowedPrs, [4]);
+});
+
+test('显式空值/非法 PR 列表应启动失败', () => {
+  // 空白视为"未设置"，回退到安全的默认 [4]（仍然是最严格的一侧）
+  assert.deepEqual(loadConfig({ DSH_BRIDGE_ALLOWED_PRS: ' ' }).allowedPrs, [4]);
+  assert.throws(() => loadConfig({ DSH_BRIDGE_ALLOWED_PRS: '4,abc' }), /非法 PR 编号/);
+  assert.throws(() => loadConfig({ DSH_BRIDGE_ALLOWED_PRS: '4,-1' }), /非法 PR 编号/);
+  assert.throws(() => loadConfig({ DSH_BRIDGE_ALLOWED_PRS: '4,0' }), /非法 PR 编号/);
+});
+
+test('显式 ALLOW_ALL 才允许空列表', () => {
+  const cfg = loadConfig({ DSH_BRIDGE_ALLOW_ALL_PRS: '1' });
+  assert.deepEqual(cfg.allowedPrs, []);
+  const explicit = loadConfig({ DSH_BRIDGE_ALLOWED_PRS: '4,6' });
+  assert.deepEqual(explicit.allowedPrs, [4, 6]);
+});
+
+/* ============================================================ 计数幂等 */
+
+test('重启 3 次后 attempts 不叠加（幂等重建）', async () => {
+  const state = await freshState();
+  await runOnce({ comments: [makeComment(9101, 'RobateV', taskBody())], state, cfg: BASE, resolvePr: openPr });
+  assert.equal(state.attemptsFor('work-test-001'), 1);
+
+  let reopened = state;
+  for (let i = 0; i < 3; i++) {
+    reopened = await new BridgeState(state.dir).init();
+  }
+  assert.equal(reopened.attemptsFor('work-test-001'), 1, '重启不应把 attempts 叠加');
+  assert.equal(reopened.hasAcceptedSha(4, SHA), true);
+});
+
+/* ============================================================ 水位推进条件 */
+
+test('本轮存在处理失败时不推进水位，恢复后可重新接收', async () => {
+  const state = await freshState();
+  const comment = makeComment(9101, 'RobateV', taskBody());
+
+  // 第一次：PR 读取失败
+  const failing = async () => { throw new Error('gateway timeout'); };
+  const first = await runOnce({ comments: [comment], state, cfg: BASE, resolvePr: failing });
+  assert.equal(first.results[0].status, 'error');
+  assert.equal(canAdvanceWatermark(first.results), false, '有失败时不得推进水位');
+  assert.equal(state.hasSeenComment(9101), false);
+
+  // 恢复后（同一评论仍在 since 窗口内）应能正常接收
+  const second = await runOnce({ comments: [comment], state, cfg: BASE, resolvePr: openPr });
+  assert.equal(second.results[0].status, 'accepted');
+  assert.equal(canAdvanceWatermark(second.results), true);
 });
 
 test('首次运行从 bootstrap 窗口开始，之后以水位为准', () => {
