@@ -5,7 +5,7 @@
  * - 进程崩溃留下的锁在 staleMs 之后可被接管（宁可延迟，也不并发）
  * - 全局锁用固定 key `__global__`
  */
-import { open, readFile, unlink, stat } from 'node:fs/promises';
+import { open, readFile, unlink, stat, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
 export const GLOBAL_LOCK_KEY = '__global__';
@@ -29,6 +29,7 @@ async function tryCreate(file, key) {
  */
 export async function acquireLock(dir, key, { staleMs = 10 * 60 * 1000, now = Date.now(), allowSteal = true } = {}) {
   const file = lockPath(dir, key);
+  await mkdir(dir, { recursive: true });
   try {
     await tryCreate(file, key);
     return { acquired: true, file };
