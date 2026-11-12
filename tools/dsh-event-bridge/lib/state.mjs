@@ -11,7 +11,12 @@
  *    必须人工执行 --repair 才能恢复（修复时会先备份损坏文件）。
  */
 import { mkdir, readFile, writeFile, rename, access, unlink, open, copyFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
+
+export function sha256(text) {
+  return createHash('sha256').update(String(text), 'utf8').digest('hex');
+}
 
 function emptyState() {
   return {
@@ -202,8 +207,9 @@ export class BridgeState {
   /**
    * 接收：**先写收件箱（fsync）再更新状态**。
    * 收件箱写失败时直接抛错，评论保持"未处理"，下轮重试。
+   * 同时记录正文 sha256 摘要，供执行前二次校验"评论未被编辑"。
    */
-  async accept({ commentId, task, source }) {
+  async accept({ commentId, task, source, body = '' }) {
     const now = new Date().toISOString();
     const record = {
       at: now,
@@ -215,7 +221,8 @@ export class BridgeState {
       headSha: task.expectedHeadSha,
       reviewId: task.reviewId,
       attempt: task.attempt,
-      detailLength: task.detail.length
+      detailLength: task.detail.length,
+      bodyDigest: sha256(body)
     };
 
     await appendDurable(this.inboxFile, record);     // 1) 事实来源先落盘
