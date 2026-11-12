@@ -71,7 +71,16 @@ Answer one task and exit; the answer goes to stdout and diagnostics to stderr.
 | 失败 | API 失败按间隔重试；读 PR 失败不标记已处理；单条异常隔离；写盘失败降级覆盖写 |
 | 上限 | `maxAttempts` 默认 3，超出后拒绝，避免无限重试消耗额度 |
 
-## 6. 启用步骤（需教师授权）
+## 6. 可靠性加固（第二轮审查后）
+
+| 问题 | 修法 |
+| --- | --- |
+| 只取最新 100 条，离线期间可能漏任务 | 按 `Link` 分页拉全 + 持久化 `since` 水位（回退 60s 重叠窗口）+ 首次从 bootstrap 窗口开始 |
+| 状态先写、收件箱后写，中间崩溃会永久丢单 | `accept()` 改为**先 fsync 写 inbox.jsonl，再更新 state.json**；启动时从 inbox/rejected 重建去重集合 |
+| 状态文件损坏后静默清空，可能重复领取 | **fail-closed**：保留损坏文件、暂停接收，必须 `--repair` 才恢复（备份后从日志重建） |
+| 手动 workflow 输入插入 shell，且方案 C 不需要它 | **删除**该 workflow；`Closes #5` 改为 `Refs #5`，Issue #5 保持 OPEN |
+
+## 7. 启用步骤（需教师授权）
 
 1. 生成只读 fine-grained PAT（仅本仓库，Issues/Pull requests Read-only）。
 2. 在本机设置 `DSH_BRIDGE_TOKEN` 等环境变量（不要写进仓库）。
@@ -81,7 +90,7 @@ Answer one task and exit; the answer goes to stdout and diagnostics to stderr.
 6. **验收通过后**，才考虑把 `inbox.jsonl` 里的任务交给 `dsh --profile headless` 执行；
    执行器需要单独的 dry-run → 隔离目录 → 人工确认三段式，不在本 PR 范围内。
 
-## 7. 风险与未做事项
+## 8. 风险与未做事项
 
 - 未实现自动执行、未接 Actions 触发、未改仓库可见性、未合并任何 PR。
 - 轮询会持续消耗少量 API 配额（15s 一次 ≈ 240 次/小时，远低于 5000 上限）。

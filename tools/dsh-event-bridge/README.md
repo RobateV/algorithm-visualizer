@@ -72,16 +72,43 @@ node receiver.mjs --resume
 
 也可以直接在状态目录放一个空文件 `PAUSED`，删掉即恢复——适合教师在课堂上临时刹车。
 
+## 分页与水位（不漏任务）
+
+- 每轮以 `since` 拉取，并按 `Link: rel="next"` **翻完所有页**（默认上限 50 页），不是只取最新 100 条。
+- 只在本轮正常处理完后推进水位：`watermark = { since, lastCommentId }`，并**回退 60 秒重叠窗口**
+  吸收时钟偏差与同秒边界；重复部分由评论 id 去重兜底。
+- 首次运行没有水位时，从 `bootstrapDays`（默认 7 天）前开始，避免拉整库历史。
+- 水位持久化在 `state.json`，重启后从上次位置继续。
+
+## 状态损坏与修复
+
+`state.json` 解析失败时**不覆盖、不清空**：接收器进入 fail-closed（`isPaused()` 返回 blocked），
+不接收任何事件，并提示人工修复。
+
+```bash
+node receiver.mjs --repair
+```
+
+会把损坏文件备份成 `state.corrupt.<时间戳>.json`，再从 `inbox.jsonl` / `rejected.jsonl`
+重建去重集合与水位。
+
+## 写入顺序（不丢单）
+
+`accept()` **先以 `fsync` 追加 `inbox.jsonl`，再更新 `state.json`**。
+即使随后崩溃或写状态失败，重启时也能从收件箱重建"已处理"记录，任务不会丢、也不会重复执行。
+
 ## 失败处理
 
 | 情况 | 行为 |
 | --- | --- |
-| GitHub API 拉取失败 | 记录 `errors.jsonl`，按 `pollIntervalMs` 下轮重试，进程不退出 |
+| GitHub API 拉取失败 | 记录 `errors.jsonl`，下轮重试，进程不退出 |
 | 读取某个 PR 失败 | 该评论**不标记已处理**，下轮重试 |
-| 单条评论处理抛异常 | 记录错误、跳过该条，其余评论继续 |
-| 状态文件写盘失败（Windows 占用） | 重试 5 次后降级为直接覆盖写，并记录 `save-state` 错误 |
+| 单条评论处理抛异常 | 记录错误、跳过该条，其余继续 |
+| 收件箱写入失败 | 抛错、**不标记已处理**，下轮重试 |
+| 收件箱成功但状态写失败 | 重启时从 inbox 重建，视为已处理，不重复 |
+| 状态文件损坏 | **fail-closed 暂停**，需 `--repair` |
+| 状态文件写盘失败（Windows 占用） | 重试 5 次后降级为直接覆盖写并记录错误 |
 | 同一 `review_id` 超过 `maxAttempts` | 拒绝，避免无限重试 |
-| 状态文件损坏 | 留档错误后从空状态重建，不阻塞启动 |
 
 ## 配置项
 
@@ -90,9 +117,12 @@ node receiver.mjs --resume
 | `DSH_BRIDGE_TOKEN` | 空 | 只读 PAT；`--api` 模式必填 |
 | `DSH_BRIDGE_REPO` | `RobateV/algorithm-visualizer` | 仓库白名单 |
 | `DSH_BRIDGE_ACTORS` | `RobateV` | 作者白名单（逗号分隔） |
-| `DSH_BRIDGE_ALLOWED_PRS` | 空（不限制） | 限定接受的 PR 编号 |
+| `DSH_BRIDGE_ALLOWED_PRS` | `4` | 限定接受的 PR 编号（试运行默认只放行 PR #4；设为空表示不限制） |
 | `DSH_BRIDGE_POLL_MS` | `15000` | 轮询间隔，不得低于 5000 |
 | `DSH_BRIDGE_MAX_ATTEMPTS` | `3` | 同一 `review_id` 的最大尝试次数（1–5） |
+| `DSH_BRIDGE_BOOTSTRAP_DAYS` | `7` | 首次运行回溯的天数 |
+| `DSH_BRIDGE_MAX_PAGES` | `50` | 单轮最多翻页数，防止异常 Link 死循环 |
+| `DSH_BRIDGE_OVERLAP_SECONDS` | `60` | 水位回退的重叠窗口（秒） |
 | `DSH_BRIDGE_STATE_DIR` | `.dsh-bridge-state` | 状态目录（需可写） |
 
 ## 任务格式

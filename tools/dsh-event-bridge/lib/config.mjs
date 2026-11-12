@@ -8,12 +8,15 @@ export const DEFAULT_MARKER = '[DSH-REVIEW-TASK]';
 const DEFAULTS = {
   repo: 'RobateV/algorithm-visualizer',
   allowedActors: ['RobateV'],
-  allowedPrs: [],           // 空数组 = 不限制 PR 编号
+  allowedPrs: [4],          // 试运行只允许 PR #4；生产可改为空数组（不限制）
   pollIntervalMs: 15000,
   maxAttempts: 3,
   stateDir: '.dsh-bridge-state',
   maxBodyLength: 20000,
-  requestTimeoutMs: 15000
+  requestTimeoutMs: 15000,
+  bootstrapDays: 7,
+  maxPages: 50,
+  overlapSeconds: 60
 };
 
 function parseList(value) {
@@ -45,6 +48,9 @@ export function loadConfig(env = process.env) {
     stateDir: env.DSH_BRIDGE_STATE_DIR || DEFAULTS.stateDir,
     maxBodyLength: DEFAULTS.maxBodyLength,
     requestTimeoutMs: DEFAULTS.requestTimeoutMs,
+    bootstrapDays: parsePositiveInt(env.DSH_BRIDGE_BOOTSTRAP_DAYS, DEFAULTS.bootstrapDays),
+    maxPages: parsePositiveInt(env.DSH_BRIDGE_MAX_PAGES, DEFAULTS.maxPages),
+    overlapSeconds: parsePositiveInt(env.DSH_BRIDGE_OVERLAP_SECONDS, DEFAULTS.overlapSeconds),
     token: env.DSH_BRIDGE_TOKEN || '',
     marker: env.DSH_BRIDGE_MARKER || DEFAULT_MARKER
   };

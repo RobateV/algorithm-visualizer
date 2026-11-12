@@ -147,17 +147,45 @@ async function loadFixture(dir) {
 }
 
 function parseArgs(argv) {
-  const out = { once: false, api: false, fixture: '', state: '', pause: false, resume: false };
+  const out = { once: false, api: false, fixture: '', state: '', pause: false, resume: false, repair: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--once') out.once = true;
     else if (a === '--api') out.api = true;
     else if (a === '--pause') out.pause = true;
     else if (a === '--resume') out.resume = true;
+    else if (a === '--repair') out.repair = true;
     else if (a === '--fixture') out.fixture = argv[++i] || '';
     else if (a === '--state') out.state = argv[++i] || '';
   }
   return out;
+}
+
+/** 把 ISO 时间往前挪若干秒，用于水位重叠窗口 */
+export function shiftBack(iso, seconds) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t - seconds * 1000).toISOString();
+}
+
+/** 依据水位决定本轮 since；首次运行从 bootstrapDays 天前开始，避免拉整库历史 */
+export function resolveSince(watermark, bootstrapDays, now = Date.now()) {
+  if (watermark && watermark.since) return watermark.since;
+  return new Date(now - bootstrapDays * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/** 按 Link 分页把所有页拉全，最多 maxPages 页 */
+export async function fetchAllComments(client, { since, perPage = 100, maxPages = 50 }) {
+  const all = [];
+  let next = 1;
+  let pages = 0;
+  while (next && pages < maxPages) {
+    const res = await client.listIssueComments({ since, page: next, perPage });
+    all.push(...res.comments);
+    next = res.nextPage;
+    pages += 1;
+  }
+  return all;
 }
 
 const stamp = () => new Date().toISOString();
@@ -176,6 +204,21 @@ async function main() {
   }
 
   const state = await new BridgeState(cfg.stateDir).init();
+
+  if (args.repair) {
+    const res = await state.repair();
+    log(res.backedUp
+      ? `✓ 已从持久日志重建状态；损坏文件已备份为 ${res.backedUp}`
+      : '✓ 状态已从持久日志重建');
+    return;
+  }
+
+  if (state.blocked) {
+    log('✗ 状态文件损坏，已 fail-closed 暂停接收：' + state.blocked.reason);
+    log('  修复方式：node receiver.mjs --repair（先备份损坏文件，再从 inbox/rejected 重建）');
+    process.exitCode = 3;
+    return;
+  }
 
   if (args.pause) { await state.setPaused(true, 'manual'); log('⏸ 已暂停'); return; }
   if (args.resume) { await state.setPaused(false, ''); log('▶ 已恢复'); return; }
@@ -203,10 +246,27 @@ async function main() {
 
   const tick = async () => {
     try {
-      const { comments, notModified } = await client.listIssueComments();
-      if (notModified) { log('· 无新评论'); return; }
+      const watermark = state.getWatermark();
+      const since = resolveSince(watermark, cfg.bootstrapDays);
+      const comments = await fetchAllComments(client, { since, maxPages: cfg.maxPages });
+      if (!comments.length) { log('· 无新评论'); return; }
+
       const outcome = await runOnce({ comments, state, cfg, resolvePr, source: 'api', log });
-      if (!outcome.skipped) log(`本轮结束：${outcome.results.length} 条评论`);
+      if (outcome.skipped) return;
+
+      // 只有本轮正常处理完才推进水位；用重叠窗口吸收时钟偏差与同秒边界，重复部分由 id 去重兜底
+      let maxStamp = '';
+      let maxId = 0;
+      for (const c of comments) {
+        const stamp = c.updated_at || c.created_at || '';
+        if (stamp && stamp > maxStamp) maxStamp = stamp;
+        const id = Number(c.id) || 0;
+        if (id > maxId) maxId = id;
+      }
+      if (maxStamp) {
+        await state.advanceWatermark({ since: shiftBack(maxStamp, cfg.overlapSeconds), lastCommentId: maxId });
+      }
+      log(`本轮结束：${comments.length} 条评论（水位推进至 ${maxStamp || '未变'}）`);
     } catch (err) {
       await state.recordError({ stage: 'poll', error: String(err) });
       log(`⚠ 拉取失败，${Math.round(cfg.pollIntervalMs / 1000)}s 后重试：${err.message}`);

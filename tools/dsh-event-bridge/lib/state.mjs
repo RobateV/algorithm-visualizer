@@ -1,25 +1,60 @@
 /**
- * 持久化状态：去重、重试计数、暂停开关、收件箱。
+ * 持久化状态：去重、重试计数、暂停开关、收件箱、水位。
  *
- * - 去重两个维度：评论 id（同一条评论只处理一次）与 PR+HEAD SHA（同一提交只排一次任务）
- * - 暂停：state.paused 或状态目录下的 PAUSED 文件任一存在即停止接收
- * - 状态文件先写临时文件再 rename；Windows 上 rename 可能因文件占用报 EPERM，
- *   重试若干次后降级为直接覆盖写，避免单次写盘失败打断整轮接收
+ * 可靠性约定（对应审查意见 2 与 3）：
+ *
+ * 1. **收件箱是唯一事实来源**。accept() 先以 fsync 追加 inbox.jsonl，再更新 state.json；
+ *    即使随后崩溃或写状态失败，重启时也能从 inbox 重建"已处理"集合，任务不会丢。
+ * 2. **状态可重建**。init() 每次都会把 inbox.jsonl / rejected.jsonl 里的记录合并进内存，
+ *    因此 state.json 只是缓存，不是唯一真相。
+ * 3. **损坏即 fail-closed**。state.json 解析失败时不覆盖、不清空，进入 blocked 状态并暂停接收，
+ *    必须人工执行 --repair 才能恢复（修复时会先备份损坏文件）。
  */
-import { mkdir, readFile, writeFile, rename, appendFile, access, unlink } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, access, unlink, open, copyFile } from 'node:fs/promises';
 import path from 'node:path';
 
-/** 每个实例都要拿到全新的嵌套对象，否则去重状态会在实例之间串味 */
 function emptyState() {
   return {
-    version: 1,
+    version: 2,
     paused: false,
     pausedReason: '',
     seenComments: {},
     acceptedSha: {},
     attempts: {},
+    watermark: { since: '', lastCommentId: 0 },
     updatedAt: null
   };
+}
+
+async function appendDurable(file, record) {
+  const fh = await open(file, 'a');
+  try {
+    await fh.write(JSON.stringify(record) + '\n', null, 'utf8');
+    await fh.sync();
+  } finally {
+    await fh.close();
+  }
+}
+
+async function readJsonLines(file) {
+  let raw = '';
+  try {
+    raw = await readFile(file, 'utf8');
+  } catch (err) {
+    if (err.code === 'ENOENT') return [];
+    throw err;
+  }
+  const out = [];
+  for (const line of raw.split('\n')) {
+    const text = line.trim();
+    if (!text) continue;
+    try {
+      out.push(JSON.parse(text));
+    } catch {
+      // 半行（进程在写入中途被杀）直接跳过，不阻塞重建
+    }
+  }
+  return out;
 }
 
 export class BridgeState {
@@ -31,25 +66,59 @@ export class BridgeState {
     this.errorFile = path.join(dir, 'errors.jsonl');
     this.pauseFile = path.join(dir, 'PAUSED');
     this.state = emptyState();
+    this.blocked = null;   // { reason } — 非空表示拒绝接收，直到人工修复
   }
 
   async init() {
     await mkdir(this.dir, { recursive: true });
+
+    let loaded = false;
     try {
       const raw = await readFile(this.file, 'utf8');
       const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') throw new Error('state.json 顶层不是对象');
       this.state = { ...emptyState(), ...parsed };
+      this.state.watermark = { ...emptyState().watermark, ...parsed.watermark };
+      loaded = true;
     } catch (err) {
-      if (err.code !== 'ENOENT') {
-        // 坏状态文件不应让接收器直接崩溃：留档后从空状态重建
-        await this.#appendRaw(this.errorFile, { at: new Date().toISOString(), stage: 'load-state', error: String(err) });
-        this.state = emptyState();
+      if (err.code === 'ENOENT') {
+        loaded = true;                       // 首次运行：空状态是合法的
+      } else {
+        // fail-closed：保留损坏文件，禁止继续接收
+        this.blocked = { reason: `state.json 损坏：${err.message}` };
+        await appendDurable(this.errorFile, {
+          at: new Date().toISOString(),
+          stage: 'load-state',
+          error: String(err),
+          action: 'blocked-until-repair'
+        });
       }
     }
+
+    if (loaded) await this.#rebuildFromLogs();
     return this;
   }
 
+  /** 用持久日志（inbox/rejected）补全去重集合，使 state.json 可被安全重建 */
+  async #rebuildFromLogs() {
+    const [inbox, rejected] = await Promise.all([readJsonLines(this.inboxFile), readJsonLines(this.rejectedFile)]);
+
+    for (const rec of [...inbox, ...rejected]) {
+      if (rec && rec.commentId != null) {
+        this.state.seenComments[String(rec.commentId)] = rec.at || new Date().toISOString();
+      }
+    }
+    for (const rec of inbox) {
+      if (!rec || !rec.headSha || !rec.prNumber) continue;
+      this.state.acceptedSha[`${rec.prNumber}:${rec.headSha}`] = rec.at || new Date().toISOString();
+      if (rec.reviewId) this.state.attempts[rec.reviewId] = (this.state.attempts[rec.reviewId] || 0) + 1;
+    }
+  }
+
   async #save() {
+    // 损坏状态下不写 state.json，避免覆盖证据
+    if (this.blocked) return;
+
     const next = { ...this.state, updatedAt: new Date().toISOString() };
     const json = JSON.stringify(next, null, 2);
     const tmp = `${this.file}.${process.pid}.tmp`;
@@ -67,11 +136,10 @@ export class BridgeState {
       }
     }
 
-    // 兜底：直接覆盖写。宁可牺牲"原子性"，也不要丢掉去重记录。
     await writeFile(this.file, json, 'utf8');
     await unlink(tmp).catch(() => {});
     this.state = next;
-    await this.#appendRaw(this.errorFile, {
+    await appendDurable(this.errorFile, {
       at: new Date().toISOString(),
       stage: 'save-state',
       error: String(lastError),
@@ -79,11 +147,8 @@ export class BridgeState {
     });
   }
 
-  async #appendRaw(file, record) {
-    await appendFile(file, JSON.stringify(record) + '\n', 'utf8');
-  }
-
   async isPaused() {
+    if (this.blocked) return { paused: true, reason: this.blocked.reason, blocked: true };
     if (this.state.paused) return { paused: true, reason: this.state.pausedReason || 'state.paused=true' };
     try {
       await access(this.pauseFile);
@@ -99,6 +164,18 @@ export class BridgeState {
     await this.#save();
   }
 
+  getWatermark() {
+    return { ...this.state.watermark };
+  }
+
+  async advanceWatermark({ since, lastCommentId }) {
+    const next = { ...(this.state.watermark || { since: '', lastCommentId: 0 }) };
+    if (since && since > (next.since || '')) next.since = since;
+    if (lastCommentId && lastCommentId > (next.lastCommentId || 0)) next.lastCommentId = lastCommentId;
+    this.state.watermark = next;
+    await this.#save();
+  }
+
   hasSeenComment(commentId) {
     return Boolean(this.state.seenComments[String(commentId)]);
   }
@@ -111,13 +188,12 @@ export class BridgeState {
     return this.state.attempts[reviewId] || 0;
   }
 
-  /** 接收：同时登记评论 id 与 PR+SHA，并写入收件箱 */
+  /**
+   * 接收：**先写收件箱（fsync）再更新状态**。
+   * 收件箱写失败时直接抛错，评论保持"未处理"，下轮重试。
+   */
   async accept({ commentId, task, source }) {
     const now = new Date().toISOString();
-    this.state.seenComments[String(commentId)] = now;
-    this.state.acceptedSha[`${task.prNumber}:${task.expectedHeadSha}`] = now;
-    this.state.attempts[task.reviewId] = this.attemptsFor(task.reviewId) + 1;
-    await this.#save();
     const record = {
       at: now,
       status: 'accepted',
@@ -130,29 +206,58 @@ export class BridgeState {
       attempt: task.attempt,
       detailLength: task.detail.length
     };
-    await this.#appendRaw(this.inboxFile, record);
+
+    await appendDurable(this.inboxFile, record);     // 1) 事实来源先落盘
+
+    this.state.seenComments[String(commentId)] = now;
+    this.state.acceptedSha[`${task.prNumber}:${task.expectedHeadSha}`] = now;
+    this.state.attempts[task.reviewId] = this.attemptsFor(task.reviewId) + 1;
+    await this.#save();                               // 2) 再更新缓存；失败也不丢单
+
     return record;
   }
 
-  /** 拒绝：只登记评论 id，避免每轮重复报同一条错误 */
   async reject({ commentId, reason, source, prNumber = null, headSha = '' }) {
-    if (commentId != null) this.state.seenComments[String(commentId)] = new Date().toISOString();
+    const now = new Date().toISOString();
+    const record = { at: now, status: 'rejected', source, commentId, prNumber, headSha, reason };
+    await appendDurable(this.rejectedFile, record);
+    if (commentId != null) this.state.seenComments[String(commentId)] = now;
     await this.#save();
-    const record = { at: new Date().toISOString(), status: 'rejected', source, commentId, prNumber, headSha, reason };
-    await this.#appendRaw(this.rejectedFile, record);
     return record;
   }
 
   async recordError(record) {
-    await this.#appendRaw(this.errorFile, { at: new Date().toISOString(), ...record });
+    await appendDurable(this.errorFile, { at: new Date().toISOString(), ...record });
+  }
+
+  /** 人工修复：备份损坏文件，从持久日志重建 state.json */
+  async repair() {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    let backedUp = '';
+    try {
+      await access(this.file);
+      backedUp = path.join(this.dir, `state.corrupt.${stamp}.json`);
+      await copyFile(this.file, backedUp);
+      await unlink(this.file);
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
+    }
+
+    this.blocked = null;
+    this.state = emptyState();
+    await this.#rebuildFromLogs();
+    await this.#save();
+    return { backedUp };
   }
 
   snapshot() {
     return {
+      blocked: this.blocked,
       paused: this.state.paused,
       seenComments: Object.keys(this.state.seenComments).length,
       acceptedSha: Object.keys(this.state.acceptedSha).length,
-      attempts: { ...this.state.attempts }
+      attempts: { ...this.state.attempts },
+      watermark: { ...this.state.watermark }
     };
   }
 }
