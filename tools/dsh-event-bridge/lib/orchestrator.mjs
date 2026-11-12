@@ -12,6 +12,8 @@ import { prepareWorktree, assertCleanProject, taskKey as workspaceKeyOf } from '
 import { withTaskLocks, performAttempts, MAX_RETRIES } from './runner.mjs';
 import { buildDshArgv } from './dsh-cli.mjs';
 import { performWriteback } from './writeback.mjs';
+import { validateGrant, consumeGrant } from './grant.mjs';
+import { sha256 } from './state.mjs';
 
 /** 同一任务允许的总尝试次数（跨重启累计） */
 export const TOTAL_ATTEMPTS = 1 + MAX_RETRIES;
@@ -48,11 +50,25 @@ export function buildTaskContract({ task, prNumber, headSha }) {
 export async function orchestrateTask({ record, deps, options }) {
   options = options || {};
   const log = options.log || (() => {});
+  const mode = options.mode === 'real' ? 'real' : 'mock';
   const key = outcomeKeyOf(record);
 
   const previous = deps.state.getTaskOutcome(key);
-  if (previous && previous.status === 'succeeded') {
-    return { status: 'skipped', reason: 'already-succeeded', key };
+  const previousMode = (previous && previous.mode) || 'mock';
+
+  // Mock 成功不能让真实任务被跳过；只有同模式成功才算完成
+  if (previous && previous.status === 'succeeded' && previousMode === mode) {
+    return { status: 'skipped', reason: 'already-succeeded', key, mode };
+  }
+
+  // 上次真实执行留下了 reserved/running 却没有结果：视为中断，必须人工确认
+  if (previous && (previous.status === 'reserved' || previous.status === 'running')) {
+    await deps.state.recordTaskOutcome(key, {
+      status: 'interrupted', mode: previousMode, attempts: previous.attempts, reason: '进程中断，未完成'
+    });
+    await deps.state.setPaused(true, `任务 ${record.reviewId} 上次运行被中断，需人工确认后再执行`);
+    log(`⏸ 检测到中断记录（${record.reviewId}），已标记 interrupted 并暂停`);
+    return { status: 'interrupted', reason: 'needs-manual-confirm', key, mode };
   }
 
   const usedBefore = previous && Number.isFinite(previous.attempts) ? previous.attempts : 0;
@@ -77,7 +93,28 @@ export async function orchestrateTask({ record, deps, options }) {
 
   const check = await refetchAndVerify({ client: deps.client, record, cfg: deps.cfg });
   if (!check.ok) {
-    return { status: 'rejected', reasons: check.reasons, key };
+    return { status: 'rejected', reasons: check.reasons, key, mode };
+  }
+
+  // 真实执行的三重前置：隔离已确认 + 一次性授权 + 授权与本次任务逐项匹配
+  if (mode === 'real') {
+    if (options.isolationConfirmed !== true) {
+      return { status: 'rejected', reasons: ['未确认 Windows 执行隔离清单（需 --isolation-confirmed）'], key, mode };
+    }
+    if (!options.grant) {
+      return { status: 'rejected', reasons: ['真实执行需要一次性授权文件（--grant <file>）'], key, mode };
+    }
+    const grantProblems = validateGrant(options.grant, {
+      repo: deps.cfg.repo,
+      prNumber: record.prNumber,
+      headSha: record.headSha,
+      commentId: record.commentId,
+      bodyDigest: sha256(check.comment.body),
+      workRoot: deps.workRoot
+    });
+    if (grantProblems.length) {
+      return { status: 'rejected', reasons: grantProblems.map((r) => `授权无效：${r}`), key, mode };
+    }
   }
 
   if (!options.execute) {
@@ -99,6 +136,19 @@ export async function orchestrateTask({ record, deps, options }) {
       const workspace = await prepareWorktree({ projectRoot: deps.projectRoot, workRoot: deps.workRoot, record, dryRun: false });
       const cwd = workspace.realPath || workspace.dir;
       await access(cwd);
+
+      if (mode === 'real') {
+        // 先原子消费授权（改名成功才算拿到），再做 durable 预留；崩溃时宁可烧掉授权也不重跑
+        await consumeGrant(options.grantPath);
+        await deps.state.recordTaskOutcome(key, {
+          status: 'reserved',
+          mode: 'real',
+          attempts: usedBefore + 1,
+          reviewId: record.reviewId,
+          headSha: record.headSha
+        });
+        log('🔐 已消费一次性授权并写入执行前预留');
+      }
 
       const taskText = buildTaskContract({ task: check.task, prNumber: record.prNumber, headSha: record.headSha });
       const remaining = TOTAL_ATTEMPTS - usedBefore;
@@ -129,6 +179,7 @@ export async function orchestrateTask({ record, deps, options }) {
 
   const outcome = {
     status: result.status,
+    mode,
     attempts: totalAttempts,
     reviewId: record.reviewId,
     headSha: record.headSha,

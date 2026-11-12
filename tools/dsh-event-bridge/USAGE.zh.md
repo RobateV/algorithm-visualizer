@@ -83,18 +83,79 @@ node executor.mjs --api --prepare-workspace
 字段：`task_id / pr_number / base_sha / new_sha / status / attempts / started_at / finished_at`，
 正文附测试结果与错误摘要。默认只在 dry-run 里生成文本，**不发布到 PR**。
 
-## 6. 如何授权真实执行（需教师两次确认）
+## 6. 授权路径概览
 
-1. **第一次**：确认工作区隔离与测试通过后，再新增真实 `dsh` 调用（当前未接线）。
-2. **第二次**：确认试运行结果后，允许打开回写：
-   ```js
-   performWriteback({ enabled: true, dryRun: false, ... })
-   ```
-   并且只允许：普通 commit、非保护分支、`force: false`、PR HEAD 未变化、不自动合并。
+真实能力分两步放开，每一步都需要教师显式操作：
 
-在此之前，任何 `enabled: false` 或未授权的调用都会被拒绝并记录原因。
+1. **真实 DSH 执行**：一次性授权文件 + 隔离确认，详见 §7。
+2. **真实 GitHub 回写**：`performWriteback({ enabled: true, dryRun: false })`，
+   且只允许普通 commit、非保护分支、`force: false`、PR HEAD 未变化、不自动合并。
+   目前**未接线**。
 
-## 7. 安全边界
+未授权的调用一律被拒绝并记录原因。
+
+## 7. 真实执行（M2.7，默认关闭）
+
+> 只有教师完成隔离准备并**手工**发起时才会发生。默认没有任何自动路径能启动真实 `dsh`。
+
+### 8.1 前置
+
+1. 按 `docs/zh/real-run-isolation.md` 在 **Windows Sandbox 或虚拟机**里操作；
+   日常账号直接跑会被拒绝（需要显式 `--isolation-confirmed` 表示你已逐项确认）。
+2. 用接收器拿到任务的 `commentId / headSha / bodyDigest`（`inbox.jsonl` 里已有这些字段）。
+3. 起草一份一次性授权文件 `grant.json`：
+
+```json
+{
+  "version": 1,
+  "nonce": "任意 8 位以上随机串",
+  "repo": "RobateV/algorithm-visualizer",
+  "prNumber": 4,
+  "headSha": "<40 位 HEAD SHA>",
+  "commentId": 123456789,
+  "bodyDigest": "<inbox.jsonl 中的 bodyDigest>",
+  "workRoot": "<项目根>/../.dsh-worktrees",
+  "maxRuns": 1,
+  "issuedAt": "2026-11-12T10:00:00Z",
+  "expiresAt": "2026-11-12T12:00:00Z"
+}
+```
+
+有效期不得超过 24 小时；`maxRuns` 必须是 1。
+
+### 8.2 启动一次
+
+```powershell
+node executor.mjs --execute --real-dsh --grant .\grant.json --isolation-confirmed --state .\.local-state
+```
+
+执行器会：校验授权 → 加锁 → 在工作区根目录准备 worktree → **消费授权（文件改名）** →
+写入 `reserved` → 启动 `dsh` → 记录结果。授权只能被消费一次。
+
+### 8.3 查看结果
+
+| 文件 | 内容 |
+| --- | --- |
+| `<state>/results.jsonl` | 每次执行的状态、`mode`（`mock`/`real`）、尝试次数 |
+| `<state>/errors.jsonl` | 异常与熔断记录 |
+| `<worktree>` | 实际文件改动（本轮不 commit、不 push） |
+
+判断成功**不要只看 DSH 自述**：检查 worktree 里实际产生了哪些文件改动。
+
+### 8.4 停止与清理
+
+```powershell
+node executor.mjs --pause --state .\.local-state     # 立即暂停后续执行
+```
+
+清理：删除 worktree 目录（`git worktree prune`）、删除状态目录、销毁沙箱/回滚快照。
+
+### 8.5 崩溃后
+
+若进程被强杀，`results.jsonl` 会留下 `reserved` 记录。下次启动会自动标记为 `interrupted`
+并**暂停**，必须人工检查 worktree 与日志后执行 `--resume` 才能继续——不会自动重跑。
+
+## 8. 安全边界（不变）
 
 - 不做无人值守常驻；不安装高权限服务。
 - 不写 `main`/`master`，不 force push，不自动合并。

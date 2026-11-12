@@ -139,7 +139,7 @@ export class BridgeState {
     // 执行结果也从持久日志重建，避免重启后重放已成功的任务
     const tasks = {};
     for (const rec of results) {
-      if (rec && rec.key) tasks[rec.key] = { status: rec.status, attempts: rec.attempts, at: rec.at };
+      if (rec && rec.key) tasks[rec.key] = { status: rec.status, mode: rec.mode || 'mock', attempts: rec.attempts, at: rec.at };
     }
     this.state.tasks = { ...this.state.tasks, ...tasks };
   }
@@ -152,7 +152,7 @@ export class BridgeState {
   async recordTaskOutcome(key, outcome) {
     const record = { at: new Date().toISOString(), key, ...outcome };
     await appendDurable(this.resultsFile, record);
-    this.state.tasks[key] = { status: record.status, attempts: record.attempts, at: record.at };
+    this.state.tasks[key] = { status: record.status, mode: record.mode || 'mock', attempts: record.attempts, at: record.at };
     await this.#save();
     return record;
   }
