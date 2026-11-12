@@ -1,0 +1,13 @@
+{
+  "name": "dsh-event-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub 事件到本地 DSH 的 dry-run 接收器原型（只记录任务，不执行代码）",
+  "scripts": {
+    "test": "node --test",
+    "dry-run": "node receiver.mjs --once --fixture fixtures/sample-comments.json --state .demo-state",
+    "pause": "node receiver.mjs --pause",
+    "resume": "node receiver.mjs --resume"
+  }
+}

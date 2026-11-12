@@ -45,3 +45,8 @@ next-env.d.ts
 
 # TypeScript incremental build cache
 *.tsbuildinfo
+
+# DSH event bridge runtime state (dedupe / inbox / errors)
+/.dsh-bridge-state/
+/tools/dsh-event-bridge/.demo-state/
+/tools/dsh-event-bridge/.local-state/

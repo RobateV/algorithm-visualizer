@@ -1,0 +1,60 @@
+# 方案 B 的最小骨架：GitHub-hosted Actions 侧"事件生产者"。
+#
+# ⚠️ 本文件目前【只允许手动触发】，不监听 issue_comment，也不会向任何外部服务发请求。
+#    它的作用是：(a) 演示如何在云端校验事件来源；(b) 为将来接"签名中继"留出结构。
+#    真正启用前必须由教师确认中继部署与密钥管理方案。
+name: DSH event relay (manual, disabled by design)
+
+on:
+  workflow_dispatch:
+    inputs:
+      note:
+        description: '仅用于演示；不会触发任何下游动作'
+        required: false
+        default: 'dry-run'
+
+# 将来启用事件驱动时的形态（保持注释，避免误触发）：
+# on:
+#   issue_comment:
+#     types: [created]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 说明
+        run: |
+          echo "此工作流不会推送任务到任何地方。"
+          echo "方案 B 的生产形态需要：签名中继 + 本机出站长轮询，由教师批准后单独接入。"
+
+      - name: 校验仓库与作者（模板）
+        env:
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          echo "repo=$REPO actor=$ACTOR"
+          # 生产实现应在此处：
+          #   1) 校验 event.issue.pull_request 存在
+          #   2) 校验评论作者属于白名单
+          #   3) 校验评论正文含 [DSH-REVIEW-TASK] 且字段完整
+          #   4) 校验 expected_head_sha == PR 当前 head.sha
+          #   5) 仅把通过校验的最小载荷 POST 给中继（带 HMAC 签名）
+          echo "本步骤为占位，未产生任何网络请求。"
+
+      - name: 输出占位产物
+        run: |
+          mkdir -p out
+          printf '{"status":"disabled","note":"%s"}\n' "${{ inputs.note }}" > out/relay-dry-run.json
+          cat out/relay-dry-run.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dsh-relay-dry-run
+          path: out/relay-dry-run.json
+          retention-days: 3

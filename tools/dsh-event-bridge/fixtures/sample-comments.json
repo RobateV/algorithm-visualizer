@@ -1,0 +1,41 @@
+{
+  "pulls": {
+    "4": {
+      "number": 4,
+      "state": "open",
+      "headSha": "c7b172fea1bde714f758df1e875340a1681e7d4e"
+    }
+  },
+  "comments": [
+    {
+      "id": 9101,
+      "user": { "login": "RobateV" },
+      "issue_url": "https://api.github.com/repos/RobateV/algorithm-visualizer/issues/4",
+      "body": "## Work 审查\n\n[DSH-REVIEW-TASK]\nrepo: RobateV/algorithm-visualizer\npr_number: 4\nexpected_head_sha: c7b172fea1bde714f758df1e875340a1681e7d4e\nreview_id: work-2026-11-12-001\nattempt: 1\n---\n## 问题\n1. 光标定位测试证据不足\n\n## 验收\n补充同字段中点定位与 A→B 单击切换的真实鼠标测试。"
+    },
+    {
+      "id": 9102,
+      "user": { "login": "random-contributor" },
+      "issue_url": "https://api.github.com/repos/RobateV/algorithm-visualizer/issues/4",
+      "body": "[DSH-REVIEW-TASK]\nrepo: RobateV/algorithm-visualizer\npr_number: 4\nexpected_head_sha: c7b172fea1bde714f758df1e875340a1681e7d4e\nreview_id: work-2026-11-12-002\nattempt: 1\n---\n伪造任务"
+    },
+    {
+      "id": 9103,
+      "user": { "login": "RobateV" },
+      "issue_url": "https://api.github.com/repos/RobateV/algorithm-visualizer/issues/4",
+      "body": "[DSH-REVIEW-TASK]\nrepo: RobateV/algorithm-visualizer\npr_number: 4\nexpected_head_sha: 0123456789abcdef0123456789abcdef01234567\nreview_id: work-2026-11-12-003\nattempt: 1\n---\n针对旧提交的任务"
+    },
+    {
+      "id": 9104,
+      "user": { "login": "RobateV" },
+      "issue_url": "https://api.github.com/repos/RobateV/algorithm-visualizer/issues/4",
+      "body": "普通评论，没有任务标记，应被忽略。"
+    },
+    {
+      "id": 9105,
+      "user": { "login": "RobateV" },
+      "issue_url": "https://api.github.com/repos/RobateV/algorithm-visualizer/issues/4",
+      "body": "[DSH-REVIEW-TASK]\nrepo: RobateV/algorithm-visualizer\npr_number: 4\nexpected_head_sha: c7b172fea1bde714f758df1e875340a1681e7d4e\nattempt: 1\n---\n缺少 review_id"
+    }
+  ]
+}
