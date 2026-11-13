@@ -1,0 +1,232 @@
+# One-shot real lesson pilot; triggered only by the repository owner's exact comment on Issue #17.
+name: DSH / binary-search lesson pilot
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-binary-lesson-issue-17
+  cancel-in-progress: false
+
+jobs:
+  develop:
+    name: DSH edits one existing lesson (no GitHub write token)
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.issue.number == 17 &&
+      github.event.issue.pull_request == null &&
+      github.event.issue.state == 'open' &&
+      github.event.issue.user.login == 'RobateV' &&
+      github.actor == 'RobateV' &&
+      github.event.comment.user.login == 'RobateV' &&
+      github.event.comment.body == '/dsh-binary-lesson-001'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Check no previous pilot branch exists
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch='lesson/dsh-binary-issue-17'
+          response="$(gh api -i "repos/$GITHUB_REPOSITORY/git/ref/heads/$branch" 2>&1)" && {
+            echo 'Pilot branch already exists. Refusing to spend another model run.'
+            exit 1
+          }
+          if ! grep -q 'HTTP/.* 404' <<< "$response"; then
+            echo 'Cannot establish whether pilot branch exists; stopping.'
+            exit 1
+          fi
+          echo 'No previous pilot branch.'
+
+      - name: Checkout event main commit without credentials
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check clean trusted working tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -f public/lessons/binary-search.html
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install tested DSH CLI version
+        run: npm install --global @deepseek-ai/dsh@0.2.1-rc.5
+
+      - name: Prepare temporary non-secret OpenCode Go configuration
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/opencode-go.patch.yml" <<'PATCH'
+          - id: llm-pi-ai
+            config:
+              providers:
+                opencode-go:
+                  displayName: OpenCode Go
+                  apiKeyEnv: OPENCODE_GO_API_KEY
+                  api: openai-completions
+                  baseURL: https://opencode.ai/zen/go/v1
+                  defaultContextWindow: 1000000
+                  defaultMaxTokens: 16384
+                  models:
+                    - id: deepseek-v4.1-flash
+                      name: DeepSeek V4.1 Flash
+                      contextWindow: 1000000
+                      reasoningEfforts: { low: low, high: high, max: max }
+          - id: agent-default-model
+            config:
+              provider: opencode-go
+              model: deepseek-v4.1-flash
+              reasoningEffort: low
+          PATCH
+
+      - name: Implement Issue 17 in one existing lesson file
+        shell: bash
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$OPENCODE_GO_API_KEY"
+          cat > "$RUNNER_TEMP/lesson-task.txt" <<'TASK'
+          Implement the approved real classroom feature described by GitHub Issue #17, with these complete fixed instructions. Work in the current Git repository.
+          
+          Only modify public/lessons/binary-search.html. No other files, no new dependencies, no changes to GitHub Actions, no GitHub API, no commits, no pushes, no PR creation, no deployment. Do not read environment variables or print secrets. Do not run network commands, package installations, or remote scripts.
+          
+          Current page has three preexisting modes ?mode=search|answer|real, state builders buildSearchStates/buildAnswerStates/buildRealStates, previous/next/reset buttons, code-line highlighting, fullscreen, whiteboard, and iframe postMessage. Preserve all of those. The sorting.html page contains a lecture-stage design for reference, but do not copy or modify that page.
+          
+          Make a real, usable 3-stage teaching flow on the binary-search page:
+          Stage 1 title exactly "原理讲解": default on initial load; a classroom-friendly large-text introduction, concrete question, and clear boundary/invariant explanation appropriate to the selected mode, with meaningful examples, not an empty placeholder.
+          Stage 2 title exactly "动画演示": keep original step-by-step visual simulation, state-index controls and helpful explanation. Hide the code window entirely, reallocating space to the animation.
+          Stage 3 title exactly "动画 + 代码": show visual simulation and existing C++ code side by side, with current line highlight synchronized to the same state index used in stage 2.
+          
+          Provide clear top stage navigation, previous/next stage navigation as useful, and make stage changes independent of changes in the algorithm's stateIndex. Preserve existing steps when moving between stage 2 and 3. Keep ?mode query deep linking and changing among all three algorithms. Do not create competing timers or repeated listeners. Make desktop classroom projection typography and spacing comfortable and responsive. Use actual DOM/HTML text, not rendered slide images.
+          
+          Be careful about the page's inline script. Ensure its JavaScript is syntactically valid, and avoid breaking existing controls. Static tests will validate only HTML labels, JavaScript syntax and changed-file scope; browser behavior still requires teacher acceptance. Stop after editing the file.
+          TASK
+          if ! dsh --profile headless --patch "$RUNNER_TEMP/opencode-go.patch.yml" "$(cat "$RUNNER_TEMP/lesson-task.txt")" > "$RUNNER_TEMP/dsh-output.txt" 2> "$RUNNER_TEMP/dsh-errors.txt"; then
+            echo 'DSH failed; stopping without publishing model output.'
+            exit 1
+          fi
+          echo 'DSH finished editing. Validating changes before any publication.'
+
+      - name: Verify scope, stage labels, and JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          changed="$(git status --porcelain=v1 --untracked-files=all)"
+          test "$changed" = ' M public/lessons/binary-search.html' || {
+            echo 'Unexpected files changed. Refusing to publish.'; exit 1;
+          }
+          grep -Fq '原理讲解' public/lessons/binary-search.html
+          grep -Fq '动画演示' public/lessons/binary-search.html
+          grep -Fq '动画 + 代码' public/lessons/binary-search.html
+          git diff --check
+          python3 - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("public/lessons/binary-search.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script(?:\s[^>]*)?>(.*?)</script\s*>", text, re.I | re.S)
+          if len(scripts) != 1 or not scripts[0].strip():
+              raise SystemExit("Expected exactly one nonempty inline JavaScript block.")
+          pathlib.Path("/tmp/dsh-binary-lesson.js").write_text(scripts[0], encoding="utf-8")
+          PY
+          node --check /tmp/dsh-binary-lesson.js
+          mkdir -p "$RUNNER_TEMP/lesson-patch"
+          git diff --binary -- public/lessons/binary-search.html > "$RUNNER_TEMP/lesson-patch/binary.patch"
+          test -s "$RUNNER_TEMP/lesson-patch/binary.patch"
+          test "$(wc -c < "$RUNNER_TEMP/lesson-patch/binary.patch")" -lt 250000
+          echo 'Verified one modified lesson file, required stage labels, diff format, and JavaScript syntax. No browser acceptance claimed.'
+
+      - name: Upload checked patch (not model output)
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-binary-lesson-patch-${{ github.run_id }}
+          path: ${{ runner.temp }}/lesson-patch/binary.patch
+          retention-days: 3
+          if-no-files-found: error
+
+  publish:
+    name: Create separate draft lesson PR (no model secret)
+    needs: develop
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout same trusted main commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: true
+
+      - name: Download only validated patch
+        uses: actions/download-artifact@v4
+        with:
+          name: dsh-binary-lesson-patch-${{ github.run_id }}
+          path: patch
+
+      - name: Recheck patch and create fixed one-branch commit
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain --untracked-files=all -- ':!patch/')"
+          test "$(find patch -type f | wc -l)" -eq 1
+          test -f patch/binary.patch
+          test "$(wc -c < patch/binary.patch)" -lt 250000
+          affected="$(git apply --numstat patch/binary.patch | awk -F '\t' '{print $3}')"
+          test "$affected" = 'public/lessons/binary-search.html' || {
+            echo 'Patch targets an unauthorized path.'; exit 1;
+          }
+          git apply --check patch/binary.patch
+          git apply patch/binary.patch
+          changed="$(git diff --name-only)"
+          test "$changed" = 'public/lessons/binary-search.html'
+          git diff --check
+          grep -Fq '原理讲解' public/lessons/binary-search.html
+          grep -Fq '动画演示' public/lessons/binary-search.html
+          grep -Fq '动画 + 代码' public/lessons/binary-search.html
+          branch='lesson/dsh-binary-issue-17'
+          git switch -c "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- public/lessons/binary-search.html
+          git commit -m 'feat: three-stage binary-search teaching lesson'
+          git push origin "$branch"
+          echo 'One verified lesson file pushed to a dedicated branch.'
+
+      - name: Open draft PR for human review
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          body="$(cat <<'BODY'
+          Implements Issue #17 pilot: teaching principle → visual animation → animation + highlighted code for binary-search lesson.
+          Only public/lessons/binary-search.html was modified. DSH agent ran with read-only repository permissions; this publishing job applied a file-scoped patch with separate write permissions.
+          Static checks: Git changed-file scope, diff whitespace, inline JavaScript syntax, and stage labels. Browser interaction and user acceptance have NOT been performed.
+          Please review manually; do NOT auto-merge. No Work review task is automatically activated.
+          BODY
+          )"
+          url="$(gh api -X POST "repos/$GITHUB_REPOSITORY/pulls" \
+            -f 'head=lesson/dsh-binary-issue-17' -f 'base=main' \
+            -f 'title=Draft: DSH three-stage binary-search classroom lesson' \
+            -f "body=$body" -F draft=true --jq '.html_url')"
+          echo "Draft lesson PR created: $url"
