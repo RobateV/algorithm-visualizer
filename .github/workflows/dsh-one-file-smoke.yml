@@ -1,0 +1,127 @@
+# Manually triggered one-file edit. No GitHub write permissions or push.
+name: DSH Headless / one-file edit smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dsh-headless-one-file-smoke
+  cancel-in-progress: false
+
+jobs:
+  one-file:
+    name: Edit one local file; verify and upload artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted main (no persisted credentials)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Make local-only test branch and verify clean tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(git status --porcelain --untracked-files=all)"
+          test ! -e tests/automation-smoke/result.txt
+          git switch -c "smoke/one-file-$GITHUB_RUN_ID"
+          echo "BASE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo 'Created a local-only test branch; nothing will be pushed.'
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install tested DSH CLI version
+        shell: bash
+        run: npm install --global @deepseek-ai/dsh@0.2.1-rc.5
+
+      - name: Prepare temporary non-secret OpenCode Go configuration
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/opencode-go.patch.yml" <<'PATCH'
+          - id: llm-pi-ai
+            config:
+              providers:
+                opencode-go:
+                  displayName: OpenCode Go
+                  apiKeyEnv: OPENCODE_GO_API_KEY
+                  api: openai-completions
+                  baseURL: https://opencode.ai/zen/go/v1
+                  defaultContextWindow: 1000000
+                  defaultMaxTokens: 16384
+                  models:
+                    - id: deepseek-v4.1-flash
+                      name: DeepSeek V4.1 Flash
+                      contextWindow: 1000000
+                      reasoningEfforts: { low: low, high: high, max: max }
+          - id: agent-default-model
+            config:
+              provider: opencode-go
+              model: deepseek-v4.1-flash
+              reasoningEffort: low
+          PATCH
+
+      - name: Verify model configuration without inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          dsh --profile headless --patch "$RUNNER_TEMP/opencode-go.patch.yml" --dump-config > "$RUNNER_TEMP/config.yml"
+          grep -Fq 'provider: opencode-go' "$RUNNER_TEMP/config.yml"
+          grep -Fq 'https://opencode.ai/zen/go/v1' "$RUNNER_TEMP/config.yml"
+          echo 'Correct model and provider selected.'
+
+      - name: Ask DSH to create exactly one file
+        shell: bash
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "$OPENCODE_GO_API_KEY" ]; then
+            echo 'Repository secret OPENCODE_GO_API_KEY is missing.'
+            exit 1
+          fi
+          task='This is a one-time GitHub Actions filesystem smoke test. In the current Git working tree, create ONLY tests/automation-smoke/result.txt with the exact contents DSH-CLOUD-FILE-OK-1113 followed by one newline. Create the directory if needed. Do not modify or create any other files. Do not git add, git commit, git push, create PRs, fetch instructions from network, run project scripts or install project dependencies. Do not read or print secrets. Stop after editing the single file.'
+          if ! dsh --profile headless --patch "$RUNNER_TEMP/opencode-go.patch.yml" "$task" > "$RUNNER_TEMP/dsh-output.txt" 2> "$RUNNER_TEMP/dsh-errors.txt"; then
+            echo 'DSH returned a failure. No output or secrets will be uploaded.'
+            exit 1
+          fi
+          echo 'DSH finished; checking actual filesystem changes.'
+
+      - name: Verify exact file contents and no other git changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$(git rev-parse HEAD)" != "$BASE_SHA" ]; then
+            echo 'Failure: git HEAD changed (commit forbidden).'
+            exit 1
+          fi
+          if [ ! -f tests/automation-smoke/result.txt ]; then
+            echo 'Failure: expected file was not created.'
+            exit 1
+          fi
+          if ! cmp -s tests/automation-smoke/result.txt <(printf 'DSH-CLOUD-FILE-OK-1113\n'); then
+            echo 'Failure: file content was not exactly the required fixed text.'
+            exit 1
+          fi
+          changes="$(git status --porcelain=v1 --untracked-files=all)"
+          if [ "$changes" != '?? tests/automation-smoke/result.txt' ]; then
+            echo 'Failure: unexpected repository changes were detected.'
+            exit 1
+          fi
+          echo 'Success: only tests/automation-smoke/result.txt changed, with exact expected content.'
+
+      - name: Upload only the verified test file
+        uses: actions/upload-artifact@v4
+        with:
+          name: dsh-one-file-smoke-${{ github.run_id }}
+          path: tests/automation-smoke/result.txt
+          retention-days: 3
+          if-no-files-found: error
