@@ -1,0 +1,72 @@
+# Manually triggered, text-only smoke test. No checkout, no GitHub writes.
+name: DSH Headless / OpenCode Go smoke test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: dsh-headless-opencode-go-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    name: One model reply (no repository changes)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install pinned DSH CLI
+        run: npm install --global @deepseek-ai/dsh@0.2.1-rc.5
+
+      - name: Prepare temporary non-secret OpenCode Go config
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/opencode-go.patch.yml" <<'PATCH'
+          - id: llm-pi-ai
+            config:
+              providers:
+                opencode-go:
+                  displayName: OpenCode Go
+                  apiKeyEnv: OPENCODE_GO_API_KEY
+                  api: openai-completions
+                  baseURL: https://opencode.ai/zen/go/v1
+                  defaultContextWindow: 1000000
+                  defaultMaxTokens: 16384
+                  models:
+                    - id: deepseek-v4.1-flash
+                      name: DeepSeek V4.1 Flash
+                      contextWindow: 1000000
+                      reasoningEfforts: { low: low, high: high, max: max }
+          - id: agent-default-model
+            config:
+              provider: opencode-go
+              model: deepseek-v4.1-flash
+              reasoningEffort: low
+          PATCH
+
+      - name: Verify effective model config (no inference)
+        shell: bash
+        run: |
+          dsh --profile headless --patch "$RUNNER_TEMP/opencode-go.patch.yml" --dump-config > "$RUNNER_TEMP/dsh-effective.yml"
+          grep -Fq 'provider: opencode-go' "$RUNNER_TEMP/dsh-effective.yml"
+          grep -Fq 'https://opencode.ai/zen/go/v1' "$RUNNER_TEMP/dsh-effective.yml"
+          echo 'OpenCode Go configuration loaded.'
+
+      - name: One fixed-text inference request
+        shell: bash
+        env:
+          OPENCODE_GO_API_KEY: ${{ secrets.OPENCODE_GO_API_KEY }}
+        run: |
+          if [ -z "$OPENCODE_GO_API_KEY" ]; then
+            echo 'Missing OPENCODE_GO_API_KEY repository secret.'
+            exit 1
+          fi
+          reply="$(dsh --profile headless --patch "$RUNNER_TEMP/opencode-go.patch.yml" '请只回复：CLOUD-DSH-OK-1113')"
+          printf '%s\n' "$reply"
+          grep -Fq 'CLOUD-DSH-OK-1113' <<< "$reply"
