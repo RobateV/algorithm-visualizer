@@ -1,8 +1,10 @@
-# Manually triggered one-file edit. No GitHub write permissions or push.
+# Manual or strictly authorized PR #14 comment trigger. Secrets only in read-only DSH job.
 name: DSH Headless / create test PR
 
 on:
   workflow_dispatch:
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -14,7 +16,21 @@ concurrency:
 jobs:
   one-file:
     name: Generate and verify local file (no write token)
-    if: github.ref == 'refs/heads/main'
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'issue_comment' &&
+          github.event.action == 'created' &&
+          github.event.issue.number == 14 &&
+          github.event.issue.pull_request != null &&
+          github.event.issue.state == 'open' &&
+          github.actor == 'RobateV' &&
+          github.event.comment.user.login == 'RobateV' &&
+          github.event.comment.body == '/dsh-smoke-once-1113'
+        )
+      )
     permissions:
       contents: read
     runs-on: ubuntu-24.04
