@@ -155,3 +155,74 @@ attempt: 1
 - 评论正文按纯文本解析，不做任何 HTML/脚本求值。
 - 状态目录与令牌都不进版本库（见根 `.gitignore`）。
 - 本版本不执行代码；即便将来接执行，也应在隔离目录内、以一次性任务运行。
+
+---
+
+# 本地任务监听器（`local-listener.mjs`）
+
+面向 **GitHub Issue #21 任务收件箱** 的独立入口，与上面的 PR 接收器**规则隔离**，
+不要用同一套校验逻辑互相放宽。
+
+- 收件箱：`RobateV/algorithm-visualizer` 的 Issue **#21**
+- 只读阶段：**只记录任务，不执行任何代码**
+
+## 规则
+
+| 条件 | 要求 |
+| --- | --- |
+| 仓库 | 固定 `RobateV/algorithm-visualizer` |
+| 位置 | Issue #21 的顶层评论 |
+| 作者 | 仅 `RobateV` |
+| 连通性测试 | 首行 `[LOCAL-DSH-PING]`，只记录，不建任务 |
+| 任务标记 | 首行 `[LOCAL-DSH-TASK]` |
+| 必填字段 | `task_id` / `branch` / `expected_sha` / `allow` / `accept` |
+| 去重 | 按 `task_id` 与 `comment_id` |
+| 编辑校验 | `updated_at != created_at` 的评论拒收 |
+| 分支限制 | 不得以 `main`/`master` 为目标 |
+| 路径限制 | `allow` 必须是仓库内相对路径，拒绝 `..` 与绝对路径 |
+
+## 用法
+
+```powershell
+cd tools\dsh-event-bridge
+$env:DSH_BRIDGE_TOKEN = (gh auth token)
+
+node local-listener.mjs --once              # 单次轮询（验证用）
+node local-listener.mjs --interval 20       # 常驻轮询（默认 20 秒）
+node local-listener.mjs --status            # 查看状态
+node local-listener.mjs --pause             # 暂停
+node local-listener.mjs --resume            # 恢复
+```
+
+## 任务格式
+
+```
+[LOCAL-DSH-TASK]
+task_id: 20261114-01
+branch: dev/local-dsh-20261114
+expected_sha: <40 位十六进制>
+allow: public/lessons/binary-search.html, docs/knowledge-base/
+accept: 页面无控制台报错；知识库页码可核对
+---
+任务详情（自然语言）
+```
+
+## 状态与日志
+
+| 文件 | 内容 |
+| --- | --- |
+| `.local-state/listener-state.json` | 已见评论、任务、暂停标志、最近轮询时间 |
+| `.local-state/listener.log` | 追加式日志（评论 ID、接收结果） |
+| `.local-state/listener.lock` | 单实例锁 |
+| `.local-state/PAUSED` | 暂停标记 |
+
+> 整个 `.local-state/` 已在 `.gitignore` 中忽略，不会提交。
+
+## 安全边界
+
+- 默认只读：不调用 DSH、不修改文件、不 push。
+- 单实例锁：同时只能跑一个监听器，任务串行。
+- 无任务时只发一次 GitHub 请求，不调用任何模型。
+- 令牌只从环境变量或 `gh auth token` 读取，不落盘、不打印。
+- 监听器不开放入站端口，也不注册 GitHub self-hosted runner。
+
