@@ -544,6 +544,91 @@
     .draw-tools-panel { display: none; align-items: center; gap: 10px; border-left: 1px solid var(--line); padding-left: 10px; }
     .draw-tools-panel.show { display: flex; }
 
+    /* ============ 编辑模式（M2） ============ */
+    .editor-bar {
+        flex: 0 0 auto;
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        padding: 7px 12px;
+        background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px;
+    }
+    .editor-bar[hidden] { display: none; }
+    .eb-badge {
+        font-size: 11.5px; font-weight: 800; letter-spacing: .3px;
+        color: #92400E; background: #FEF3C7; border-radius: 6px; padding: 2px 8px;
+    }
+    .eb-status { font-size: 11.5px; font-weight: 700; font-family: Consolas, monospace; color: var(--muted); }
+    .eb-status[data-state="unsaved"] { color: #B45309; }
+    .eb-status[data-state="failed"] { color: var(--swap); }
+    .eb-status[data-state="saved"] { color: #047857; }
+    .eb-group { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: 1px solid var(--line); border-radius: 9px; padding: 2px; }
+    .eb-btn {
+        border: 1px solid transparent; background: transparent; color: var(--muted);
+        border-radius: 7px; font-size: 12px; font-weight: 700; padding: 4px 9px;
+        cursor: pointer; white-space: nowrap; transition: all .15s;
+    }
+    .eb-btn:hover { background: #F1F5F9; color: var(--text); }
+    .eb-btn.on { background: var(--primary); color: #fff; }
+    .eb-btn.danger { color: var(--swap); }
+    .eb-btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .eb-btn.primary:hover { background: #1D4ED8; color: #fff; }
+    .eb-color {
+        width: 20px; height: 20px; border-radius: 50%; cursor: pointer;
+        border: 2px solid transparent; padding: 0;
+    }
+    .eb-color.on { border-color: #0F172A; transform: scale(1.1); }
+    .eb-label { font-size: 11.5px; font-weight: 700; color: #92400E; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .eb-style[hidden] { display: none; }
+
+    /* 可编辑文字 */
+    body.is-editing .etext {
+        cursor: text; user-select: text;
+        outline: 1px dashed rgba(37, 99, 235, .5); outline-offset: 3px;
+        border-radius: 4px; transition: background .15s, outline-color .15s;
+    }
+    body.is-editing .etext:hover { background: rgba(37, 99, 235, .07); }
+    body.is-editing .etext.is-editing {
+        outline: 2px solid var(--primary); outline-offset: 3px;
+        background: #fff; box-shadow: 0 6px 18px rgba(37, 99, 235, .16);
+        cursor: text; user-select: text;
+    }
+    .etext.is-editing:focus { outline: 2px solid var(--primary); }
+    .etext.ml { white-space: pre-line; }
+    .etext.is-editing:empty::before { content: '（空，输入文字）'; color: #94A3B8; }
+
+    /* 白名单文字样式 */
+    .fs-s { font-size: .85em !important; }
+    .fs-m { font-size: 1em !important; }
+    .fs-l { font-size: 1.24em !important; }
+    .fs-xl { font-size: 1.5em !important; }
+    .fw-normal { font-weight: 400 !important; }
+    .fw-bold { font-weight: 800 !important; }
+    .fc-default { color: inherit !important; }
+    .fc-blue { color: #2563EB !important; }
+    .fc-dark { color: #0F172A !important; }
+    .fc-muted { color: #64748B !important; }
+    .fc-red { color: #DC2626 !important; }
+    .fc-green { color: #047857 !important; }
+    .fc-orange { color: #B45309 !important; }
+
+    /* 只读提示 */
+    .readonly-tag {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 11px; font-weight: 700; color: var(--muted);
+        background: #F1F5F9; border-radius: 5px; padding: 1px 6px; margin-left: 6px;
+    }
+
+    /* 轻提示 */
+    .toast {
+        position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%);
+        z-index: 10001; max-width: 72vw;
+        background: #0F172A; color: #fff; font-size: 13px; font-weight: 600;
+        padding: 9px 16px; border-radius: 10px;
+        box-shadow: 0 10px 30px rgba(15, 23, 42, .28);
+    }
+    .toast[hidden] { display: none; }
+    .toast.error { background: #B91C1C; }
+    .toast.ok { background: #047857; }
+
     /* ============ 窄屏 ============ */
     @media (max-height: 800px) {
         .app { padding: 8px clamp(10px, 1.4vw, 20px) 8px; gap: 8px; }
@@ -600,9 +685,48 @@
         </div>
         <div class="topbar-actions">
             <select class="algo-select" id="algo-select" aria-label="选择排序算法"></select>
+            <button class="ghost-btn" id="edit-toggle" title="进入编辑模式，直接修改课件文字">✏️ 编辑课件</button>
             <button class="ghost-btn" id="fullscreen-btn" onclick="toggleFullScreen()">🖥️ 全屏演示</button>
         </div>
     </header>
+
+    <div class="editor-bar" id="editor-bar" hidden>
+        <span class="eb-badge">编辑模式</span>
+        <span class="eb-status" id="save-status" data-state="saved">已保存</span>
+
+        <div class="eb-style" id="style-panel" hidden>
+            <span class="eb-label" id="style-target">未选中文字</span>
+            <div class="eb-group" role="group" aria-label="字号">
+                <button class="eb-btn" data-size="s">小</button>
+                <button class="eb-btn" data-size="m">中</button>
+                <button class="eb-btn" data-size="l">大</button>
+                <button class="eb-btn" data-size="xl">特大</button>
+            </div>
+            <div class="eb-group" role="group" aria-label="字重">
+                <button class="eb-btn" data-weight="400">常规</button>
+                <button class="eb-btn" data-weight="700">加粗</button>
+            </div>
+            <div class="eb-group" role="group" aria-label="文字颜色">
+                <button class="eb-color" data-color="default" title="默认" style="background:#fff;border-color:#CBD5E1;"></button>
+                <button class="eb-color" data-color="dark" title="深色" style="background:#0F172A;"></button>
+                <button class="eb-color" data-color="blue" title="蓝" style="background:#2563EB;"></button>
+                <button class="eb-color" data-color="green" title="绿" style="background:#047857;"></button>
+                <button class="eb-color" data-color="orange" title="橙" style="background:#B45309;"></button>
+                <button class="eb-color" data-color="red" title="红" style="background:#DC2626;"></button>
+            </div>
+            <button class="eb-btn" id="style-reset">重置样式</button>
+        </div>
+
+        <div style="margin-left:auto; display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="eb-btn" id="btn-export">导出 JSON</button>
+            <button class="eb-btn" id="btn-import">导入 JSON</button>
+            <button class="eb-btn danger" id="btn-reset-course">恢复默认</button>
+            <button class="eb-btn primary" id="btn-finish">完成编辑</button>
+        </div>
+    </div>
+
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+    <div class="toast" id="toast" hidden></div>
 
     <nav class="stagebar" id="stagebar" aria-label="教学环节"></nav>
 
@@ -1740,19 +1864,22 @@ function renderStage() {
     if (slide.kind === 'anim' || slide.kind === 'code') {
         renderState(currentStateIndex, { animate: false, mode: slide.kind });
     }
+    updateEditorUI();
 }
 
 function buildSlideFrame(slide, bodyNode) {
     const card = h('section', { class: 'slide-card', dataset: { slide: slide.id } });
     const head = h('div', { class: 'slide-head' });
     const meta = h('div', { class: 'head-meta' });
-    meta.appendChild(h('span', { class: 'kicker', text: slide.kicker }));
+    meta.appendChild(editTarget(h('span', { class: 'kicker', text: slide.kicker }), 'slides.' + slide.id + '.kicker', '环节小标题'));
     if (slide.code) {
         meta.appendChild(h('span', { class: 'page-code', id: 'page-code', text: slide.code + ' · ' + slide.nav }));
     }
     head.appendChild(meta);
-    head.appendChild(h('h2', { class: 'slide-title', text: slide.title }));
-    if (slide.lead) head.appendChild(rich(h('p', { class: 'slide-lead' }), slide.lead));
+    head.appendChild(editTarget(h('h2', { class: 'slide-title', text: slide.title }), 'slides.' + slide.id + '.title', '页面标题'));
+    if (slide.lead) {
+        head.appendChild(editTarget(rich(h('p', { class: 'slide-lead' }), slide.lead), 'slides.' + slide.id + '.lead', '导语'));
+    }
     card.appendChild(head);
     card.appendChild(bodyNode);
     return card;
@@ -1783,12 +1910,13 @@ function buildDescCard() {
 }
 
 function buildIntro(slide) {
+    const base = 'slides.' + slide.id;
     const body = h('div', { class: 'intro-grid' });
 
     const left = h('div');
     const qCard = h('div', { class: 'question-card', dataset: { block: 'question' } });
     qCard.appendChild(h('div', { class: 'q-label', text: '课堂问题' }));
-    qCard.appendChild(h('p', { class: 'q-text', text: slide.question }));
+    qCard.appendChild(editTarget(h('p', { class: 'q-text', text: slide.question }), base + '.question', '课堂问题'));
 
     const row = h('div', { class: 'num-row' });
     SAMPLE_DATA.forEach(function (value, i) {
@@ -1802,8 +1930,13 @@ function buildIntro(slide) {
     left.appendChild(qCard);
 
     const cta = h('div', { class: 'intro-cta' });
-    const go = h('button', { class: 'btn primary', text: slide.cta + ' →' });
-    go.addEventListener('click', function () { gotoSlide(1); });
+    const go = h('button', { class: 'btn primary' });
+    go.appendChild(editTarget(h('span', { text: slide.cta }), base + '.cta', '按钮文字'));
+    go.appendChild(document.createTextNode(' →'));
+    go.addEventListener('click', function () {
+        if (editMode) return;
+        gotoSlide(1);
+    });
     cta.appendChild(go);
     cta.appendChild(h('span', { class: 'intro-hint', text: '或用键盘 → 键翻页' }));
     left.appendChild(cta);
@@ -1813,7 +1946,10 @@ function buildIntro(slide) {
     hintCard.appendChild(h('div', { class: 'q-label', text: '观察提示（先别急着看结论）' }));
     const list = h('ul', { class: 'intro-points' });
     slide.hints.forEach(function (hint) {
-        const item = h('li', { dataset: { block: hint.id } }, [h('span', { class: 'dot' }), h('span', { text: hint.text })]);
+        const item = h('li', { dataset: { block: hint.id } }, [
+            h('span', { class: 'dot' }),
+            editTarget(h('span', { text: hint.text }), base + '.hints.' + hint.id + '.text', '观察提示')
+        ]);
         list.appendChild(item);
     });
     hintCard.appendChild(list);
@@ -1825,27 +1961,35 @@ function buildIntro(slide) {
 }
 
 function buildPrinciple(slide) {
+    const base = 'slides.' + slide.id;
     const body = h('div', { class: 'principle-body' });
 
     // 上半区：固定图示槽位，优先占位，不受下方讲解条数影响
     const figurePane = h('div', { class: 'principle-figure' });
     const active = slide.steps[subStep];
-    if (active && active.figure) figurePane.appendChild(buildFigure(active.figure));
+    if (active && active.figure) {
+        figurePane.appendChild(buildFigure(active.figure, base + '.steps.' + active.id + '.figure.caption'));
+    }
     body.appendChild(figurePane);
 
     // 下半区：三个槽位常驻，未揭晓的保留占位，揭晓只切换样式不改变布局
     const stack = h('div', { class: 'concept-stack' });
     slide.steps.forEach(function (step, i) {
         const revealed = i <= subStep;
+        const showContent = revealed || editMode;   // 编辑模式展示全部文案，便于逐条修改
         const item = h('div', {
             class: 'concept-item ' + (revealed ? 'is-revealed' : 'is-pending') + (i === subStep ? ' is-active' : ''),
             dataset: { block: step.id }
         });
         item.appendChild(h('span', { class: 'step-no', text: String(i + 1) }));
         const text = h('div');
-        text.appendChild(h('h3', { text: revealed ? step.heading : '待揭晓' }));
-        if (revealed) text.appendChild(rich(h('p'), step.body));
-        else text.appendChild(h('p', { text: '点击「下一页」展开第 ' + (i + 1) + ' 条讲解' }));
+        if (showContent) {
+            text.appendChild(editTarget(h('h3', { text: step.heading }), base + '.steps.' + step.id + '.heading', '讲解标题'));
+            text.appendChild(editTarget(rich(h('p'), step.body), base + '.steps.' + step.id + '.body', '讲解正文'));
+        } else {
+            text.appendChild(h('h3', { text: '待揭晓' }));
+            text.appendChild(h('p', { text: '点击「下一页」展开第 ' + (i + 1) + ' 条讲解' }));
+        }
         item.appendChild(text);
         stack.appendChild(item);
     });
@@ -1863,7 +2007,7 @@ function buildPrinciple(slide) {
     return buildSlideFrame(slide, body);
 }
 
-function buildFigure(figure) {
+function buildFigure(figure, captionPath) {
     const wrap = h('div', { class: 'figure-card' });
     const row = h('div', { class: 'figure-nums' });
     figure.cards.forEach(function (value, i) {
@@ -1874,41 +2018,46 @@ function buildFigure(figure) {
         row.appendChild(card);
     });
     wrap.appendChild(row);
-    const caption = h('div', { class: 'figure-caption' });
+    const caption = editTarget(h('div', { class: 'figure-caption' }), captionPath, '图示说明');
     caption.appendChild(richNode(figure.caption));
     wrap.appendChild(caption);
     return wrap;
 }
 
 function buildSummary(slide) {
+    const base = 'slides.' + slide.id;
     const body = h('div', { class: 'summary-grid' });
 
     const left = h('div', { class: 'point-list' });
     slide.points.forEach(function (point) {
         const item = h('div', { class: 'point-item', dataset: { block: point.id } });
-        item.appendChild(h('span', { class: 'tag', text: point.tag }));
+        item.appendChild(editTarget(h('span', { class: 'tag', text: point.tag }), base + '.points.' + point.id + '.tag', '要点标签'));
         const text = h('div');
-        text.appendChild(h('h3', { text: point.title }));
-        text.appendChild(h('p', { text: point.body }));
+        text.appendChild(editTarget(h('h3', { text: point.title }), base + '.points.' + point.id + '.title', '要点标题'));
+        text.appendChild(editTarget(h('p', { text: point.body }), base + '.points.' + point.id + '.body', '要点说明'));
         item.appendChild(text);
         left.appendChild(item);
     });
 
     const right = h('div', { class: 'quiz-card' });
     slide.quiz.forEach(function (quiz, qi) {
+        const qBase = base + '.quiz.' + quiz.id;
         const item = h('div', { class: 'quiz-item', dataset: { block: quiz.id } });
         const title = h('h3');
         title.appendChild(h('span', { class: 'qn', text: 'Q' + (qi + 1) }));
-        title.appendChild(h('span', { text: quiz.question }));
+        title.appendChild(editTarget(h('span', { text: quiz.question }), qBase + '.question', '题目'));
         item.appendChild(title);
 
         const options = h('div', { class: 'opt-list' });
-        const why = h('p', { class: 'quiz-why' });
-        why.hidden = true;
+        const why = editTarget(h('p', { class: 'quiz-why' }), qBase + '.why', '解析');
+        why.textContent = quiz.why;
+        why.hidden = !editMode;
 
         quiz.options.forEach(function (label, oi) {
-            const btn = h('button', { class: 'opt', text: label });
+            const btn = h('button', { class: 'opt' });
+            btn.appendChild(editTarget(h('span', { text: label }), qBase + '.options.' + oi, '选项 ' + (oi + 1)));
             btn.addEventListener('click', function () {
+                if (editMode) return;   // 编辑模式不判分，避免覆盖可编辑的解析文字
                 options.querySelectorAll('.opt').forEach(function (el) {
                     el.classList.remove('right', 'wrong');
                 });
@@ -2135,6 +2284,30 @@ function initAlgoSelect() {
     });
 }
 
+function updateBrand() {
+    const courseData = COURSES[currentAlgoKey];
+    const title = $('brand-title');
+    const tag = $('brand-tag');
+    if (courseData) {
+        title.textContent = courseData.meta.title;
+        tag.textContent = courseData.meta.tag;
+        editTarget(title, 'meta.title', '课程标题');
+        editTarget(tag, 'meta.tag', '课程标签');
+    } else {
+        title.textContent = ALGORITHMS[currentAlgoKey].label;
+        tag.textContent = '经典演示';
+        [title, tag].forEach(function (el) {
+            el.classList.remove('etext');
+            delete el.dataset.edit;
+        });
+    }
+    const toggle = $('edit-toggle');
+    if (toggle) {
+        toggle.hidden = !courseData;
+        if (!courseData && editMode) setEditMode(false);
+    }
+}
+
 function changeAlgorithm(key) {
     pausePlayback();
     clearPointers();
@@ -2142,10 +2315,7 @@ function changeAlgorithm(key) {
     slideIndex = 0;
     subStep = 0;
 
-    const courseData = COURSES[key];
-    $('brand-title').textContent = courseData ? courseData.meta.title : ALGORITHMS[key].label;
-    $('brand-tag').textContent = courseData ? courseData.meta.tag : '经典演示';
-
+    updateBrand();
     generateStates(key);
     renderStage();
 }
@@ -2192,6 +2362,7 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 function toggleDrawingMode() {
+    if (editMode) return;   // 编辑模式不叠加白板，避免画布抢走文字点击
     isDrawingMode = !isDrawingMode;
     const btn = $('toggle-draw-btn');
     const panel = $('draw-tools-panel');
@@ -2329,8 +2500,17 @@ window.addEventListener('keydown', function (e) {
 /* 离开页面时停止计时器，避免后台空转 */
 document.addEventListener('visibilitychange', function () {
     if (document.hidden && playing) pausePlayback();
+    // 页面转入后台时同步落盘，避免防抖窗口内被挂起
+    if (document.hidden) flushSave(true);
 });
-window.addEventListener('beforeunload', function () { pausePlayback(); });
+window.addEventListener('beforeunload', function () {
+    pausePlayback();
+    flushSave(true);
+});
+window.addEventListener('pagehide', function () {
+    pausePlayback();
+    flushSave(true);
+});
 
 /* 视口变化时重算柱高，避免 iframe 与全屏之间切换后柱条溢出 */
 window.addEventListener('resize', function () {
@@ -2357,8 +2537,624 @@ function initialSlideFromQuery() {
     return 0;
 }
 
+/* =========================================================================
+ * 15. M2 教师可视化编辑器
+ *    - 只改 COURSES.bubble 的文案与样式，绝不触碰 ALGORITHMS[key].run
+ *    - 以「字段路径 -> 值」的结构化补丁持久化，不缓存 DOM
+ * ========================================================================= */
+const COURSE_ID = 'bubble-m1';
+const STORAGE_KEY = 'dsh:lesson-editor:' + COURSE_ID;
+const STORAGE_VERSION = 1;
+const MAX_FIELD_LEN = 400;
+const MAX_IMPORT_BYTES = 512 * 1024;
+
+const SIZE_CLASS = { s: 'fs-s', m: 'fs-m', l: 'fs-l', xl: 'fs-xl' };
+const WEIGHT_CLASS = { 400: 'fw-normal', 700: 'fw-bold' };
+const COLOR_CLASS = { default: 'fc-default', dark: 'fc-dark', blue: 'fc-blue', green: 'fc-green', orange: 'fc-orange', red: 'fc-red' };
+
+const MULTILINE_PATHS = /\.(body|lead|why|question|text)$/;
+
+const DEFAULT_COURSE = JSON.parse(JSON.stringify(COURSES.bubble));
+const PLAINTEXT_OK = (function () {
+    const probe = document.createElement('div');
+    probe.setAttribute('contenteditable', 'plaintext-only');
+    return probe.contentEditable === 'plaintext-only';
+})();
+
+let fieldMap = new Map();
+let defaultMap = new Map();
+let fieldStyles = Object.create(null);
+let editMode = false;
+let activeField = null;      // { el, path }
+let saveState = 'saved';
+let saveTimer = null;
+
+/* ---------------------------------------------------------- 字段注册表 */
+
+function buildFieldMapFor(course) {
+    const map = new Map();
+    const add = function (path, label, holder, key, max, multiline) {
+        map.set(path, {
+            label: label,
+            max: max || MAX_FIELD_LEN,
+            multiline: !!multiline,
+            get: function () { return holder[key]; },
+            set: function (v) { holder[key] = v; }
+        });
+    };
+
+    add('meta.title', '课程标题', course.meta, 'title', 30);
+    add('meta.tag', '课程标签', course.meta, 'tag', 20);
+
+    (course.slides || []).forEach(function (slide) {
+        const base = 'slides.' + slide.id;
+        if (typeof slide.kicker === 'string') add(base + '.kicker', '环节小标题', slide, 'kicker', 40);
+        if (typeof slide.title === 'string') add(base + '.title', '页面标题', slide, 'title', 60);
+        if (typeof slide.lead === 'string') add(base + '.lead', '导语', slide, 'lead', 200, true);
+        if (typeof slide.question === 'string') add(base + '.question', '课堂问题', slide, 'question', 180, true);
+        if (typeof slide.cta === 'string') add(base + '.cta', '按钮文字', slide, 'cta', 20);
+
+        (slide.hints || []).forEach(function (hint) {
+            add(base + '.hints.' + hint.id + '.text', '观察提示', hint, 'text', 180, true);
+        });
+
+        (slide.steps || []).forEach(function (step) {
+            add(base + '.steps.' + step.id + '.heading', '讲解标题', step, 'heading', 40);
+            add(base + '.steps.' + step.id + '.body', '讲解正文', step, 'body', 260, true);
+            if (step.figure) add(base + '.steps.' + step.id + '.figure.caption', '图示说明', step.figure, 'caption', 140, true);
+        });
+
+        (slide.points || []).forEach(function (point) {
+            add(base + '.points.' + point.id + '.tag', '要点标签', point, 'tag', 8);
+            add(base + '.points.' + point.id + '.title', '要点标题', point, 'title', 40);
+            add(base + '.points.' + point.id + '.body', '要点说明', point, 'body', 200, true);
+        });
+
+        (slide.quiz || []).forEach(function (quiz) {
+            add(base + '.quiz.' + quiz.id + '.question', '题目', quiz, 'question', 180, true);
+            (quiz.options || []).forEach(function (opt, i) {
+                add(base + '.quiz.' + quiz.id + '.options.' + i, '选项 ' + (i + 1), quiz.options, i, 140, true);
+            });
+            add(base + '.quiz.' + quiz.id + '.why', '解析', quiz, 'why', 240, true);
+        });
+    });
+
+    return map;
+}
+
+function rebuildFieldMaps() {
+    fieldMap = buildFieldMapFor(COURSES.bubble);
+    defaultMap = buildFieldMapFor(DEFAULT_COURSE);
+}
+
+/* ---------------------------------------------------------- 样式工具 */
+
+function styleClassesOf(path) {
+    const style = fieldStyles[path];
+    if (!style) return [];
+    const out = [];
+    if (style.size && SIZE_CLASS[style.size]) out.push(SIZE_CLASS[style.size]);
+    if (style.weight && WEIGHT_CLASS[style.weight]) out.push(WEIGHT_CLASS[style.weight]);
+    if (style.color && COLOR_CLASS[style.color]) out.push(COLOR_CLASS[style.color]);
+    return out;
+}
+
+function applyStyleClasses(el, path) {
+    Object.keys(SIZE_CLASS).forEach(function (k) { el.classList.remove(SIZE_CLASS[k]); });
+    Object.keys(WEIGHT_CLASS).forEach(function (k) { el.classList.remove(WEIGHT_CLASS[k]); });
+    Object.keys(COLOR_CLASS).forEach(function (k) { el.classList.remove(COLOR_CLASS[k]); });
+    styleClassesOf(path).forEach(function (cls) { el.classList.add(cls); });
+}
+
+/** 把元素登记为可编辑目标；path 不存在时原样返回 */
+function editTarget(el, path, label) {
+    if (!path || !fieldMap.has(path)) return el;
+    el.dataset.edit = path;
+    el.dataset.label = label || fieldMap.get(path).label;
+    el.classList.add('etext');
+    if (MULTILINE_PATHS.test(path)) el.classList.add('ml');
+    applyStyleClasses(el, path);
+    return el;
+}
+
+/* ---------------------------------------------------------- 保存状态与轻提示 */
+
+function setSaveState(state) {
+    saveState = state;
+    const el = $('save-status');
+    if (!el) return;
+    el.dataset.state = state;
+    el.textContent = state === 'saved' ? '已保存' : (state === 'unsaved' ? '未保存' : '保存失败');
+}
+
+let toastTimer = null;
+function toast(message, kind, ms) {
+    const el = $('toast');
+    if (!el) return;
+    el.textContent = message;
+    el.className = 'toast' + (kind ? ' ' + kind : '');
+    el.hidden = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, ms || 3200);
+}
+
+/* ---------------------------------------------------------- 补丁收集与持久化 */
+
+function collectPatches() {
+    const patches = {};
+    fieldMap.forEach(function (field, path) {
+        const current = field.get();
+        const def = defaultMap.get(path);
+        if (def && current !== def.get()) patches[path] = current;
+    });
+    return patches;
+}
+
+function sanitizeValue(path, value) {
+    const field = fieldMap.get(path);
+    if (!field) return null;
+    if (typeof value !== 'string') return null;
+    const text = value.replace(/\r\n/g, '\n');
+    if (text.length > field.max) return null;
+    return text;
+}
+
+function sanitizeStyle(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+    const out = {};
+    if (typeof raw.size === 'string' && SIZE_CLASS[raw.size]) out.size = raw.size;
+    const weight = Number(raw.weight);
+    if (weight === 400 || weight === 700) out.weight = weight;
+    if (typeof raw.color === 'string' && COLOR_CLASS[raw.color]) out.color = raw.color;
+    return Object.keys(out).length ? out : null;
+}
+
+function persistNow(silent) {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    const payload = {
+        version: STORAGE_VERSION,
+        courseId: COURSE_ID,
+        updatedAt: new Date().toISOString(),
+        patches: collectPatches(),
+        styles: fieldStyles
+    };
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+        setSaveState('saved');
+        return true;
+    } catch (err) {
+        setSaveState('failed');
+        if (!silent) {
+            toast('保存失败：浏览器拒绝写入本地存储（隐私模式或空间不足）。修改仍保存在本页，请用「导出 JSON」备份。', 'error', 6500);
+        }
+        return false;
+    }
+}
+
+/**
+ * 立即落盘尚未写入的最新编辑，供 pagehide / visibilitychange / beforeunload 使用。
+ * 不依赖 320ms 防抖计时器，避免"改完立刻刷新"丢字。
+ */
+function flushSave(silent) {
+    if (!saveTimer && saveState === 'saved') return saveState === 'saved';
+    return persistNow(silent === true);
+}
+
+function scheduleSave() {
+    setSaveState('unsaved');
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () { persistNow(false); }, 320);
+}
+
+function dropSaved(reason) {
+    try { localStorage.removeItem(STORAGE_KEY); } catch (err) { /* 忽略 */ }
+    toast(reason + '（已使用默认课件内容）', 'error', 5200);
+}
+
+function loadSaved() {
+    let raw = null;
+    try { raw = localStorage.getItem(STORAGE_KEY); } catch (err) { return; }
+    if (!raw) return;
+
+    let data = null;
+    try { data = JSON.parse(raw); } catch (err) { dropSaved('本地存档无法解析'); return; }
+    if (!data || data.version !== STORAGE_VERSION || data.courseId !== COURSE_ID || !data.patches) {
+        dropSaved('本地存档版本或课件不匹配');
+        return;
+    }
+
+    let applied = 0;
+    Object.keys(data.patches).forEach(function (path) {
+        const value = sanitizeValue(path, data.patches[path]);
+        if (value === null) return;
+        fieldMap.get(path).set(value);
+        applied += 1;
+    });
+
+    if (data.styles && typeof data.styles === 'object') {
+        Object.keys(data.styles).forEach(function (path) {
+            if (!fieldMap.has(path)) return;
+            const style = sanitizeStyle(data.styles[path]);
+            if (style) fieldStyles[path] = style;
+        });
+    }
+
+    if (applied > 0 || Object.keys(fieldStyles).length > 0) setSaveState('saved');
+}
+
+function resetFieldsToDefault() {
+    fieldMap.forEach(function (field, path) {
+        const def = defaultMap.get(path);
+        if (def) field.set(def.get());
+    });
+    fieldStyles = Object.create(null);
+}
+
+/* ---------------------------------------------------------- 导入 / 导出 */
+
+function buildExportPayload() {
+    const fields = {};
+    fieldMap.forEach(function (field, path) { fields[path] = field.get(); });
+    return {
+        format: 'dsh-lesson-course',
+        version: STORAGE_VERSION,
+        courseId: COURSE_ID,
+        exportedAt: new Date().toISOString(),
+        fields: fields,
+        styles: fieldStyles
+    };
+}
+
+function exportJSON() {
+    return JSON.stringify(buildExportPayload(), null, 2);
+}
+
+function downloadJSON() {
+    const blob = new Blob([exportJSON()], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = h('a', { href: url, download: 'bubble-lesson-' + Date.now() + '.json' });
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1200);
+    toast('已导出 JSON 文件', 'ok');
+}
+
+/**
+ * 导入：先整体校验，再统一落盘，避免中途失败留下半套数据。
+ * 任何字段都以纯文本写入（渲染走 textContent），HTML 不会被执行。
+ */
+function importJSON(text) {
+    if (typeof text !== 'string' || !text.trim()) throw new Error('导入内容为空');
+    if (text.length > MAX_IMPORT_BYTES) throw new Error('文件超过 ' + Math.round(MAX_IMPORT_BYTES / 1024) + ' KB 上限');
+
+    let data = null;
+    try { data = JSON.parse(text); } catch (err) { throw new Error('不是合法的 JSON 文件'); }
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('JSON 顶层结构应为对象');
+    if (data.format !== 'dsh-lesson-course') throw new Error('不是本课件的导出文件（format 不匹配）');
+    if (data.version !== STORAGE_VERSION) throw new Error('文件版本不兼容，需要 v' + STORAGE_VERSION);
+    if (data.courseId !== COURSE_ID) throw new Error('文件属于其他课件（courseId=' + String(data.courseId) + '）');
+    if (!data.fields || typeof data.fields !== 'object' || Array.isArray(data.fields)) throw new Error('缺少 fields 对象');
+
+    const keys = Object.keys(data.fields);
+    if (keys.length > 400) throw new Error('字段数量异常，疑似损坏文件');
+
+    const accepted = [];
+    let invalid = 0;
+    let htmlLike = 0;
+    keys.forEach(function (path) {
+        if (!fieldMap.has(path)) return;                       // 未登记字段直接忽略
+        const value = sanitizeValue(path, data.fields[path]);
+        if (value === null) { invalid += 1; return; }
+        if (/<[a-zA-Z\/!]/.test(value)) htmlLike += 1;
+        accepted.push([path, value]);
+    });
+    if (invalid > 0) throw new Error('有 ' + invalid + ' 个字段类型或长度不合法');
+
+    // 校验通过后才改动内存数据
+    resetFieldsToDefault();
+    accepted.forEach(function (pair) { fieldMap.get(pair[0]).set(pair[1]); });
+    if (data.styles && typeof data.styles === 'object') {
+        Object.keys(data.styles).forEach(function (path) {
+            if (!fieldMap.has(path)) return;
+            const style = sanitizeStyle(data.styles[path]);
+            if (style) fieldStyles[path] = style;
+        });
+    }
+
+    persistNow();
+    renderStage();
+    updateEditorUI();
+
+    if (htmlLike > 0) {
+        toast('已导入 ' + accepted.length + ' 项；其中 ' + htmlLike + ' 处含 HTML 标记，已按纯文本显示（不会执行）', 'ok', 5200);
+    } else {
+        toast('已导入 ' + accepted.length + ' 项文案', 'ok');
+    }
+    return { applied: accepted.length, htmlLike: htmlLike };
+}
+
+/* ---------------------------------------------------------- 编辑交互 */
+
+/** 输入过程中即时写回课程数据，并做长度截断与换行规范化 */
+function onEditInput(event) {
+    const el = event.currentTarget;
+    const field = fieldMap.get(el.dataset.edit);
+    if (!field) return;
+
+    let value = el.textContent.replace(/\u00a0/g, ' ');
+    if (!field.multiline) value = value.replace(/\s*[\r\n]+\s*/g, ' ');
+    if (value.length > field.max) {
+        value = value.slice(0, field.max);
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+        el.textContent = value;
+    }
+
+    field.set(value);
+    scheduleSave();
+}
+
+/** 把纯文本按行内代码规则重新渲染到元素内部（不重建整个舞台，避免其它字段节点被卸载） */
+function renderFieldInPlace(el, value) {
+    el.replaceChildren();
+    rich(el, value);
+}
+
+/** 把光标放到鼠标点击处；坐标不可用时返回 false 由调用方兜底 */
+function placeCaretAtPoint(el, x, y) {
+    let range = null;
+    if (typeof document.caretRangeFromPoint === 'function') {
+        range = document.caretRangeFromPoint(x, y);
+    } else if (typeof document.caretPositionFromPoint === 'function') {
+        const pos = document.caretPositionFromPoint(x, y);
+        if (pos) {
+            range = document.createRange();
+            range.setStart(pos.offsetNode, pos.offset);
+            range.collapse(true);
+        }
+    }
+    if (!range || !el.contains(range.startContainer)) return false;
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return true;
+}
+
+function startEdit(el, point) {
+    if (!editMode || !el) return;
+    // 已经在编辑同一字段：交给浏览器原生处理光标与选区，绝不重置内容
+    if (activeField && activeField.el === el) return;
+
+    const path = el.dataset.edit;
+    const field = fieldMap.get(path);
+    if (!field) return;
+
+    if (activeField) commitEdit(activeField.el);
+
+    activeField = { el: el, path: path };
+    el.classList.add('is-editing');
+    el.setAttribute('contenteditable', PLAINTEXT_OK ? 'plaintext-only' : 'true');
+    // 编辑时显示原始字符串：反引号保留，保存后仍按行内代码渲染
+    el.textContent = field.get();
+    el.addEventListener('input', onEditInput);
+    el.focus();
+
+    if (!point || !placeCaretAtPoint(el, point.x, point.y)) {
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        range.collapse(false);
+        const selection = window.getSelection();
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+
+    updateEditorUI();
+}
+
+function commitEdit(el) {
+    if (!el || !el.classList.contains('is-editing')) return;
+    const path = el.dataset.edit;
+    const field = fieldMap.get(path);
+    if (!field) return;
+
+    let value = el.textContent.replace(/\u00a0/g, ' ');
+    if (!field.multiline) value = value.replace(/\s*[\r\n]+\s*/g, ' ');
+    value = value.replace(/[\r\n]{3,}/g, '\n\n').trim();
+    if (value.length > field.max) value = value.slice(0, field.max);
+
+    el.removeEventListener('input', onEditInput);
+    el.removeAttribute('contenteditable');
+    el.classList.remove('is-editing');
+    renderFieldInPlace(el, value);
+    activeField = null;
+
+    field.set(value);
+    scheduleSave();
+    updateEditorUI();
+}
+
+function setEditMode(on) {
+    const next = !!on;
+    if (next === editMode) return;
+    editMode = next;
+
+    if (!editMode && activeField) commitEdit(activeField.el);
+    if (editMode && isDrawingMode) toggleDrawingMode();   // 编辑时不叠加白板，避免画布抢点击
+
+    document.body.classList.toggle('is-editing', editMode);
+    $('editor-bar').hidden = !editMode;
+    $('edit-toggle').textContent = editMode ? '✅ 完成编辑' : '✏️ 编辑课件';
+    $('edit-toggle').classList.toggle('is-on', editMode);
+    document.body.classList.toggle('editing-mode', editMode);
+
+    const drawBtn = $('toggle-draw-btn');
+    if (drawBtn) {
+        drawBtn.disabled = editMode;
+        drawBtn.title = editMode ? '编辑模式下请先完成编辑再使用白板' : '';
+        drawBtn.style.opacity = editMode ? '.45' : '';
+    }
+
+    if (!editMode) {
+        updateEditorUI();
+        toast('已退出编辑模式', 'ok', 1800);
+    } else {
+        updateEditorUI();
+        toast('编辑模式：点击任意虚线文字即可修改', 'ok', 2800);
+    }
+
+    // 编辑态与放映态的可编辑范围不同（原理页展开全部讲解、练习题显示解析），需要按新状态重渲染
+    if (COURSES[currentAlgoKey]) renderStage();
+}
+
+function updateEditorUI() {
+    const bar = $('editor-bar');
+    if (!bar) return;
+    const panel = $('style-panel');
+    if (!panel) return;
+
+    if (!editMode || !activeField) {
+        panel.hidden = true;
+        return;
+    }
+
+    const field = fieldMap.get(activeField.path);
+    panel.hidden = false;
+    $('style-target').textContent = field ? field.label : '';
+    const style = fieldStyles[activeField.path] || {};
+
+    panel.querySelectorAll('[data-size]').forEach(function (btn) {
+        btn.classList.toggle('on', style.size === btn.dataset.size || (!style.size && btn.dataset.size === 'm'));
+    });
+    panel.querySelectorAll('[data-weight]').forEach(function (btn) {
+        btn.classList.toggle('on', Number(style.weight || 400) === Number(btn.dataset.weight));
+    });
+    panel.querySelectorAll('[data-color]').forEach(function (btn) {
+        btn.classList.toggle('on', (style.color || 'default') === btn.dataset.color);
+    });
+}
+
+function setFieldStyle(patch) {
+    if (!activeField) return;
+    const path = activeField.path;
+    const next = Object.assign({}, fieldStyles[path] || {});
+    Object.keys(patch).forEach(function (key) {
+        const value = patch[key];
+        if (value === null || value === undefined) delete next[key];
+        else next[key] = value;
+    });
+    if (next.color === 'default') delete next.color;
+    if (next.size === 'm') delete next.size;
+    if (Number(next.weight) === 400) delete next.weight;
+
+    if (Object.keys(next).length) fieldStyles[path] = next;
+    else delete fieldStyles[path];
+
+    applyStyleClasses(activeField.el, path);
+    scheduleSave();
+    updateEditorUI();
+}
+
+function resetFieldStyle() {
+    if (!activeField) return;
+    delete fieldStyles[activeField.path];
+    applyStyleClasses(activeField.el, activeField.path);
+    scheduleSave();
+    updateEditorUI();
+}
+
+/* ---------------------------------------------------------- 编辑器事件绑定 */
+
+function bindEditor() {
+    rebuildFieldMaps();
+
+    $('edit-toggle').addEventListener('click', function () { setEditMode(!editMode); });
+    $('btn-finish').addEventListener('click', function () { setEditMode(false); });
+    $('btn-export').addEventListener('click', downloadJSON);
+    $('btn-import').addEventListener('click', function () { $('import-file').click(); });
+
+    $('import-file').addEventListener('change', function (event) {
+        const file = event.target.files && event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+        if (file.size > MAX_IMPORT_BYTES) { toast('文件超过上限（512 KB）', 'error', 4500); return; }
+        const reader = new FileReader();
+        reader.onload = function () {
+            try { importJSON(String(reader.result || '')); }
+            catch (err) { toast('导入失败：' + err.message, 'error', 6000); }
+        };
+        reader.onerror = function () { toast('读取文件失败', 'error', 4000); };
+        reader.readAsText(file, 'utf-8');
+    });
+
+    $('btn-reset-course').addEventListener('click', function () {
+        if (!window.confirm('确定恢复默认课件？当前所有文字与样式修改将被清除，且不能撤销。')) return;
+        resetFieldsToDefault();
+        try { localStorage.removeItem(STORAGE_KEY); } catch (err) { /* 忽略 */ }
+        setSaveState('saved');
+        if (activeField) activeField = null;
+        renderStage();
+        updateEditorUI();
+        toast('已恢复默认课件内容', 'ok');
+    });
+
+    // 供自动化测试与后续 M3 复用的只读/导入导出接口
+    window.__m2 = {
+        exportJSON: exportJSON,
+        importJSON: importJSON,
+        resetCourse: function () { resetFieldsToDefault(); try { localStorage.removeItem(STORAGE_KEY); } catch (e) { } setSaveState('saved'); renderStage(); updateEditorUI(); },
+        getFields: function () { const o = {}; fieldMap.forEach(function (f, p) { o[p] = f.get(); }); return o; },
+        getStyles: function () { return JSON.parse(JSON.stringify(fieldStyles)); },
+        getState: function () { return { editMode: editMode, saveState: saveState, activeField: activeField ? activeField.path : null }; },
+        setEditMode: setEditMode
+    };
+
+    const panel = $('style-panel');
+    panel.addEventListener('click', function (event) {
+        const sizeBtn = event.target.closest('[data-size]');
+        if (sizeBtn) { setFieldStyle({ size: sizeBtn.dataset.size }); return; }
+        const weightBtn = event.target.closest('[data-weight]');
+        if (weightBtn) { setFieldStyle({ weight: Number(weightBtn.dataset.weight) }); return; }
+        const colorBtn = event.target.closest('[data-color]');
+        if (colorBtn) { setFieldStyle({ color: colorBtn.dataset.color }); return; }
+        if (event.target.closest('#style-reset')) resetFieldStyle();
+    });
+
+    // 点击可编辑文字进入编辑；点击其它区域提交当前编辑
+    document.addEventListener('click', function (event) {
+        if (!editMode) return;
+        if (event.target.closest && event.target.closest('#editor-bar')) return;
+
+        const target = event.target.closest('.etext');
+        if (!target) {
+            if (activeField) commitEdit(activeField.el);
+            return;
+        }
+        // 点的是正在编辑的同一字段：保留浏览器原生的光标定位与拖拽选择
+        if (activeField && activeField.el === target) return;
+        event.preventDefault();
+        startEdit(target, { x: event.clientX, y: event.clientY });
+    });
+
+    // Esc 提交；编辑中不接管方向键
+    document.addEventListener('keydown', function (event) {
+        if (!activeField) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            commitEdit(activeField.el);
+        }
+    }, true);
+}
+
 window.addEventListener('load', function () {
     initAlgoSelect();
+    bindEditor();
+    loadSaved();
+
     const params = new URLSearchParams(location.search);
     const wantedAlgo = params.get('algo');
     if (wantedAlgo && ALGORITHMS[wantedAlgo]) currentAlgoKey = wantedAlgo;
@@ -2377,10 +3173,7 @@ window.addEventListener('load', function () {
         currentStateIndex = Math.min(Math.max(targetIndex, 0), Math.max(states.length - 1, 0));
     }
 
-    const courseData = COURSES[currentAlgoKey];
-    $('brand-title').textContent = courseData ? courseData.meta.title : ALGORITHMS[currentAlgoKey].label;
-    $('brand-tag').textContent = courseData ? courseData.meta.tag : '经典演示';
-
+    updateBrand();
     renderStage();
 });
 </script>
