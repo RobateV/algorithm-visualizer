@@ -169,13 +169,58 @@ export class ListenerState {
 
 /* ------------------------------------------------------------------ 锁 */
 
-export async function acquireLock(state) {
+/** 判断 PID 是否存活；无法确认时返回 null（调用方必须 fail-closed） */
+export function pidAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return null;
   try {
-    await writeFile(state.lockFile, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }), { flag: 'wx' });
+    process.kill(pid, 0);
     return true;
   } catch (err) {
+    if (err.code === 'EPERM') return true;    // 进程存在，但无权限探测
+    if (err.code === 'ESRCH') return false;   // 进程不存在
+    return null;                              // 其它情况无法确认
+  }
+}
+
+/**
+ * 获取单实例锁。
+ * - 已有**存活**进程持锁 → 拒绝启动
+ * - 能确认持锁进程**已退出** → 安全接管一次
+ * - 锁内容损坏 / PID 无法确认 / 接管时竞争 → fail-closed
+ * 不按文件年龄删除锁。
+ */
+export async function acquireLock(state, { isAlive = pidAlive } = {}) {
+  const payload = JSON.stringify({ pid: process.pid, at: new Date().toISOString() });
+
+  try {
+    await writeFile(state.lockFile, payload, { flag: 'wx' });
+    return { ok: true, recovered: false };
+  } catch (err) {
     if (err.code !== 'EEXIST') throw err;
-    return false;
+  }
+
+  let info = null;
+  try {
+    info = JSON.parse(await readFile(state.lockFile, 'utf8'));
+  } catch {
+    return { ok: false, reason: '锁文件内容损坏，需人工确认后删除（fail-closed）' };
+  }
+
+  const alive = isAlive(info && info.pid);
+  if (alive === true) {
+    return { ok: false, reason: `已有监听器实例在运行（pid ${info.pid}）` };
+  }
+  if (alive === null) {
+    return { ok: false, reason: `无法确认锁持有进程状态（pid ${info && info.pid}），保持 fail-closed 并需人工处理` };
+  }
+
+  // 确认进程已退出：安全接管
+  await rm(state.lockFile, { force: true });
+  try {
+    await writeFile(state.lockFile, payload, { flag: 'wx' });
+    return { ok: true, recovered: true, previousPid: info.pid };
+  } catch {
+    return { ok: false, reason: '锁接管过程中发生竞争，需人工确认（fail-closed）' };
   }
 }
 
@@ -216,7 +261,8 @@ export function parseComment(body) {
 
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(taskId)) problems.push('task_id 缺失或格式非法');
   if (!branch) problems.push('缺少 branch');
-  else if (!/^[A-Za-z0-9._/-]+$/.test(branch) || branch.length > MAX_BRANCH_LEN) problems.push('branch 含非法字符');
+  else if (!/^[A-Za-z0-9._/-]+$/.test(branch) || branch.length > MAX_BRANCH_LEN ||
+           branch.includes('..') || branch.startsWith('/') || branch.endsWith('/')) problems.push('branch 含非法字符');
   else if (['main', 'master'].includes(branch) || branch.startsWith('main/')) problems.push('不允许以 main 为目标分支');
   if (!/^[0-9a-f]{40}$/.test(expectedSha)) problems.push('expected_sha 必须为 40 位十六进制');
   if (allow.length === 0) problems.push('缺少 allow 修改范围');
@@ -242,8 +288,19 @@ export function parseComment(body) {
 
 /* ------------------------------------------------------------------ GitHub */
 
-export async function listIssueComments({ repo, issue, token, fetchImpl = fetch }) {
-  const url = `https://api.github.com/repos/${repo}/issues/${issue}/comments?per_page=100`;
+export const MAX_COMMENT_PAGES = 50;
+
+/** 从 Link 头中取出 rel="next" 的地址 */
+export function parseNextLink(linkHeader) {
+  if (!linkHeader) return null;
+  for (const part of String(linkHeader).split(',')) {
+    const m = part.match(/<([^>]+)>\s*;\s*rel\s*=\s*"next"/i);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+async function githubGet(url, { token, fetchImpl }) {
   const res = await fetchImpl(url, {
     headers: {
       accept: 'application/vnd.github+json',
@@ -251,23 +308,76 @@ export async function listIssueComments({ repo, issue, token, fetchImpl = fetch 
       'user-agent': 'dsh-local-listener'
     }
   });
-  if (!res.ok) throw new Error(`GitHub API ${res.status}: ${(await res.text()).slice(0, 160)}`);
-  const list = await res.json();
-  return list.map((c) => ({
-    id: c.id,
-    body: c.body || '',
-    author: c.user && c.user.login,
-    createdAt: c.created_at,
-    updatedAt: c.updated_at,
-    url: c.html_url
-  }));
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    const err = new Error(`GitHub API ${res.status}${body ? `: ${body.slice(0, 160)}` : ''}`);
+    err.status = res.status;
+    throw err;
+  }
+  return res;
+}
+
+/**
+ * 拉取 Issue 的全部评论。
+ * 跟随 Link: rel="next"；超过 maxPages 仍有下一页时**显式报错**，
+ * 绝不把不完整快照当作完整结果返回。
+ */
+export async function listIssueComments({ repo, issue, token, fetchImpl = fetch, maxPages = MAX_COMMENT_PAGES }) {
+  const out = [];
+  const seen = new Set();
+  let url = `https://api.github.com/repos/${repo}/issues/${issue}/comments?per_page=100&page=1`;
+  let pages = 0;
+
+  while (url) {
+    if (pages >= maxPages) {
+      throw new Error(`评论分页超过 ${maxPages} 页上限，本轮快照不完整，已停止处理（水位不推进）`);
+    }
+    const res = await githubGet(url, { token, fetchImpl });
+    const list = await res.json();
+    for (const c of list) {
+      if (seen.has(c.id)) continue;
+      seen.add(c.id);
+      out.push({
+        id: c.id,
+        body: c.body || '',
+        author: c.user && c.user.login,
+        createdAt: c.created_at,
+        updatedAt: c.updated_at,
+        url: c.html_url
+      });
+    }
+    pages += 1;
+    const link = res.headers && typeof res.headers.get === 'function' ? res.headers.get('link') : null;
+    url = parseNextLink(link);
+  }
+
+  return out;
+}
+
+/**
+ * 读取固定仓库中某分支的当前 HEAD SHA。
+ * 分支名整体 URL 编码，不接受其它仓库或任意 URL。
+ */
+export async function getBranchHead({ repo, branch, token, fetchImpl = fetch }) {
+  if (typeof branch !== 'string' || !/^[A-Za-z0-9._/-]{1,80}$/.test(branch) ||
+      branch.includes('..') || branch.startsWith('/') || branch.endsWith('/')) {
+    throw new Error('分支名非法');
+  }
+  const url = `https://api.github.com/repos/${repo}/branches/${encodeURIComponent(branch)}`;
+  const res = await githubGet(url, { token, fetchImpl });
+  const data = await res.json();
+  const sha = data && data.commit && data.commit.sha;
+  if (!/^[0-9a-f]{40}$/.test(String(sha || ''))) {
+    throw new Error('分支 HEAD 返回格式异常');
+  }
+  return sha;
 }
 
 /* ------------------------------------------------------------------ 轮询 */
 
-export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER, log, now = () => new Date() }) {
-  const comments = await listIssueComments({ repo, issue, token });
-  const summary = { scanned: comments.length, pings: 0, tasks: 0, invalid: 0, duplicates: 0, ignored: 0 };
+export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER, log, now = () => new Date(), fetchImpl = fetch }) {
+  const comments = await listIssueComments({ repo, issue, token, fetchImpl });
+  const summary = { scanned: comments.length, pings: 0, tasks: 0, invalid: 0, duplicates: 0, ignored: 0, deferred: 0 };
 
   for (const c of comments) {
     if (c.author !== TRUSTED_AUTHOR) { summary.ignored++; continue; }
@@ -310,11 +420,36 @@ export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER
       continue;
     }
 
+    // 入队前校验目标分支的远程 HEAD
+    let remoteHead = '';
+    try {
+      remoteHead = await getBranchHead({ repo, branch: task.branch, token, fetchImpl });
+    } catch (err) {
+      if (err.status === 404) {
+        state.markSeen(c.id, { kind: 'branch-missing', branch: task.branch });
+        summary.invalid++;
+        await log(`✗ 拒绝评论 ${c.id}：分支 ${task.branch} 不存在`);
+        continue;
+      }
+      // 网络/API 异常：不入队、不标记已见，下一轮重试
+      summary.deferred++;
+      await log(`… 暂缓评论 ${c.id}：读取分支 HEAD 失败（${err.message}），本轮不入队，下轮重试`);
+      continue;
+    }
+
+    if (remoteHead !== task.expectedSha) {
+      state.markSeen(c.id, { kind: 'sha-mismatch', expected: task.expectedSha, actual: remoteHead });
+      summary.invalid++;
+      await log(`✗ 拒绝评论 ${c.id}：远程 HEAD ${remoteHead.slice(0, 7)} ≠ expected ${task.expectedSha.slice(0, 7)}`);
+      continue;
+    }
+
     state.state.tasks[task.taskId] = {
       taskId: task.taskId,
       commentId: c.id,
       branch: task.branch,
       expectedSha: task.expectedSha,
+      headAtEnqueue: remoteHead,
       allow: task.allow,
       accept: task.accept,
       detail: task.detail,
@@ -384,11 +519,14 @@ async function main() {
     return;
   }
 
-  const locked = await acquireLock(state);
-  if (!locked) {
-    console.error('✗ 已有监听器实例在运行（.local-state/listener.lock）');
+  const lock = await acquireLock(state);
+  if (!lock.ok) {
+    console.error('✗ ' + lock.reason);
     process.exitCode = 3;
     return;
+  }
+  if (lock.recovered) {
+    await state.log(`检测到已退出进程（pid ${lock.previousPid}）留下的陈旧锁，已安全接管`);
   }
 
   let stopped = false;
