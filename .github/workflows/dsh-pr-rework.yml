@@ -227,9 +227,9 @@ jobs:
             echo 'Patch modifies unauthorized paths.'
             exit 1
           }
-          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
-          test "$current" = "$BASE_SHA" || {
-            echo 'Stale review; refusing to overwrite the changed PR.'
+          current="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq '"\(.head.sha) \(.state) \(.draft) \(.head.ref)"')"
+          test "$current" = "$BASE_SHA open true $BRANCH" || {
+            echo 'The PR changed SHA, branch, or reviewable state; refusing to push.'
             exit 1
           }
           git apply --check fix-patch/lesson.patch
