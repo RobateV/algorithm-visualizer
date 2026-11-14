@@ -50,3 +50,7 @@ next-env.d.ts
 /.dsh-bridge-state/
 /tools/dsh-event-bridge/.demo-state/
 /tools/dsh-event-bridge/.local-state/
+
+# reference book scans (kept outside the repo; ignore if copied in)
+/reference-books/
+*.pdf

@@ -1,56 +1,1176 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>二分算法全景演练</title>
-  <style>
-    :root{--blue:#0ea5e9;--deep:#0284c7;--amber:#f59e0b;--red:#ef4444;--green:#10b981;--purple:#8b5cf6;--ink:#0f172a;--muted:#64748b;--glass:rgba(255,255,255,.87)}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;background:linear-gradient(135deg,#e0c3fc,#8ec5fc);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;user-select:none}.wrapper{height:100%;padding:16px 24px 20px}.app{height:100%;max-width:1600px;margin:auto;display:flex;flex-direction:column;gap:16px}.glass{background:var(--glass);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.65);border-radius:16px;box-shadow:0 8px 24px rgba(31,38,135,.09)}
-    header{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 24px;border-radius:16px;color:#fff;background:linear-gradient(135deg,rgba(2,132,199,.96),rgba(14,165,233,.96));box-shadow:0 8px 22px rgba(2,132,199,.2)}h1{margin:0;font-size:22px}.subtitle{display:inline-block;margin-left:9px;padding:4px 9px;border-radius:999px;background:rgba(15,23,42,.16);font-size:12px;font-weight:500}.head-actions{display:flex;align-items:center;gap:12px}.mode-select,.full-btn{border:2px solid rgba(255,255,255,.65);border-radius:8px;background:transparent;color:#fff;padding:8px 14px;font-size:14px;font-weight:800;cursor:pointer}.mode-select option{color:#0f172a}.full-btn:hover,.mode-select:hover{background:rgba(255,255,255,.12)}
-    .content{flex:1;min-height:0;display:grid;grid-template-columns:minmax(360px,38%) 1fr;gap:16px}.code-window{min-height:0;display:flex;flex-direction:column;overflow:hidden;border-radius:16px;background:#1e1e1e;box-shadow:0 8px 24px rgba(0,0,0,.17)}.code-head{display:flex;align-items:center;gap:8px;padding:11px 16px;background:#2d2d2d;color:#9ca3af;font-size:13px}.dot{width:12px;height:12px;border-radius:50%}.dot.r{background:#ef4444}.dot.y{background:#f59e0b}.dot.g{background:#10b981}.code-name{margin-left:8px}.complexity{margin-left:auto;color:#fbbf24;font-weight:700}.code{flex:1;overflow:auto;padding:12px 0;color:#d4d4d4;font:14px/1.72 Consolas,monospace;counter-reset:line}.code-line{position:relative;min-height:28px;white-space:pre;padding:2px 16px 2px 58px;border-left:4px solid transparent;transition:.2s}.code-line:before{counter-increment:line;content:counter(line);position:absolute;left:7px;width:34px;padding-right:8px;text-align:right;color:#64748b;border-right:1px solid #475569}.code-line.active{color:#fff;background:rgba(245,158,11,.18);border-left-color:var(--amber)}.kw{color:#c586c0}.num{color:#b5cea8}.comment{color:#6a9955}.fn{color:#dcdcaa}
-    .right{min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px}.visual-card{flex:.64;min-height:0;padding:14px 18px;display:flex;flex-direction:column}.visual-head{display:flex;align-items:center;justify-content:space-between;padding:0 4px 9px;border-bottom:1px dashed #cbd5e1}.visual-head b{color:#0369a1}.step-badge{padding:5px 10px;border-radius:999px;background:#e0f2fe;color:#0369a1;font-size:12px;font-weight:800}.stage{flex:1;min-height:0;display:grid;place-items:center;overflow:auto;padding:12px}.controls{flex:none;display:flex;justify-content:center;gap:12px;padding-top:10px;border-top:1px dashed #cbd5e1}.btn{min-width:112px;border:2px solid #94a3b8;border-radius:999px;background:#fff;color:#64748b;padding:9px 16px;font-weight:800;cursor:pointer}.btn.primary{border-color:var(--blue);color:#0284c7}.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 5px 12px rgba(2,132,199,.13)}.btn:disabled{opacity:.38;cursor:not-allowed}
-    .lower{flex:.36;min-height:0;display:grid;grid-template-columns:minmax(230px,.75fr) 1.55fr;gap:14px}.trace,.tips{min-height:0;overflow:auto;padding:16px 19px}.trace{border:2px solid var(--blue)}.trace h3,.tips h3{margin:0 0 9px;color:#0284c7;font-size:15px}.trace p,.tips-content{margin:0;color:#334155;font-size:14px;line-height:1.72}.trace code,.tips code{padding:2px 5px;border-radius:4px;background:#e0f2fe;color:#0284c7;font-weight:800}.tips h3{color:#0f172a;border-bottom:1px dashed #cbd5e1;padding-bottom:8px}.tips-content b{color:#0f172a}
-    .array-scene{width:min(760px,100%)}.legend{display:flex;justify-content:center;gap:16px;margin-bottom:20px;font-size:12px;color:#64748b}.legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px}.array-row{display:flex;justify-content:center;gap:8px}.array-item{position:relative;width:62px;transition:.35s}.cell{height:60px;display:grid;place-items:center;border:2px solid #7dd3fc;border-radius:10px;background:#fff;color:#0369a1;font-size:20px;font-weight:900;transition:.35s}.array-item.out .cell{border-color:#cbd5e1;background:#f1f5f9;color:#94a3b8;opacity:.55}.array-item.mid .cell{transform:translateY(-8px);border-color:var(--amber);background:#fef3c7;color:#b45309;box-shadow:0 8px 16px rgba(245,158,11,.23)}.array-item.found .cell{border-color:var(--green);background:#d1fae5;color:#047857;animation:pulse 1s infinite}.idx{text-align:center;margin-top:7px;color:#64748b;font:12px Consolas}.pointer{height:29px;text-align:center;font-size:12px;font-weight:900;white-space:nowrap}.pointer.l{color:#2563eb}.pointer.r{color:#ef4444}.pointer.m{color:#d97706}.pointer.combo{color:#7c3aed}.range-line{height:7px;margin-top:17px;border-radius:99px;background:linear-gradient(90deg,#3b82f6,#8b5cf6,#ef4444);transition:.35s}.comparison{text-align:center;margin-top:15px;color:#475569;font-weight:700}.comparison strong{color:#b45309}
-    .answer-scene{width:min(790px,100%)}.metrics{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}.metric{min-width:92px;padding:8px 12px;border:2px solid #bae6fd;border-radius:10px;background:#fff;text-align:center}.metric span{display:block;color:#64748b;font-size:11px}.metric b{display:block;margin-top:2px;color:#0369a1;font:800 18px Consolas}.metric.hot{border-color:var(--amber);background:#fffbeb}.metric.hot b{color:#b45309}.packages{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.package{position:relative;width:74px;padding:13px 6px 9px;border:2px solid #cbd5e1;border-radius:11px;background:#fff;text-align:center;transition:.3s}.package b{font-size:19px}.package small{display:block;margin-top:5px;color:#64748b}.package.active{transform:translateY(-8px);border-color:var(--amber);background:#fffbeb;box-shadow:0 8px 16px rgba(245,158,11,.18)}.package.day1{border-color:#38bdf8;background:#e0f2fe}.package.day2{border-color:#a78bfa;background:#ede9fe}.package.day3{border-color:#fb7185;background:#ffe4e6}.day-legend{text-align:center;margin-top:16px;color:#64748b;font-size:12px}.feasible{text-align:center;margin-top:13px;font-weight:900}.feasible.yes{color:#059669}.feasible.no{color:#dc2626}
-    .real-scene{width:min(780px,100%)}.equation{text-align:center;margin-bottom:24px;font-size:18px;color:#334155}.equation code{color:#7c3aed;font-weight:900}.number-line{position:relative;height:112px;margin:0 48px}.axis{position:absolute;left:0;right:0;top:48px;height:5px;border-radius:99px;background:linear-gradient(90deg,#2563eb,#f59e0b,#ef4444)}.mark{position:absolute;top:27px;transform:translateX(-50%);text-align:center;transition:.45s}.mark:after{content:"";display:block;width:4px;height:42px;margin:auto;border-radius:2px;background:currentColor}.mark b{display:block;padding:4px 7px;border-radius:6px;background:#fff;box-shadow:0 3px 9px rgba(15,23,42,.12);font:800 13px Consolas;white-space:nowrap}.mark.left{left:4%;color:#2563eb}.mark.middle{left:50%;color:#d97706}.mark.right{left:96%;color:#ef4444}.interval{text-align:center;color:#475569;font:700 15px Consolas}.zoom{text-align:center;margin-top:8px;color:#64748b;font-size:12px}
-    .phase-strip{display:flex;justify-content:center;gap:8px;margin-bottom:10px}.phase{padding:5px 9px;border-radius:999px;background:#f1f5f9;color:#94a3b8;font-size:11px;font-weight:800}.phase.on{background:#fef3c7;color:#b45309}.phase.done{background:#d1fae5;color:#047857}@keyframes pulse{50%{transform:scale(1.08)}}
-    #board{position:fixed;inset:0;z-index:40;display:none;touch-action:none}.board-tools{position:fixed;right:22px;bottom:22px;z-index:45;display:flex;gap:8px}.board-btn{border:0;border-radius:999px;background:#fff;padding:11px 16px;color:#334155;font-weight:800;box-shadow:0 6px 20px rgba(15,23,42,.18);cursor:pointer}.board-btn.active{background:#ef4444;color:#fff}.clear-btn{display:none}.board-on .clear-btn{display:block}
-    @media(max-width:900px){body{height:auto;min-height:100vh;overflow:auto}.wrapper{height:auto;padding:10px}.app{min-height:100vh}.content{grid-template-columns:1fr}.code-window{height:420px}.right{min-height:680px}.subtitle{display:none}.lower{grid-template-columns:1fr}.trace,.tips{max-height:260px}}@media(max-width:560px){header{padding:10px 12px}h1{font-size:17px}.full-btn{display:none}.mode-select{max-width:170px}.array-row{gap:3px}.array-item{width:43px}.cell{height:48px;font-size:16px}.btn{min-width:88px;padding:8px}.wrapper{padding:5px}.metrics{gap:5px}.metric{min-width:70px}}
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>二分算法全景演练</title>
+<style>
+  :root{
+    --bg:#F5F9FF; --card:#FFFFFF; --primary:#2563EB; --primary-soft:#EFF6FF;
+    --text:#0F172A; --muted:#64748B; --line:#E2E8F0; --line-strong:#CBD5E1;
+    --compare:#F59E0B; --swap:#EF4444; --sorted:#10B981; --pivot:#8B5CF6;
+    --radius:14px;
+    --shadow:0 1px 2px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0;height:100vh;overflow:hidden;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;
+    font-size:clamp(14px,1.02vw,17px);line-height:1.6;-webkit-font-smoothing:antialiased;user-select:none}
+  button{font-family:inherit}
+  .app{height:100vh;display:flex;flex-direction:column;padding:12px clamp(12px,1.6vw,26px) 10px;gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+
+  header{flex:none;display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:var(--radius)}
+  .logo{width:42px;height:42px;flex:none;display:grid;place-items:center;border-radius:12px;background:var(--primary);color:#fff;font-weight:900;font-size:19px}
+  .brand{display:flex;align-items:center;gap:10px;min-width:0}
+  .brand h1{margin:0;font-size:clamp(17px,1.35vw,21px);letter-spacing:-.3px;white-space:nowrap}
+  .badge{padding:3px 9px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font-size:11.5px;font-weight:800;white-space:nowrap}
+  .head-actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .mode-select{padding:7px 12px;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--text);font-size:13.5px;font-weight:700;cursor:pointer}
+  .full-btn{padding:7px 14px;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--text);font-size:13.5px;font-weight:700;cursor:pointer}
+  .full-btn:hover{border-color:var(--primary);color:var(--primary)}
+
+  .stagebar{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:7px 10px;border-radius:var(--radius)}
+  .stage-tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .stage-chip{display:flex;align-items:center;gap:7px;padding:6px 14px 6px 6px;border:1px solid transparent;border-radius:999px;background:transparent;color:var(--muted);font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;transition:.18s}
+  .stage-chip .n{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#F1F5F9;color:var(--muted);font-size:12px}
+  .stage-chip:hover{color:var(--primary)}
+  .stage-chip.active{background:var(--primary);color:#fff;box-shadow:0 6px 14px rgba(37,99,235,.24)}
+  .stage-chip.active .n{background:rgba(255,255,255,.22);color:#fff}
+  .stage-arrows{margin-left:auto;display:flex;gap:8px}
+  .stage-arrow{padding:7px 13px;border:1px solid var(--line-strong);border-radius:9px;background:#fff;color:var(--text);font-size:13px;font-weight:700;cursor:pointer}
+  .stage-arrow:disabled{opacity:.4;cursor:not-allowed}
+
+  .content{flex:1;min-height:0;display:flex;flex-direction:column;padding:clamp(12px,1.4vw,20px);overflow:hidden}
+  .lesson-head{flex:none;margin-bottom:10px;display:flex;align-items:flex-end;gap:14px;flex-wrap:wrap}
+  .lesson-head .lh-main{min-width:0;flex:1}
+  .kicker{display:inline-flex;align-items:center;gap:8px;margin-bottom:6px}
+  .kicker span:first-child{padding:3px 9px;border-radius:6px;background:var(--primary-soft);color:var(--primary);font-size:12px;font-weight:800}
+  .kicker span:last-child{padding:3px 9px;border-radius:6px;background:#F1F5F9;color:var(--muted);font-size:12px;font-weight:700;font-family:Consolas,monospace}
+  .lesson-title{margin:0;font-size:clamp(21px,1.8vw,28px);letter-spacing:-.4px;line-height:1.2}
+  .lesson-sub{margin:4px 0 0;color:var(--muted);font-size:clamp(13px,1vw,15.5px)}
+
+  /* 子模式切换 */
+  .subtabs{display:flex;gap:6px;padding:4px;background:#F1F5F9;border-radius:10px;flex:none}
+  .subtab{padding:6px 13px;border:0;border-radius:8px;background:transparent;color:var(--muted);font-size:13px;font-weight:800;cursor:pointer;white-space:nowrap;transition:.16s}
+  .subtab:hover{color:var(--primary)}
+  .subtab.active{background:#fff;color:var(--primary);box-shadow:0 1px 4px rgba(15,23,42,.1)}
+
+  /* 原理讲解：逐步呈现 */
+  .principle{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+  .p-steps-wrap{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+  .p-step{border:1px solid var(--line);border-radius:12px;background:#fff;padding:13px 16px;animation:stepIn .36s cubic-bezier(.22,1,.36,1)}
+  .p-step.pass{opacity:.72;background:#FCFDFF}
+  @keyframes stepIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .p-step h3{margin:0 0 8px;font-size:clamp(15px,1.15vw,18px);display:flex;align-items:center;gap:8px}
+  .p-step h3 .idx{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-size:12px;font-weight:900}
+  .p-step p{margin:0;color:#334155;font-size:clamp(13.5px,1vw,16px);line-height:1.78}
+  .p-step p+p{margin-top:8px}
+  .p-step code,.target-bar code{padding:1px 5px;border-radius:4px;background:var(--primary-soft);color:var(--primary);font-weight:800}
+  .p-step .p-code{margin-top:10px;padding:12px 14px;border-radius:9px;background:#0F172A;color:#CBD5E1;font:13px/1.65 Consolas,monospace;white-space:pre;overflow:auto}
+  .p-step .p-code .hl{color:#FBBF24;font-weight:700}
+  .p-nav{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;padding-top:8px;border-top:1px dashed var(--line)}
+  .p-progress{font:800 13px Consolas,monospace;color:var(--primary);background:var(--primary-soft);padding:3px 12px;border-radius:999px}
+  .p-nav .btn{min-width:104px}
+
+  .cmp-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+  .cmp-card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#F8FAFC}
+  .cmp-card b{display:block;font-family:Consolas,monospace;font-size:13.5px;margin-bottom:4px}
+  .cmp-card.low b{color:#C2410C}.cmp-card.hit b{color:#047857}.cmp-card.high b{color:#BE123C}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{min-width:38px;text-align:center;padding:5px 7px;border-radius:8px;border:1px solid var(--line-strong);background:#fff;font:800 13px Consolas,monospace;color:#334155}
+  .chip.hot{border-color:var(--compare);background:#FFFBEB;color:#B45309}
+
+  /* 工作台 */
+  .workbench{flex:1;min-height:0;display:flex;gap:clamp(10px,1.2vw,16px)}
+  .workbench:not(.with-code) .code-pane{display:none}
+  .workbench.with-code .code-pane{flex:0 0 clamp(300px,34%,420px);display:flex}
+  .code-pane{flex-direction:column;min-height:0}
+  .code-window{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;background:#0F172A;border-radius:12px;box-shadow:0 8px 22px rgba(15,23,42,.18)}
+  .code-header{flex:none;display:flex;align-items:center;gap:7px;padding:8px 14px;background:#1E293B;border-bottom:1px solid #334155}
+  .mac-dot{width:10px;height:10px;border-radius:50%}
+  .mac-dot.red{background:#EF4444}.mac-dot.yellow{background:#F59E0B}.mac-dot.green{background:#10B981}
+  .code-title{margin-left:6px;color:#94A3B8;font-size:12.5px;font-family:Consolas,monospace}
+  .code-content{flex:1;min-height:0;overflow-y:auto;padding:10px 0;counter-reset:ln;font-family:Consolas,"Courier New",monospace;font-size:clamp(12.5px,.95vw,14.5px);line-height:1.72;scroll-behavior:smooth}
+  .code-line{position:relative;padding:2px 16px 2px 54px;white-space:pre;border-left:3px solid transparent;color:#CBD5E1;transition:background .2s,color .2s}
+  .code-line::before{counter-increment:ln;content:counter(ln);position:absolute;left:0;top:2px;width:38px;text-align:right;color:#64748B;font-size:11.5px;border-right:1px solid #334155;padding-right:9px}
+  .code-line.highlight{background:rgba(245,158,11,.14);border-left-color:var(--compare);color:#F8FAFC}
+  .code-line.highlight::before{color:var(--compare)}
+  .tok-kw{color:#C084FC}.tok-fn{color:#FDE68A}.tok-num{color:#86EFAC}.tok-cmt{color:#64748B;font-style:italic}.tok-type{color:#7DD3FC}
+  .tok-diff{background:rgba(245,158,11,.28);color:#FBBF24;font-weight:900;border-radius:3px;padding:0 3px}
+
+  .work-pane{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:10px}
+  .visual-card{flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:#fff;padding:clamp(10px,1vw,16px)}
+
+  /* 目标常驻条 */
+  .target-bar{flex:none;display:flex;align-items:center;gap:10px;padding:8px 14px;margin-bottom:8px;border-radius:10px;
+    background:linear-gradient(90deg,#EFF6FF,#F8FBFF);border:1px solid #BFDBFE}
+  .target-bar .tb-label{padding:2px 9px;border-radius:999px;background:var(--primary);color:#fff;font-size:11.5px;font-weight:900;letter-spacing:.5px}
+  .target-bar .tb-main{font:900 clamp(15px,1.2vw,18px) Consolas,monospace;color:#1D4ED8}
+  .target-bar .tb-sub{color:#475569;font-size:12.5px;font-weight:700}
+  .target-bar .tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .target-bar .tb-tag{padding:2px 9px;border-radius:999px;border:1px solid #BFDBFE;background:#fff;color:var(--primary);font:800 11.5px Consolas,monospace}
+
+  /* 舞台 */
+  .stage{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;overflow:hidden;padding:80px 6px 6px}
+  .cells{display:flex;justify-content:center;align-items:flex-end;gap:clamp(6px,.75vw,12px);position:relative}
+  .cell-item{position:relative;width:clamp(46px,5vw,68px);display:flex;flex-direction:column;align-items:center;transition:opacity .42s ease,transform .42s ease}
+  .cell{width:100%;height:clamp(52px,6vh,66px);display:grid;place-items:center;border:2px solid #BFDBFE;border-radius:11px;background:#F8FBFF;color:#1D4ED8;
+    font-size:clamp(17px,1.6vw,23px);font-weight:900;font-variant-numeric:tabular-nums;transition:border-color .28s,background .28s,box-shadow .28s,transform .28s}
+  .cell-index{margin-top:6px;padding:0 8px;border-radius:999px;background:#F1F5F9;color:var(--muted);font:11.5px Consolas,monospace}
+  .cell-item.out{opacity:.28;transform:translateY(4px) scale(.96)}
+  .cell-item.out .cell{border-color:var(--line-strong);background:#F8FAFC;color:#94A3B8}
+  .cell-item.mid .cell{border-color:var(--compare);background:#FFFBEB;color:#B45309;transform:translateY(-6px);box-shadow:0 10px 20px rgba(245,158,11,.22)}
+  .cell-item.mid.low .cell{border-color:#F97316}
+  .cell-item.mid.high .cell{border-color:#F43F5E;background:#FFF1F2;color:#BE123C}
+  .cell-item.found .cell{border-color:var(--sorted);background:#ECFDF5;color:#047857;animation:pop .62s cubic-bezier(.34,1.56,.64,1)}
+  .cell-item.found::after{content:"答案";position:absolute;top:-22px;left:50%;transform:translateX(-50%);padding:1px 8px;border-radius:999px;background:var(--sorted);color:#fff;font-size:11px;font-weight:800;white-space:nowrap}
+  @keyframes pop{0%{transform:scale(1)}45%{transform:scale(1.14)}100%{transform:scale(1)}}
+
+  .band{position:absolute;top:0;height:0;border-radius:12px;background:linear-gradient(180deg,rgba(37,99,235,.10),rgba(37,99,235,.04));
+    border:1px solid rgba(37,99,235,.28);pointer-events:none;transition:left .46s cubic-bezier(.33,1,.68,1),width .46s cubic-bezier(.33,1,.68,1),opacity .3s;z-index:1}
+
+  .pointer-layer{position:absolute;inset:0;pointer-events:none;z-index:6}
+  .pvar{position:absolute;left:0;top:0;display:flex;flex-direction:column;align-items:center;gap:2px;will-change:transform;opacity:0;
+    transition:transform var(--ptr-dur,360ms) cubic-bezier(.33,1,.68,1),opacity .18s}
+  .pvar.is-visible{opacity:1}
+  .pointer-label{font:800 12.5px Consolas,monospace;padding:1px 7px;border-radius:6px;background:#fff;border:2px solid currentColor;white-space:nowrap;box-shadow:0 2px 6px rgba(15,23,42,.08)}
+  .pointer-arrow{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid currentColor}
+  .pvar[data-var="l"]{color:#2563EB}
+  .pvar[data-var="mid"]{color:#D97706}
+  .pvar[data-var="r"]{color:#EF4444}
+
+  .compare-bar{margin-top:12px;min-height:40px;display:flex;align-items:center;justify-content:center;gap:10px;font-weight:700;color:#334155;
+    font-size:clamp(12.5px,1vw,15.5px);transition:color .25s;flex-wrap:wrap;padding:0 6px;text-align:center}
+  .compare-bar .cmp-range{padding:3px 10px;border-radius:999px;background:var(--primary-soft);color:var(--primary);border:1px solid #BFDBFE;font:800 12px Consolas,monospace}
+  .compare-bar .cmp-chip{padding:4px 11px;border-radius:999px;background:#F1F5F9;color:#475569;font-family:Consolas,monospace;font-weight:800;transition:.25s}
+  .compare-bar.low .cmp-chip{background:#FFF7ED;color:#C2410C;border:1px solid #FED7AA}
+  .compare-bar.high .cmp-chip{background:#FFF1F2;color:#BE123C;border:1px solid #FECDD3}
+  .compare-bar.hit .cmp-chip{background:#ECFDF5;color:#047857;border:1px solid #A7F3D0}
+
+  .legend{flex:none;display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;padding-top:9px;border-top:2px dashed var(--line)}
+  .legend span{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted)}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  .exec-bar{flex:none;display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:8px}
+  .btn{border-radius:9px;border:1px solid var(--line-strong);background:#fff;color:var(--text);font-size:13px;font-weight:700;padding:6px 13px;cursor:pointer;white-space:nowrap;transition:.16s}
+  .btn:hover:not(:disabled){border-color:var(--primary);color:var(--primary);background:#F8FBFF}
+  .btn:disabled{opacity:.42;cursor:not-allowed}
+  .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+  .btn.primary:hover:not(:disabled){background:#1D4ED8;color:#fff}
+  .btn.play{background:#ECFDF5;border-color:#A7F3D0;color:#047857}
+  .btn.play:hover:not(:disabled){background:#D1FAE5;border-color:var(--sorted);color:#047857}
+  .step-badge{padding:3px 10px;border-radius:999px;background:var(--primary-soft);color:var(--primary);font:700 12px Consolas,monospace}
+  .speed-group{display:flex;align-items:center;gap:4px;margin-left:auto}
+  .speed-group .lbl{font-size:12px;color:var(--muted);margin-right:2px}
+  .speed-btn{border:1px solid var(--line-strong);background:#fff;color:var(--muted);border-radius:7px;font-size:12px;font-weight:800;padding:4px 8px;cursor:pointer}
+  .speed-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+
+  .status-strip{flex:none;margin-top:9px;padding:9px 13px;border:1px solid var(--line);border-radius:10px;background:#F8FAFC}
+  .status-head{display:flex;align-items:center;gap:9px;margin-bottom:3px;flex-wrap:wrap}
+  .status-head b{color:var(--primary);font-size:13px}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:var(--primary)}
+  .status-text{color:#334155;font-size:clamp(12.5px,.95vw,14.5px);line-height:1.65}
+  .status-text code{padding:1px 5px;border-radius:4px;background:var(--primary-soft);color:var(--primary);font-weight:800}
+
+  /* 二分答案舞台 */
+  .ans-stage{width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;padding:8px 10px}
+  .ans-top{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .ans-chip{min-width:124px;padding:9px 16px;border:1px solid #BFDBFE;border-radius:10px;background:#F8FBFF;text-align:center}
+  .ans-chip span{display:block;font-size:11.5px;color:var(--muted);font-weight:700}
+  .ans-chip b{display:block;font:900 21px Consolas,monospace;color:#1D4ED8;margin-top:1px}
+  .ans-chip.hot{border-color:var(--compare);background:#FFFBEB}
+  .ans-chip.hot b{color:#B45309}
+  .ans-days{display:flex;gap:16px;justify-content:center;align-items:flex-start;flex-wrap:wrap;width:100%}
+  .ans-day{min-width:152px;padding:12px 14px;border:1px dashed var(--line-strong);border-radius:12px;background:#F8FAFC;transition:border-color .3s,box-shadow .3s}
+  .ans-day.active{border-color:var(--primary);box-shadow:0 6px 16px rgba(37,99,235,.12);background:#fff}
+  .ans-day.flash{animation:dayFlash .7s ease}
+  @keyframes dayFlash{0%,100%{background:#F8FAFC}40%{background:#FEF3C7;border-color:var(--compare)}}
+  .ans-day-head{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;font-weight:800;color:#475569;white-space:nowrap}
+  .ans-day-head span{color:var(--muted);font-family:Consolas,monospace;font-weight:700}
+  .ans-pkgs{display:flex;gap:8px;justify-content:center;margin-top:10px;min-height:68px}
+  .pkg{width:60px;height:64px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:2px solid var(--line-strong);border-radius:10px;background:#fff;transition:.28s}
+  .pkg b{font:900 19px Consolas,monospace;color:#334155}
+  .pkg small{font-size:10.5px;color:var(--muted)}
+  .pkg.current{border-color:var(--compare);background:#FFFBEB;transform:translateY(-5px);box-shadow:0 8px 16px rgba(245,158,11,.22)}
+  .pkg.current b{color:#B45309}
+  .ans-verdict{padding:7px 18px;border-radius:999px;font-weight:900;font-size:13.5px;border:1px solid transparent}
+  .ans-verdict.ok{background:#ECFDF5;color:#047857;border-color:#A7F3D0}
+  .ans-verdict.no{background:#FFF1F2;color:#BE123C;border-color:#FECDD3}
+  .ans-verdict.idle{background:#F1F5F9;color:#64748B;border-color:var(--line)}
+  .ans-empty{color:var(--muted);font-size:12.5px}
+  .ans-interval{padding:14px 26px;border:1px dashed var(--line-strong);border-radius:12px;background:#F8FAFC;text-align:center}
+  .ans-interval-title{font-size:12px;color:var(--muted);font-weight:800;letter-spacing:.5px}
+  .ans-interval-range{margin:4px 0 2px;font:900 24px Consolas,monospace;color:var(--primary)}
+  .ans-interval-note{font-size:12px;color:var(--muted)}
+
+  .footer{flex:none;display:flex;align-items:center;justify-content:center;gap:14px;padding:9px 16px;border-radius:var(--radius)}
+  .footer .meta{color:var(--muted);font-size:12.5px;text-align:center;min-width:180px}
+  .footer .meta b{color:var(--text)}
+  .is-hidden{display:none!important}
+
+  #board{position:fixed;inset:0;z-index:40;display:none;touch-action:none}
+  .board-tools{position:fixed;right:22px;bottom:18px;z-index:45;display:flex;gap:8px}
+  .board-btn{border:0;border-radius:999px;background:#fff;padding:10px 16px;color:#334155;font-weight:800;box-shadow:0 6px 20px rgba(15,23,42,.18);cursor:pointer}
+  .board-btn.active{background:#EF4444;color:#fff}
+  .clear-btn{display:none}
+  body.board-on .clear-btn{display:block}
+
+  @media(max-width:1100px){
+    .workbench.with-code .code-pane{flex:0 0 clamp(260px,38%,340px)}
+    .cmp-row{grid-template-columns:1fr}
+  }
+  @media(max-width:900px){
+    body{height:auto;min-height:100vh;overflow:auto}
+    .app{height:auto;min-height:100vh}
+    .content{overflow:visible}
+    .workbench{flex-direction:column}
+    .workbench.with-code .code-pane{flex:0 0 auto;height:300px}
+    .stage{padding-top:72px;min-height:280px}
+    header{flex-wrap:wrap}
+    .head-actions{margin-left:0;width:100%}
+    .mode-select{flex:1}
+    .lesson-head{align-items:flex-start}
+    .ans-days{gap:9px}
+    .ans-day{min-width:112px;padding:8px}
+  }
+  @media(max-width:560px){
+    .brand h1{font-size:16px}
+    .badge{display:none}
+    .full-btn{display:none}
+    .cells{gap:3px}
+    .cell-item{width:clamp(26px,8.2vw,38px)}
+    .cell{height:46px;font-size:15px;border-radius:8px}
+    .cell-index{font-size:10px;padding:0 5px}
+    .btn{padding:5px 9px;font-size:12px}
+    .speed-group{margin-left:0}
+    .speed-group .lbl{display:none}
+    .stage{padding-top:66px}
+    .board-tools{right:10px;bottom:10px}
+    .board-btn{padding:8px 12px;font-size:12px}
+    .target-bar{flex-wrap:wrap;gap:6px;padding:7px 10px}
+    .target-bar .tb-sub{width:100%}
+    .subtabs{width:100%}
+    .subtab{flex:1}
+    .ans-chip{min-width:82px;padding:6px 9px}
+    .pkg{width:44px;height:50px}
+  }
+</style>
 </head>
-<body><canvas id="board"></canvas><div class="wrapper"><div class="app">
-  <header><div><h1>✨ 白学在线 - 二分算法全景演练 <span class="subtitle">边界、单调性与精度</span></h1></div><div class="head-actions"><select id="mode" class="mode-select"><option value="search">二分查找 (Binary Search)</option><option value="answer">二分答案 (Binary Answer)</option><option value="real">实数二分 (Real Binary)</option></select><button id="fullscreen" class="full-btn">🖥️ 全屏演示</button></div></header>
-  <div class="content"><section class="code-window"><div class="code-head"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span id="codeName" class="code-name"></span><span id="complexity" class="complexity"></span></div><div id="code" class="code"></div></section>
-    <div class="right"><section class="visual-card glass"><div class="visual-head"><b id="visualTitle">状态变化</b><span id="stepBadge" class="step-badge"></span></div><div id="stage" class="stage"></div><div class="controls"><button id="prev" class="btn">← 上一步</button><button id="reset" class="btn">重置状态</button><button id="next" class="btn primary">下一步 →</button></div></section>
-      <div class="lower"><section class="trace glass"><h3>实时执行分析</h3><p id="description"></p></section><section class="tips glass"><h3>💡 算法答题思路与核心提炼</h3><div id="tips" class="tips-content"></div></section></div>
-    </div></div>
-</div></div><div class="board-tools"><button id="clearBoard" class="board-btn clear-btn">清空</button><button id="toggleBoard" class="board-btn">🖌️ 开启白板</button></div>
+<body>
+<canvas id="board"></canvas>
+<div class="app">
+  <header class="card">
+    <div class="brand">
+      <div class="logo">二</div>
+      <h1>二分算法全景演练</h1>
+      <span class="badge">教学课件</span>
+    </div>
+    <div class="head-actions">
+      <select id="mode" class="mode-select" aria-label="选择算法模式">
+        <option value="search">二分查找 (Binary Search)</option>
+        <option value="answer">二分答案 (Binary Answer)</option>
+        <option value="real">实数二分 (Real Binary)</option>
+      </select>
+      <button id="fullscreen" class="full-btn">🖥️ 全屏演示</button>
+    </div>
+  </header>
+
+  <nav class="stagebar card" aria-label="教学环节">
+    <div class="stage-tabs" role="tablist">
+      <button type="button" class="stage-chip active" data-stage="1" role="tab" aria-selected="true"><span class="n">1</span>原理讲解</button>
+      <button type="button" class="stage-chip" data-stage="2" role="tab" aria-selected="false"><span class="n">2</span>动画演示</button>
+      <button type="button" class="stage-chip" data-stage="3" role="tab" aria-selected="false"><span class="n">3</span>动画 + 代码</button>
+    </div>
+    <div class="stage-arrows">
+      <button type="button" id="stagePrev" class="stage-arrow" disabled>← 上一环节</button>
+      <button type="button" id="stageNext" class="stage-arrow">下一环节 →</button>
+    </div>
+  </nav>
+
+  <main class="content card">
+    <div class="lesson-head">
+      <div class="lh-main">
+        <div class="kicker"><span id="kickerLesson">环节 1 / 3</span><span id="kickerAlgo">二分查找</span></div>
+        <h2 id="lessonTitle" class="lesson-title">原理讲解</h2>
+        <p id="lessonSub" class="lesson-sub">先看清边界，再谈动画。</p>
+      </div>
+      <div id="subtabs" class="subtabs is-hidden" role="tablist" aria-label="二分写法">
+        <button type="button" class="subtab active" data-kind="classic">普通查找</button>
+        <button type="button" class="subtab" data-kind="lower">lower_bound</button>
+        <button type="button" class="subtab" data-kind="upper">upper_bound</button>
+      </div>
+    </div>
+
+    <section id="principle" class="principle is-hidden" aria-label="原理讲解">
+      <div id="pSteps" class="p-steps-wrap"></div>
+      <div class="p-nav">
+        <button type="button" id="pPrev" class="btn" disabled>← 上一步</button>
+        <span id="pProgress" class="p-progress">1 / 7</span>
+        <button type="button" id="pNext" class="btn primary">下一步 →</button>
+      </div>
+    </section>
+
+    <div id="workbench" class="workbench is-hidden">
+      <div class="code-pane">
+        <div class="code-window">
+          <div class="code-header">
+            <i class="mac-dot red"></i><i class="mac-dot yellow"></i><i class="mac-dot green"></i>
+            <span id="codeName" class="code-title"></span>
+          </div>
+          <div id="code" class="code-content"></div>
+        </div>
+      </div>
+      <div class="work-pane">
+        <div class="visual-card">
+          <div id="targetBar" class="target-bar">
+            <span class="tb-label">目标</span>
+            <b id="tbMain">target = 23</b>
+            <span id="tbSub" class="tb-sub">在有序数组中查找</span>
+            <div class="tb-right"><span id="tbTag" class="tb-tag">第 1 / 12 步</span></div>
+          </div>
+          <div id="stage" class="stage"></div>
+          <div id="vizLegend" class="legend">
+            <span><i style="background:#2563EB"></i>l 左边界</span>
+            <span><i style="background:#D97706"></i>mid 中点</span>
+            <span><i style="background:#EF4444"></i>r 右边界</span>
+            <span><i style="background:#E2E8F0"></i>已淘汰</span>
+            <span><i style="background:#10B981"></i>答案位置</span>
+          </div>
+          <div class="exec-bar">
+            <button id="play" class="btn play">▶ 播放</button>
+            <button id="prev" class="btn">← 上一步</button>
+            <button id="next" class="btn primary">下一步 →</button>
+            <button id="reset" class="btn">重置</button>
+            <span id="stepBadge" class="step-badge"></span>
+            <div class="speed-group">
+              <span class="lbl">速度</span>
+              <button class="speed-btn" data-speed="0.5">0.5×</button>
+              <button class="speed-btn active" data-speed="1">1×</button>
+              <button class="speed-btn" data-speed="1.5">1.5×</button>
+              <button class="speed-btn" data-speed="2">2×</button>
+            </div>
+          </div>
+          <div class="status-strip">
+            <div class="status-head"><i class="status-dot"></i><b id="statusPhase">初始化</b><span id="statusCode" class="step-badge" style="font-size:11px"></span></div>
+            <div id="statusText" class="status-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer card">
+    <button type="button" id="footPrev" class="stage-arrow">← 上一环节</button>
+    <div class="meta"><b id="footStage">环节 1 / 3 · 原理讲解</b><br><span id="footHint">用 ← → 切换环节</span></div>
+    <button type="button" id="footNext" class="stage-arrow">下一环节 →</button>
+  </footer>
+</div>
+
+<div class="board-tools">
+  <button id="clearBoard" class="board-btn clear-btn">清空</button>
+  <button id="toggleBoard" class="board-btn">🖌️ 开启白板</button>
+</div>
+
 <script>
-const MODES={
- search:{name:'二分查找',file:'binary_search.cpp',complexity:'O(log n)',visual:'有序数组与闭区间 [l, r]',tips:'<b>循环不变量：</b>答案如果存在，始终位于闭区间 <code>[l,r]</code> 中。<br><b>边界写法：</b>使用 <code>while (l &lt;= r)</code>，排除中点时必须写成 <code>mid+1</code> 或 <code>mid-1</code>。<br><b>易错点：</b>不要混用开区间与闭区间模板；下标体系必须与代码一致。',code:[
-  'int binarySearch(int a[], int n, int target) {','    int l = 1, r = n;','    while (l <= r) {','        int mid = (l + r) >> 1;','        if (a[mid] == target) return mid;','        if (a[mid] < target) l = mid + 1;','        else r = mid - 1;','    }','    return -1;','}'
- ]},
- answer:{name:'二分答案',file:'binary_answer.cpp',complexity:'O(n log V)',visual:'最小可行值与 check(mid)',tips:'<b>核心前提：</b><code>check(x)</code> 的真假必须关于答案具有单调性。这里容量越大，完成天数只会不增。<br><b>模板含义：</b>寻找“第一个可行值”，可行时令 <code>r=mid</code>，不可行时令 <code>l=mid+1</code>。<br><b>本例：</b>包裹重量为 7、2、5、10、8，要求 2 天运完，最小容量是 18。',code:[
-  'bool check(int cap) {','    int days = 1, load = 0;','    for (int w : weight) {','        if (load + w > cap) {','            days++; load = 0;','        }','        load += w;','    }','    return days <= D;','}','int minimumCapacity() {','    int l = maxWeight, r = totalWeight;','    while (l < r) {','        int mid = (l + r) >> 1;','        if (check(mid)) r = mid;','        else l = mid + 1;','    }','    return l;','}'
- ]},
- real:{name:'实数二分',file:'real_binary.cpp',complexity:'O(log((R-L)/ε))',visual:'连续区间缩小与精度控制',tips:'<b>目标：</b>求 <code>√10</code>，也就是找到满足 <code>x²=10</code> 的实数。<br><b>与整数二分不同：</b>实数区间不使用 <code>mid±1</code>，而是直接令端点等于 <code>mid</code>。<br><b>终止方式：</b>竞赛中常使用固定迭代次数，避免浮点误差导致死循环。',code:[
-  'double sqrtByBinary(double x) {','    double l = 0.0, r = max(1.0, x);','    for (int round = 1; round <= 12; round++) {','        double mid = (l + r) / 2.0;','        if (mid * mid < x) l = mid;','        else r = mid;','    }','    return (l + r) / 2.0;','}'
- ]}
+/* ============================================================
+ * 0. 数据
+ * ============================================================ */
+const CLASSIC_VALUES=[2,5,8,12,16,23,38,56,72], CLASSIC_TARGET=23;
+const BOUND_VALUES=[1,2,2,2,4,6,6,8], BOUND_X=2;
+const weights=[7,2,5,10,8], dayLimit=2;
+
+const CODES={
+  classic:[
+    'int binarySearch(int a[], int n, int target) {','    int l = 1, r = n;','    while (l <= r) {','        int mid = (l + r) >> 1;','        if (a[mid] == target) return mid;','        if (a[mid] < target) l = mid + 1;','        else r = mid - 1;','    }','    return -1;','}'
+  ],
+  lower:[
+    'int lower_bound(int l, int r, int x)','{','    while (l < r)','    {','        int mid = (l + r) >> 1;','        if (a[mid] >= x)','            r = mid;','        else','            l = mid + 1;','    }','    return l;','}'
+  ],
+  upper:[
+    'int upper_bound(int l, int r, int x)','{','    while (l < r)','    {','        int mid = (l + r) >> 1;','        if (a[mid] > x)','            r = mid;','        else','            l = mid + 1;','    }','    return l;','}'
+  ],
+  answer:[
+    'bool check(int cap) {','    int days = 1, load = 0;','    for (int w : weight) {','        if (load + w > cap) {','            days++; load = 0;','        }','        load += w;','    }','    return days <= D;','}','int minimumCapacity() {','    int l = maxWeight, r = totalWeight;','    while (l < r) {','        int mid = (l + r) >> 1;','        if (check(mid)) r = mid;','        else l = mid + 1;','    }','    return l;','}'
+  ],
+  real:[
+    'double sqrtByBinary(double x) {','    double l = 0.0, r = max(1.0, x);','    for (int round = 1; round <= 12; round++) {','        double mid = (l + r) / 2.0;','        if (mid * mid < x) l = mid;','        else r = mid;','    }','    return (l + r) / 2.0;','}'
+  ]
 };
-const searchValues=[2,5,8,12,16,23,38,56,72],searchTarget=23,weights=[7,2,5,10,8],dayLimit=2;let currentMode='search',states=[],stateIndex=0;
-const $=id=>document.getElementById(id);function clone(x){return JSON.parse(JSON.stringify(x))}function state(line,phase,desc,data){return{line,phase,desc,...clone(data)}}
-function buildSearchStates(){const out=[];let l=1,r=searchValues.length;out.push(state(2,'初始化','建立闭区间 <code>[1,9]</code>。目标值 23 如果存在，一定在这个区间中。',{l,r,mid:null,status:'init'}));while(l<=r){out.push(state(3,'循环判断',`检查 <code>l &lt;= r</code>：${l} ≤ ${r} 成立，区间仍非空。`,{l,r,mid:null,status:'loop'}));const mid=(l+r)>>1;out.push(state(4,'计算中点',`计算 <code>mid = (${l}+${r})/2 = ${mid}</code>，读取 <code>a[${mid}] = ${searchValues[mid-1]}</code>。`,{l,r,mid,status:'mid'}));const value=searchValues[mid-1];if(value===searchTarget){out.push(state(5,'找到答案',`<code>a[${mid}] = ${value}</code>，恰好等于目标值 23，返回下标 ${mid}。`,{l,r,mid,status:'found'}));break}if(value<searchTarget){out.push(state(5,'比较',`<code>a[${mid}] = ${value} &lt; 23</code>，中点及其左侧都不可能是答案。`,{l,r,mid,status:'less'}));l=mid+1;out.push(state(6,'收缩区间',`执行 <code>l = mid + 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}))}else{out.push(state(5,'比较',`<code>a[${mid}] = ${value} &gt; 23</code>，中点及其右侧都不可能是答案。`,{l,r,mid,status:'greater'}));r=mid-1;out.push(state(7,'收缩区间',`执行 <code>r = mid - 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}))}}return out}
-function simulateCheck(cap){let days=1,load=0;const assignments=Array(weights.length).fill(0),trace=[];for(let i=0;i<weights.length;i++){const w=weights[i];let newDay=false;if(load+w>cap){days++;load=0;newDay=true}load+=w;assignments[i]=days;trace.push({i,days,load,newDay,assignments:[...assignments]})}return{feasible:days<=dayLimit,days,trace}}
-function buildAnswerStates(){const out=[];let l=Math.max(...weights),r=weights.reduce((a,b)=>a+b,0);out.push(state(12,'初始化',`答案下界取最大包裹重量 ${l}，上界取总重量 ${r}，搜索区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}));while(l<r){out.push(state(13,'循环判断',`检查 <code>l &lt; r</code>：${l} &lt; ${r} 成立，答案尚未确定。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}));const mid=(l+r)>>1;out.push(state(14,'计算中点',`尝试容量 <code>mid = (${l}+${r})/2 = ${mid}</code>，接下来完整执行 <code>check(${mid})</code>。`,{l,r,mid,assignments:[0,0,0,0,0],days:1,load:0,current:null}));const result=simulateCheck(mid);for(const t of result.trace){const action=t.newDay?`当前天装不下 ${weights[t.i]}，先开启第 ${t.days} 天，再装入。`:`第 ${t.days} 天还能装下 ${weights[t.i]}，直接装入。`;out.push(state(t.newDay?5:7,'执行 check',`${action} 当前载重为 <code>${t.load}/${mid}</code>。`,{l,r,mid,assignments:t.assignments,days:t.days,load:t.load,current:t.i}))}out.push(state(9,'可行性判定',`check(${mid}) 共使用 ${result.days} 天，${result.feasible?'不超过':'超过'}限制 ${dayLimit} 天，因此当前容量${result.feasible?'可行':'不可行'}。`,{l,r,mid,assignments:result.trace.at(-1).assignments,days:result.days,load:result.trace.at(-1).load,current:null,feasible:result.feasible}));if(result.feasible){r=mid;out.push(state(15,'收缩答案区间',`容量 ${mid} 可行，但还要尝试更小值，执行 <code>r = mid</code>，新区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}))}else{l=mid+1;out.push(state(16,'收缩答案区间',`容量 ${mid} 不可行，更小值也一定不可行，执行 <code>l = mid + 1</code>，新区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}))}}out.push(state(18,'得到答案',`此时 <code>l = r = ${l}</code>，第一个可行容量就是 ${l}。`,{l,r,mid:l,assignments:simulateCheck(l).trace.at(-1).assignments,days:simulateCheck(l).days,load:null,current:null,feasible:true,done:true}));return out}
-function buildRealStates(){const out=[];let l=0,r=10;out.push(state(2,'初始化','要求 <code>√10</code>，先建立区间 <code>[0,10]</code>。',{l,r,mid:null,round:0,square:null}));for(let round=1;round<=12;round++){const mid=(l+r)/2,square=mid*mid;out.push(state(4,'计算中点',`第 ${round} 轮：<code>mid = (${l.toFixed(6)} + ${r.toFixed(6)}) / 2 = ${mid.toFixed(6)}</code>。`,{l,r,mid,round,square}));if(square<10){l=mid;out.push(state(5,'比较并收缩',`<code>mid² = ${square.toFixed(6)} &lt; 10</code>，答案在右半区，执行 <code>l = mid</code>。`,{l,r,mid,round,square,result:'less'}))}else{r=mid;out.push(state(6,'比较并收缩',`<code>mid² = ${square.toFixed(6)} ≥ 10</code>，答案在左半区，执行 <code>r = mid</code>。`,{l,r,mid,round,square,result:'greater'}))}}const answer=(l+r)/2;out.push(state(8,'得到近似值',`12 轮后区间宽度缩小到 ${(r-l).toFixed(8)}，返回中点 <code>${answer.toFixed(8)}</code>。`,{l,r,mid:answer,round:12,square:answer*answer,done:true}));return out}
-function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}function colorCode(s){let [main,comment]=s.split('//');let html=escapeHtml(main).replace(/\b(int|double|bool|return|while|for|if|else)\b/g,'<span class="kw">$1</span>').replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="num">$1</span>').replace(/\b(binarySearch|check|minimumCapacity|sqrtByBinary|max)\b/g,'<span class="fn">$1</span>');if(comment!==undefined)html+='<span class="comment">//'+escapeHtml(comment)+'</span>';return html}
-function renderCode(){const box=$('code');box.innerHTML='';MODES[currentMode].code.forEach((line,i)=>{const d=document.createElement('div');d.id='line-'+(i+1);d.className='code-line'+(states[stateIndex].line===i+1?' active':'');d.innerHTML=colorCode(line);box.appendChild(d)});const active=$('line-'+states[stateIndex].line);if(active)active.scrollIntoView({block:'center'})}
-function phaseHtml(active){const phases=currentMode==='answer'?['初始化','计算中点','执行 check','可行性判定','收缩答案区间','得到答案']:currentMode==='real'?['初始化','计算中点','比较并收缩','得到近似值']:['初始化','计算中点','比较','收缩区间','找到答案'];const ai=Math.max(0,phases.indexOf(active));return '<div class="phase-strip">'+phases.map((p,i)=>`<span class="phase ${i===ai?'on':i<ai?'done':''}">${p}</span>`).join('')+'</div>'}
-function renderSearch(s){const width=((s.r-s.l+1)/searchValues.length)*100,left=((s.l-1)/searchValues.length)*100;return `<div class="array-scene">${phaseHtml(s.phase)}<div class="legend"><span><i style="background:#3b82f6"></i>l 左边界</span><span><i style="background:#f59e0b"></i>mid 中点</span><span><i style="background:#ef4444"></i>r 右边界</span></div><div class="array-row">${searchValues.map((v,i)=>{const idx=i+1,out=idx<s.l||idx>s.r,mid=idx===s.mid,found=mid&&s.status==='found',labels=[];if(idx===s.l)labels.push('l');if(idx===s.mid)labels.push('mid');if(idx===s.r)labels.push('r');const labelClass=labels.length>1?'combo':labels[0]==='l'?'l':labels[0]==='r'?'r':'m';return `<div class="array-item ${out?'out ':''}${mid?'mid ':''}${found?'found':''}"><div class="pointer ${labelClass}">${labels.join(' = ')}</div><div class="cell">${v}</div><div class="idx">[${idx}]</div></div>`}).join('')}</div><div class="range-line" style="width:${Math.max(8,width)}%;margin-left:${left}%"></div><div class="comparison">目标值：<strong>${searchTarget}</strong>${s.mid?`　当前：a[${s.mid}] = <strong>${searchValues[s.mid-1]}</strong>`:''}</div></div>`}
-function renderAnswer(s){return `<div class="answer-scene">${phaseHtml(s.phase)}<div class="metrics"><div class="metric"><span>l</span><b>${s.l}</b></div><div class="metric hot"><span>mid / 当前容量</span><b>${s.mid??'—'}</b></div><div class="metric"><span>r</span><b>${s.r}</b></div><div class="metric"><span>已用天数 / 限制</span><b>${s.days??'—'} / ${dayLimit}</b></div><div class="metric"><span>当天载重</span><b>${s.load??'—'}</b></div></div><div class="packages">${weights.map((w,i)=>`<div class="package ${s.assignments[i]?'day'+s.assignments[i]:''} ${s.current===i?'active':''}"><b>${w}</b><small>${s.assignments[i]?'第 '+s.assignments[i]+' 天':'未处理'}</small></div>`).join('')}</div><div class="day-legend">问题：这些包裹按顺序装运，能否在 2 天内完成？</div>${s.feasible===undefined?'':`<div class="feasible ${s.feasible?'yes':'no'}">check(${s.mid}) = ${s.feasible?'true，可行':'false，不可行'}</div>`}</div>`}
-function renderReal(s){const square=s.square==null?'—':s.square.toFixed(8);return `<div class="real-scene">${phaseHtml(s.phase)}<div class="equation">目标：<code>x² = 10</code>　当前 <code>mid² = ${square}</code></div><div class="number-line"><div class="axis"></div><div class="mark left"><b>l = ${s.l.toFixed(8)}</b></div>${s.mid==null?'':`<div class="mark middle"><b>mid = ${s.mid.toFixed(8)}</b></div>`}<div class="mark right"><b>r = ${s.r.toFixed(8)}</b></div></div><div class="interval">当前区间宽度：${(s.r-s.l).toFixed(10)}</div><div class="zoom">画面会持续放大当前 [l, r]，端点数值才是真实比例依据</div></div>`}
-function render(){const cfg=MODES[currentMode],s=states[stateIndex];$('codeName').textContent=cfg.file;$('complexity').textContent=cfg.complexity;$('visualTitle').textContent=cfg.visual;$('stepBadge').textContent=`第 ${stateIndex+1} / ${states.length} 步`;$('description').innerHTML=`<b>【${s.phase}】</b><br>${s.desc}`;$('tips').innerHTML=cfg.tips;$('stage').innerHTML=currentMode==='search'?renderSearch(s):currentMode==='answer'?renderAnswer(s):renderReal(s);$('prev').disabled=stateIndex===0;$('next').disabled=stateIndex===states.length-1;renderCode()}
-function loadMode(mode){currentMode=MODES[mode]?mode:'search';$('mode').value=currentMode;states=currentMode==='search'?buildSearchStates():currentMode==='answer'?buildAnswerStates():buildRealStates();stateIndex=0;history.replaceState(null,'','?mode='+currentMode);render()}$('prev').onclick=()=>{if(stateIndex>0){stateIndex--;render()}};$('next').onclick=()=>{if(stateIndex<states.length-1){stateIndex++;render()}};$('reset').onclick=()=>{stateIndex=0;render()};$('mode').onchange=e=>loadMode(e.target.value);document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')$('prev').click();if(e.key==='ArrowRight')$('next').click()});
-function tellParent(action){if(window.parent!==window)window.parent.postMessage({type:'lesson-fullscreen',action},location.origin)}$('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else{tellParent('enter');document.documentElement.requestFullscreen()}};document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscreenElement;$('fullscreen').textContent=full?'🔳 退出全屏':'🖥️ 全屏演示';if(!full)tellParent('exit');resizeBoard()});
-const canvas=$('board'),ctx=canvas.getContext('2d');let drawing=false,boardOn=false;function resizeBoard(){const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);canvas.width=innerWidth;canvas.height=innerHeight;ctx.drawImage(copy,0,0)}function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}canvas.onpointerdown=e=>{if(!boardOn)return;drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke()};canvas.onpointerup=()=>drawing=false;$('toggleBoard').onclick=()=>{boardOn=!boardOn;canvas.style.display=boardOn?'block':'none';canvas.style.pointerEvents=boardOn?'auto':'none';document.body.classList.toggle('board-on',boardOn);$('toggleBoard').classList.toggle('active',boardOn);$('toggleBoard').textContent=boardOn?'✕ 关闭白板':'🖌️ 开启白板'};$('clearBoard').onclick=()=>ctx.clearRect(0,0,canvas.width,canvas.height);addEventListener('resize',resizeBoard);resizeBoard();loadMode(new URLSearchParams(location.search).get('mode')||'search');
-</script></body></html>
+const FILES={classic:'binary_search.cpp',lower:'lower_bound.cpp',upper:'upper_bound.cpp',answer:'binary_answer.cpp',real:'real_binary.cpp'};
+const COMPLEXITY={classic:'O(log n)',lower:'O(log n)',upper:'O(log n)',answer:'O(n log V)',real:'O(log((R-L)/ε))'};
+const MODE_NAMES={search:'二分查找',answer:'二分答案',real:'实数二分'};
+
+let currentMode='search', searchKind='classic', currentStage=1;
+let values=CLASSIC_VALUES.slice();
+let states=[], stateIndex=0;
+let playing=false, playTimer=null, speed=1;
+let principleStep=0, principleSteps=[];
+
+const $=id=>document.getElementById(id);
+const clone=x=>JSON.parse(JSON.stringify(x));
+const S=(line,phase,desc,data)=>({line,phase,desc,...clone(data)});
+
+/* ============================================================
+ * 1. 状态序列
+ * ============================================================ */
+function buildClassicStates(){
+  const out=[]; let l=1, r=CLASSIC_VALUES.length;
+  out.push(S(2,'初始化',`建立闭区间 <code>[1, 9]</code>。目标值 23 如果存在，一定在这个区间中。`,{l,r,mid:null,status:'init'}));
+  while(l<=r){
+    out.push(S(3,'循环判断',`检查 <code>l &lt;= r</code>：${l} ≤ ${r} 成立，区间仍非空。`,{l,r,mid:null,status:'loop'}));
+    const mid=(l+r)>>1;
+    out.push(S(4,'计算中点',`计算 <code>mid = (${l}+${r})/2 = ${mid}</code>，读取 <code>a[${mid}] = ${CLASSIC_VALUES[mid-1]}</code>。`,{l,r,mid,status:'mid'}));
+    const v=CLASSIC_VALUES[mid-1];
+    if(v===CLASSIC_TARGET){
+      out.push(S(5,'找到答案',`<code>a[${mid}] = ${v}</code>，等于目标值 23，返回下标 ${mid}。`,{l,r,mid,status:'found'}));
+      break;
+    }
+    if(v<CLASSIC_TARGET){
+      out.push(S(6,'比较',`<code>a[${mid}] = ${v} &lt; 23</code>，中点及其左侧都不可能是答案。`,{l,r,mid,status:'less'}));
+      l=mid+1;
+      out.push(S(7,'收缩区间',`执行 <code>l = mid + 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}));
+    }else{
+      out.push(S(6,'比较',`<code>a[${mid}] = ${v} &gt; 23</code>，中点及其右侧都不可能是答案。`,{l,r,mid,status:'greater'}));
+      r=mid-1;
+      out.push(S(7,'收缩区间',`执行 <code>r = mid - 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}));
+    }
+  }
+  return out;
+}
+
+function buildBoundStates(kind){
+  const a=BOUND_VALUES, x=BOUND_X, n=a.length;
+  const out=[]; let l=1, r=n+1;
+  const op=kind==='lower'?'>=':'>';
+  const desc=kind==='lower'?'第一个 ≥ 2 的位置':'第一个 > 2 的位置';
+  out.push(S(2,'初始化',`建立左闭右开区间 <code>[${l}, ${r})</code>，候选位置是 1～${n}。目标：${desc}。`,{l,r,mid:null,status:'init',halfOpen:true}));
+  while(l<r){
+    out.push(S(3,'循环判断',`检查 <code>l &lt; r</code>：${l} &lt; ${r} 成立，区间仍非空。`,{l,r,mid:null,status:'loop',halfOpen:true}));
+    const mid=(l+r)>>1;
+    out.push(S(5,'计算中点',`<code>mid = (${l} + ${r}) / 2 = ${mid}</code>，读取 <code>a[${mid}] = ${a[mid-1]}</code>。`,{l,r,mid,status:'mid',halfOpen:true}));
+    const ok = kind==='lower' ? a[mid-1]>=x : a[mid-1]>x;
+    if(ok){
+      out.push(S(6,'比较',`<code>a[${mid}] = ${a[mid-1]} ${op} ${x}</code> 成立：mid 可能是答案，但左边可能还有更早的，因此 <code>r = mid</code>。`,{l,r,mid,status:'shrink-r',halfOpen:true}));
+      r=mid;
+    }else{
+      out.push(S(6,'比较',`<code>a[${mid}] = ${a[mid-1]} ${op} ${x}</code> 不成立：mid 及左侧都不可能是答案，因此 <code>l = mid + 1</code>。`,{l,r,mid,status:'shrink-l',halfOpen:true}));
+      l=mid+1;
+    }
+    out.push(S(7,'收缩区间',`更新后区间为 <code>[${l}, ${r})</code>。`,{l,r,mid:null,status:'shrink',halfOpen:true}));
+  }
+  out.push(S(11,'返回答案',`<code>l = r = ${l}</code>。返回 ${l}：${desc}。`,{l,r,mid:null,status:'found',halfOpen:true,answer:l}));
+  return out;
+}
+
+function simulateCheck(cap){
+  let days=1,load=0;const assignments=Array(weights.length).fill(0),trace=[];
+  for(let i=0;i<weights.length;i++){
+    const w=weights[i];let newDay=false;
+    if(load+w>cap){days++;load=0;newDay=true}
+    load+=w;assignments[i]=days;
+    trace.push({i,days,load,newDay,assignments:[...assignments]});
+  }
+  return{feasible:days<=dayLimit,days,trace};
+}
+function buildAnswerStates(){
+  const out=[];let l=Math.max(...weights),r=weights.reduce((a,b)=>a+b,0);
+  const zero=[0,0,0,0,0];
+  out.push(S(2,'初始化',`答案下界取最大包裹重量 ${l}，上界取总重量 ${r}，在 <code>[${l}, ${r}]</code> 里二分最小可行容量。`,{l,r,mid:null,assignments:zero,days:null,load:null,current:null}));
+  while(l<r){
+    out.push(S(3,'循环判断',`<code>l &lt; r</code>：${l} &lt; ${r}，答案尚未确定。`,{l,r,mid:null,assignments:zero,days:null,load:null,current:null}));
+    const mid=(l+r)>>1;
+    out.push(S(14,'计算中点',`尝试容量 <code>mid = ${mid}</code>，下面完整跑一遍 <code>check(${mid})</code>。`,{l,r,mid,assignments:zero,days:1,load:0,current:null}));
+    const res=simulateCheck(mid);
+    for(const t of res.trace){
+      const action=t.newDay?`容量装不下 ${weights[t.i]}，先开启第 ${t.days} 天，再装入。`:`第 ${t.days} 天还能装下 ${weights[t.i]}，直接装入。`;
+      out.push(S(4,'执行 check',`${action} 当前载重 <code>${t.load}/${mid}</code>。`,{l,r,mid,assignments:t.assignments,days:t.days,load:t.load,current:t.i,newDay:t.newDay}));
+    }
+    out.push(S(9,'可行性判定',`check(${mid}) 用了 ${res.days} 天，${res.feasible?'不超过':'超过'}限制 ${dayLimit} 天，所以容量 ${mid} ${res.feasible?'可行':'不可行'}。`,{l,r,mid,assignments:res.trace.at(-1).assignments,days:res.days,load:res.trace.at(-1).load,current:null,feasible:res.feasible}));
+    if(res.feasible){ r=mid; out.push(S(15,'收缩区间',`可行，但也许还能更小：<code>r = mid</code>，区间变为 <code>[${l}, ${r}]</code>。`,{l,r,mid:null,assignments:zero,days:null,load:null,current:null})); }
+    else { l=mid+1; out.push(S(16,'收缩区间',`不可行，更小的一定也不行：<code>l = mid + 1</code>，区间变为 <code>[${l}, ${r}]</code>。`,{l,r,mid:null,assignments:zero,days:null,load:null,current:null})); }
+  }
+  out.push(S(18,'得到答案',`<code>l = r = ${l}</code>，最小可行容量就是 ${l}。`,{l,r,mid:l,assignments:simulateCheck(l).trace.at(-1).assignments,days:simulateCheck(l).days,load:null,current:null,feasible:true,done:true}));
+  return out;
+}
+function buildRealStates(){
+  const out=[];let l=0,r=10;
+  out.push(S(2,'初始化','要求 <code>√10</code>，先建立包含答案的区间 <code>[0, 10]</code>。',{l,r,mid:null,round:0,square:null}));
+  for(let round=1;round<=12;round++){
+    const mid=(l+r)/2, sq=mid*mid;
+    out.push(S(4,'计算中点',`第 ${round} 轮：<code>mid = ${mid.toFixed(6)}</code>，<code>mid² = ${sq.toFixed(6)}</code>。`,{l,r,mid,round,square:sq}));
+    if(sq<10){ l=mid; out.push(S(5,'比较并收缩',`<code>mid² &lt; 10</code>，答案在右半区，<code>l = mid</code>。`,{l,r,mid,round,square:sq,result:'less'})); }
+    else { r=mid; out.push(S(6,'比较并收缩',`<code>mid² ≥ 10</code>，答案在左半区，<code>r = mid</code>。`,{l,r,mid,round,square:sq,result:'greater'})); }
+  }
+  const ans=(l+r)/2;
+  out.push(S(8,'得到近似值',`12 轮后区间宽度 ${(r-l).toFixed(8)}，返回中点 <code>${ans.toFixed(8)}</code>。`,{l,r,mid:ans,round:12,square:ans*ans,done:true}));
+  return out;
+}
+
+/* ============================================================
+ * 2. 原理讲解（PPT 式逐步）
+ * ============================================================ */
+const arrChips=(arr,target)=>'<div class="chips">'+arr.map((v,i)=>`<span class="chip${v===target?' hot':''}">${v}<small style="display:block;font-size:9px;color:#94A3B8">${i+1}</small></span>`).join('')+'</div>';
+
+function classicSteps(){
+  return [
+    {t:'要解决的问题',h:`<p>有一个<b>从小到大排好序</b>的数组，要在里面找一个数。最直接的做法是从头到尾扫一遍，最坏要看 9 次。</p>${arrChips(CLASSIC_VALUES,CLASSIC_TARGET)}<p style="margin-top:8px">问题：能不能<b>更快</b>地找到 23？</p>`},
+    {t:'有序性带来什么',h:`<p>数组有序，所以只要看<b>一个位置</b>，就能判断目标在它的左边还是右边。</p><p>例如看中间的元素：如果它比 23 小，那么它<b>左边所有元素</b>都不可能等于 23。一次比较，就能排除一半。</p><div class="chips" style="margin-top:8px"><span class="chip">2</span><span class="chip">5</span><span class="chip">8</span><span class="chip">12</span><span class="chip hot">16</span><span class="chip">23</span><span class="chip">38</span><span class="chip">56</span><span class="chip">72</span></div>`},
+    {t:'引入中点 mid',h:`<p>每次都检查<b>当前区间的中点</b>：</p><p><code>mid = (l + r) / 2</code>（向下取整）</p><p>中点把区间分成两半，比较一次就能丢掉其中一半，这正是二分比线性扫描快的原因。</p>`},
+    {t:'比较之后怎么走',h:`<p>拿到 <code>a[mid]</code> 后，只有三种情况：</p>
+      <div class="cmp-row">
+        <div class="cmp-card low"><b>a[mid] &lt; 23</b><span>目标在右半区，<code>l = mid + 1</code></span></div>
+        <div class="cmp-card hit"><b>a[mid] = 23</b><span>直接命中，返回 mid</span></div>
+        <div class="cmp-card high"><b>a[mid] &gt; 23</b><span>目标在左半区，<code>r = mid - 1</code></span></div>
+      </div>`},
+    {t:'区间与边界',h:`<p>用两个指针维护<b>闭区间</b> <code>[l, r]</code>：区间内的元素才是可能的答案。</p><p>初始 <code>l = 1, r = n</code>，覆盖整个数组；每次排除 mid 后，区间缩小，但<b>答案始终不会跑到区间外</b>——这就是循环不变量。</p><div class="chips" style="margin-top:8px"><span class="chip">l = 1</span><span class="chip">…</span><span class="chip">r = 9</span></div>`},
+    {t:'形成完整算法',h:`<p>把上面的步骤写成循环即可：</p><div class="p-code">while (l &lt;= r) {
+    mid = (l + r) / 2
+    if (a[mid] == target) return mid
+    if (a[mid] &lt; target)  l = mid + 1
+    else                  r = mid - 1
+}
+return -1</div><p style="margin-top:8px">循环结束仍未返回，说明目标不存在。</p>`},
+    {t:'复杂度与易错点',h:`<p><b>复杂度：</b>每次区间至少减半，最多比较 ⌊log₂ n⌋ + 1 次，因此是 <code>O(log n)</code>。</p>
+      <p><b>易错点：</b>① 闭区间必须配 <code>while (l &lt;= r)</code>；② 收缩必须写 <code>mid ± 1</code>，否则区间不缩小会死循环；③ 开区间与闭区间模板不能混用。</p>
+      <p style="margin-top:10px"><button type="button" class="stage-cta" data-goto="2" style="padding:9px 18px;border:0;border-radius:999px;background:linear-gradient(135deg,#0284C7,#2563EB);color:#fff;font-weight:900;cursor:pointer">进入动画演示 →</button></p>`}
+  ];
+}
+function boundSteps(kind){
+  const isLower=kind==='lower';
+  const cond=isLower?'>=':'>';
+  const word=isLower?'第一个 ≥ 2 的位置':'第一个 > 2 的位置';
+  const condText=isLower?'a[mid] >= x':'a[mid] > x';
+  return [
+    {t:'换一个问法',h:`<p>数组里有<b>重复元素</b>，我们不再问“23 在哪”，而是问：<b>${word}</b>。</p>${arrChips(BOUND_VALUES,BOUND_X)}<p style="margin-top:8px">这类问题比“找一个数”更常见，也更需要边界感。</p>`},
+    {t:'普通二分为什么不够',h:`<p>数组里有三个 2。普通二分找到任意一个 2 就返回，但答案要求的是<b>第一个</b>。</p><p>所以要改变策略：即使 <code>a[mid]</code> 已经满足条件，也不能立刻返回，而要<b>继续往左找</b>，看还有没有更早的。</p>`},
+    {t:'改用左闭右开区间',h:`<p>用 <code>[l, r)</code>：包含 l，不包含 r。初始 <code>l = 1, r = n + 1</code>。</p><p>这样“答案可能是 n+1”（所有元素都小于 x）也能统一表达，不需要特判。</p><p>循环条件是 <code>while (l &lt; r)</code>，结束时 <code>l == r</code> 就是答案位置。</p>`},
+    {t:'两种写法只差一个符号',h:`<p>两者结构完全相同，唯一区别是比较条件：</p>
+      <div class="cmp-row">
+        <div class="cmp-card"><b>lower_bound</b><span><code>a[mid] >= x</code> → <code>r = mid</code><br>否则 <code>l = mid + 1</code></span></div>
+        <div class="cmp-card"><b>upper_bound</b><span><code>a[mid] &gt; x</code> → <code>r = mid</code><br>否则 <code>l = mid + 1</code></span></div>
+      </div>
+      <p style="margin-top:8px">当前模式使用 <code>${condText}</code>：满足就说明 mid 可能是答案，所以把右边界收到 mid（<b>保留 mid</b>），而不是 mid - 1。</p>`},
+    {t:'同一组数据，两种结果',h:`<p>数组 <code>[1, 2, 2, 2, 4, 6, 6, 8]</code>，x = 2：</p>
+      <div class="cmp-row">
+        <div class="cmp-card"><b>lower_bound</b><span>第一个 ≥ 2 → 下标 <b>2</b></span></div>
+        <div class="cmp-card"><b>upper_bound</b><span>第一个 &gt; 2 → 下标 <b>5</b></span></div>
+        <div class="cmp-card"><b>相等元素个数</b><span>5 − 2 = <b>3</b> 个 2</span></div>
+      </div>`},
+    {t:'完整代码',h:`<div class="p-code">int ${isLower?'lower_bound':'upper_bound'}(int l, int r, int x)
+{
+    while (l &lt; r)
+    {
+        int mid = (l + r) &gt;&gt; 1;
+        if (<span class="hl">a[mid] ${cond} x</span>)
+            r = mid;
+        else
+            l = mid + 1;
+    }
+    return l;
+}</div><p style="margin-top:8px">只有高亮那一行不同，其余完全一致。</p>`},
+    {t:'复杂度与边界',h:`<p><b>复杂度：</b>同样每次减半，<code>O(log n)</code>。</p><p><b>易错点：</b>① 写成 <code>r = mid - 1</code> 会跳过答案；② 区间必须左闭右开，<code>while (l &lt; r)</code>；③ 返回值可能等于 n+1，表示不存在满足条件的元素。</p>
+      <p style="margin-top:10px"><button type="button" class="stage-cta" data-goto="2" style="padding:9px 18px;border:0;border-radius:999px;background:linear-gradient(135deg,#0284C7,#2563EB);color:#fff;font-weight:900;cursor:pointer">进入动画演示 →</button></p>`}
+  ];
+}
+function answerSteps(){
+  return [
+    {t:'问题',h:`<p>包裹按顺序装运：<code>[7, 2, 5, 10, 8]</code>。每辆车容量固定，最多用 <b>2 天</b>运完。</p><p>问：<b>每辆车的最小容量</b>是多少？</p>`},
+    {t:'为什么能二分',h:`<p>容量越大，需要的天数只会<b>不增</b>——这就是单调性。</p><p>于是“容量够不够”的答案一定是：小容量不行，从某个值开始突然都行。我们可以二分这个<b>分界点</b>。</p>`},
+    {t:'确定二分范围',h:`<p>下界：至少要装得下最大的包裹，<code>l = max(weight) = 10</code>。</p><p>上界：一天全部装完，<code>r = sum(weight) = 32</code>。</p><p>答案一定落在 <code>[10, 32]</code> 内。</p>`},
+    {t:'check(mid) 怎么判断',h:`<p>给定容量 <code>mid</code>，按顺序装：装不下就开新的一天。最后看天数是否 ≤ 2。</p><div class="p-code">days = 1, load = 0
+for w in weight:
+    if load + w &gt; mid:
+        days++, load = 0
+    load += w
+return days &lt;= 2</div>`},
+    {t:'收缩到答案',h:`<p>可行就记录并继续找更小：<code>r = mid</code>；不可行就调大：<code>l = mid + 1</code>。</p><p>当 <code>l == r</code> 时，这个值就是<b>最小可行容量</b>。</p>
+      <p style="margin-top:10px"><button type="button" class="stage-cta" data-goto="2" style="padding:9px 18px;border:0;border-radius:999px;background:linear-gradient(135deg,#0284C7,#2563EB);color:#fff;font-weight:900;cursor:pointer">进入动画演示 →</button></p>`}
+  ];
+}
+function realSteps(){
+  return [
+    {t:'问题',h:`<p>要求 <code>√10</code>。它不是一个整数，没法直接“找到”，只能不断逼近。</p>`},
+    {t:'用区间夹住答案',h:`<p>先确定答案一定在 <code>[0, 10]</code> 内，然后不断缩小这个区间。</p><p>只要区间足够小，区间里任意一点都可以作为近似答案。</p>`},
+    {t:'比较 mid²',h:`<p>取中点 <code>mid</code>，比较 <code>mid²</code> 与 10：</p><p>小于 10 说明 mid 偏小，答案在右边；大于 10 说明 mid 偏大，答案在左边。</p>`},
+    {t:'端点直接等于 mid',h:`<p>实数没有“下一个数”，所以<b>不能</b>写 <code>mid ± 1</code>。</p><p>只能令 <code>l = mid</code> 或 <code>r = mid</code>，把区间宽度减半。</p>`},
+    {t:'终止条件',h:`<p>常用两种：固定迭代次数（本页 12 轮），或 <code>r - l &gt; eps</code>。</p><p>12 轮后宽度是 10 / 2¹² ≈ 0.00244，精度已经足够。</p>
+      <p style="margin-top:10px"><button type="button" class="stage-cta" data-goto="2" style="padding:9px 18px;border:0;border-radius:999px;background:linear-gradient(135deg,#0284C7,#2563EB);color:#fff;font-weight:900;cursor:pointer">进入动画演示 →</button></p>`}
+  ];
+}
+function currentPrinciple(){ return currentMode==='search' ? (searchKind==='classic'?classicSteps():boundSteps(searchKind)) : (currentMode==='answer'?answerSteps():realSteps()); }
+
+function renderPrinciple(reset){
+  principleSteps=currentPrinciple();
+  const box=$('pSteps');
+  if(reset){
+    box.innerHTML='';
+    principleStep=0;
+    appendStep(0,false);
+  }
+  syncPrincipleNav();
+}
+function appendStep(i,animate){
+  const st=principleSteps[i];
+  if(!st)return;
+  const el=document.createElement('article');
+  el.className='p-step';
+  el.dataset.idx=String(i);
+  el.innerHTML='<h3><span class="idx">'+(i+1)+'</span>'+st.t+'</h3>'+st.h;
+  if(!animate)el.style.animation='none';
+  $('pSteps').appendChild(el);
+  el.scrollIntoView({block:'nearest',behavior:animate?'smooth':'auto'});
+}
+function syncPrincipleNav(){
+  $('pProgress').textContent=(principleStep+1)+' / '+principleSteps.length;
+  $('pPrev').disabled=principleStep===0;
+  $('pNext').textContent=principleStep>=principleSteps.length-1?'已到最后一步':'下一步 →';
+  $('pNext').disabled=principleStep>=principleSteps.length-1;
+  document.querySelectorAll('.p-step').forEach((el,i)=>el.classList.toggle('pass',i<principleStep));
+}
+function gotoPrincipleStep(i){
+  const target=Math.max(0,Math.min(principleSteps.length-1,i));
+  const box=$('pSteps');
+  if(target>principleStep){
+    for(let k=principleStep+1;k<=target;k++)appendStep(k,true);
+  }else if(target<principleStep){
+    [...box.children].forEach(el=>{ if(Number(el.dataset.idx)>target) el.remove(); });
+  }
+  principleStep=target;
+  syncPrincipleNav();
+}
+
+/* ============================================================
+ * 3. 代码面板
+ * ============================================================ */
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function colorCode(line,key){
+  let html=escapeHtml(line);
+  // 只对边界二分的比较行单独高亮 >= 或 >，且必须在其它着色之前处理，避免破坏标签
+  if(key==='lower') html=html.replace('&gt;=','<span class="tok-diff">&gt;=</span>');
+  else if(key==='upper') html=html.replace('&gt; x','<span class="tok-diff">&gt; x</span>');
+  html=html
+    .replace(/\b(int|double|bool|return|while|for|if|else)\b/g,'<span class="tok-kw">$1</span>')
+    .replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="tok-num">$1</span>')
+    .replace(/\b(lower_bound|upper_bound|binarySearch|check|minimumCapacity|sqrtByBinary|max)\b/g,'<span class="tok-fn">$1</span>');
+  return html;
+}
+function codeKey(){ return currentMode==='search'?searchKind:currentMode; }
+let codeBuiltFor=null;
+function buildCode(){
+  const box=$('code');box.innerHTML='';codeBuiltFor=codeKey();
+  const key=codeKey();
+  CODES[key].forEach((line,i)=>{
+    const d=document.createElement('div');
+    d.className='code-line';d.dataset.line=String(i+1);d.innerHTML=colorCode(line,key);
+    box.appendChild(d);
+  });
+  $('codeName').textContent=FILES[key];
+}
+function highlightCode(lineNo){
+  const box=$('code');if(!box)return;
+  let active=null;
+  box.querySelectorAll('.code-line').forEach(el=>{
+    const on=Number(el.dataset.line)===lineNo;
+    el.classList.toggle('highlight',on);
+    if(on)active=el;
+  });
+  if(active&&currentStage===3)active.scrollIntoView({block:'center'});
+}
+
+/* ============================================================
+ * 4. 普通二分 / 边界二分：动画舞台
+ * ============================================================ */
+const viz={built:false,key:null,cells:[],ptr:{},band:null};
+
+function boardKey(){ return currentMode==='search'?searchKind:currentMode; }
+
+function buildBoard(){
+  const stage=$('stage');
+  stage.innerHTML='';
+  const band=document.createElement('div');band.className='band';
+  const cellsWrap=document.createElement('div');cellsWrap.className='cells';
+  const cellEls=[];
+  values.forEach((v,i)=>{
+    const item=document.createElement('div');
+    item.className='cell-item';item.dataset.idx=String(i+1);
+    const cell=document.createElement('div');cell.className='cell';cell.textContent=String(v);
+    const idx=document.createElement('div');idx.className='cell-index';idx.textContent='['+(i+1)+']';
+    item.appendChild(cell);item.appendChild(idx);
+    cellsWrap.appendChild(item);cellEls.push(item);
+  });
+  const ptrLayer=document.createElement('div');ptrLayer.className='pointer-layer';
+  const ptrs={};
+  ['l','mid','r'].forEach(name=>{
+    const el=document.createElement('div');
+    el.className='pvar';el.dataset.var=name;
+    el.innerHTML='<div class="pointer-label">'+name+'</div><div class="pointer-arrow"></div>';
+    ptrLayer.appendChild(el);
+    ptrs[name]={el};
+  });
+  const cmp=document.createElement('div');cmp.className='compare-bar';cmp.id='cmpBar';
+  cmp.innerHTML='<span class="cmp-range" id="cmpRange">[1, 9]</span><span class="cmp-chip" id="cmpChip">目标</span><span id="cmpText"></span>';
+
+  stage.appendChild(band);stage.appendChild(cellsWrap);stage.appendChild(ptrLayer);stage.appendChild(cmp);
+  viz.built=true;viz.key=boardKey();viz.cells=cellEls;viz.ptr=ptrs;viz.band=band;
+  requestAnimationFrame(()=>applyStageState(states[stateIndex]||states[0],false));
+}
+
+function rectIn(node,container){
+  const a=node.getBoundingClientRect(),b=container.getBoundingClientRect();
+  return {left:a.left-b.left,top:a.top-b.top,width:a.width,height:a.height};
+}
+
+function applyStageState(s,animate){
+  if(!s||!viz.built)return;
+  const half=!!s.halfOpen;
+  const lo=s.l, hiExclusive=half?s.r:s.r+1;   // [lo, hiExclusive)
+
+  viz.cells.forEach(item=>{
+    const idx=Number(item.dataset.idx);
+    const inRange=idx>=lo && idx<hiExclusive;
+    const isMid=idx===s.mid;
+    const isFound=s.status==='found'&&(half? idx===s.answer : idx===s.mid);
+    item.classList.toggle('out',!inRange&&!isFound);
+    item.classList.toggle('mid',isMid&&s.status!=='found');
+    item.classList.toggle('found',!!isFound);
+    item.classList.toggle('low',isMid&&(s.status==='less'||s.status==='shrink-l'));
+    item.classList.toggle('high',isMid&&(s.status==='greater'||s.status==='shrink-r'));
+  });
+
+  updateBand(s,animate,half);
+  positionPointers(s,animate,half);
+  updateCompare(s,half);
+  $('stage').style.setProperty('--ptr-dur',Math.round(Math.min(520,Math.max(160,420/speed)))+'ms');
+}
+
+function updateBand(s,animate,half){
+  const stageEl=$('stage');
+  const lo=s.l, hi=half?s.r-1:s.r;
+  const first=viz.cells[lo-1], last=viz.cells[hi-1];
+  const style=viz.band.style;
+  style.transition=animate?'':'none';
+  if(!first||!last||hi<lo){
+    style.opacity='0';
+    if(!animate){void viz.band.offsetWidth;style.transition='';}
+    return;
+  }
+  style.opacity='1';
+  const a=rectIn(first,stageEl),b=rectIn(last,stageEl);
+  style.left=(a.left-6)+'px';
+  style.width=(b.left+b.width-a.left+12)+'px';
+  style.top=(a.top-8)+'px';
+  style.height=(a.height+16)+'px';
+  if(!animate){void viz.band.offsetWidth;style.transition='';}
+}
+
+function positionPointers(s,animate,half){
+  const stageEl=$('stage');
+  // 命中时只保留高亮格与「答案」徽标，避免指针与徽标重叠
+  if(s.status==='found'){
+    Object.keys(viz.ptr).forEach(name=>viz.ptr[name].el.classList.remove('is-visible'));
+    return;
+  }
+  const wanted=[];
+  if(s.l>=1&&s.l<=values.length)wanted.push(['l',s.l]);
+  if(s.mid&&s.status!=='shrink')wanted.push(['mid',s.mid]);
+  if(half){
+    if(s.r>=1&&s.r<=values.length)wanted.push(['r',s.r]);
+    else if(s.r===values.length+1)wanted.push(['r',values.length]);   // r 指向末尾之后：挂在最后一格右侧
+  }else if(s.r>=1&&s.r<=values.length){
+    wanted.push(['r',s.r]);
+  }
+
+  const byIdx={};
+  wanted.forEach(([name,idx])=>{ (byIdx[idx]=byIdx[idx]||[]).push(name); });
+  const virtualRight=(half&&s.r===values.length+1);
+
+  Object.keys(viz.ptr).forEach(name=>{
+    const rec=viz.ptr[name];
+    const hit=wanted.find(w=>w[0]===name);
+    if(!hit){rec.el.classList.remove('is-visible');return;}
+    const idx=hit[1];
+    const cell=viz.cells[idx-1];
+    if(!cell)return;
+    const r=rectIn(cell,stageEl);
+    const order=byIdx[idx].indexOf(name);
+    const width=rec.el.offsetWidth||58;
+    const dur=animate?Math.min(520,Math.max(160,420/speed)):0;
+    rec.el.style.transition=dur?('transform '+dur+'ms cubic-bezier(.33,1,.68,1),opacity .18s'):'none';
+    rec.el.style.transform='translate('+(r.left+r.width/2-width/2+(name==='r'&&virtualRight?r.width*0.45:0))+'px,'+(r.top-36-order*23)+'px)';
+    rec.el.classList.add('is-visible');
+    if(!dur){void rec.el.offsetWidth;rec.el.style.transition='';}
+  });
+}
+
+function updateCompare(s,half){
+  const bar=$('cmpBar'),chip=$('cmpChip'),text=$('cmpText'),range=$('cmpRange');
+  if(!bar)return;
+  bar.classList.remove('low','high','hit');
+  const rangeText=half?('['+s.l+', '+s.r+')'):('['+s.l+', '+s.r+']');
+  if(range)range.textContent=rangeText;
+
+  if(currentMode!=='search'){
+    chip.textContent='—';text.textContent='';return;
+  }
+  const x=searchKind==='classic'?CLASSIC_TARGET:BOUND_X;
+  const v=s.mid?values[s.mid-1]:null;
+
+  if(s.status==='found'){
+    bar.classList.add('hit');
+    if(searchKind==='classic'){chip.textContent='a['+s.mid+'] = '+v;text.textContent='= 23，命中！返回下标 '+s.mid;}
+    else{chip.textContent='返回 '+s.answer;text.textContent='第一个 '+(searchKind==='lower'?'≥':'>')+' 2 的位置是下标 '+s.answer;}
+  }else if(s.status==='less'||s.status==='greater'){
+    bar.classList.add(s.status==='less'?'low':'high');
+    chip.textContent='a['+s.mid+'] = '+v;
+    text.textContent=s.status==='less'?'< '+x+'，左侧（含 mid）全部淘汰':'&gt; '+x+'，右侧（含 mid）全部淘汰';
+  }else if(s.status==='shrink-l'){
+    bar.classList.add('low');
+    chip.textContent='a['+s.mid+'] = '+v+' 不满足条件';
+    text.textContent='→ l = mid + 1，mid 及左侧全部淘汰';
+  }else if(s.status==='shrink-r'){
+    bar.classList.add('high');
+    chip.textContent='a['+s.mid+'] = '+v+' 满足条件';
+    text.textContent='→ r = mid，保留 mid，继续往左找';
+  }else if(s.status==='shrink'){
+    chip.textContent='已收缩';
+    text.textContent='新区间 '+rangeText+'，继续二分';
+  }else if(s.status==='mid'){
+    chip.textContent='a['+s.mid+'] = '+v;
+    text.textContent=searchKind==='classic'?'取到中点，准备与 target 比较':'取到中点，准备判断条件';
+  }else{
+    chip.textContent='目标';
+    text.textContent='等待比较';
+  }
+}
+
+/* ============================================================
+ * 5. 二分答案舞台（居中 + 按天分组）
+ * ============================================================ */
+function renderAnswer(s){
+  const byDay={};
+  weights.forEach((w,i)=>{
+    const d=s.assignments[i];
+    if(!d)return;
+    (byDay[d]=byDay[d]||[]).push(i);
+  });
+  const dayCount=Math.max(s.days||0, ...Object.keys(byDay).map(Number), 0);
+  const days=[];
+  for(let d=1;d<=dayCount;d++){
+    const idxs=byDay[d]||[];
+    const load=idxs.reduce((sum,i)=>sum+weights[i],0);
+    const pkgs=idxs.map(i=>{
+      const isCur=s.current===i;
+      const isNew=isCur&&i>0&&s.assignments[i]!==s.assignments[i-1];
+      return '<div class="pkg'+(isCur?' current':'')+(isNew?' flash':'')+'"><b>'+weights[i]+'</b><small>#'+(i+1)+'</small></div>';
+    }).join('')||'<span class="ans-empty">空</span>';
+    const active=s.current!=null&&s.assignments[s.current]===d;
+    days.push('<div class="ans-day'+(active?' active':'')+'"><div class="ans-day-head">第 '+d+' 天 <span>'+load+' / '+(s.mid??'—')+'</span></div><div class="ans-pkgs">'+pkgs+'</div></div>');
+  }
+
+  const capChip='<div class="ans-chip hot"><span>当前尝试容量</span><b>'+(s.mid??'—')+'</b></div>';
+  const dayChip='<div class="ans-chip"><span>已用天数</span><b>'+(s.days??'—')+' / '+dayLimit+'</b></div>';
+  const loadChip='<div class="ans-chip"><span>当天载重</span><b>'+(s.load??'—')+'</b></div>';
+
+  let verdict='<div class="ans-verdict idle">等待 check(mid)</div>';
+  if(s.feasible!==undefined){
+    verdict=s.feasible
+      ? '<div class="ans-verdict ok">check('+s.mid+') = true · '+s.days+' 天完成，可行</div>'
+      : '<div class="ans-verdict no">check('+s.mid+') = false · '+s.days+' 天超过限制，不可行</div>';
+  }else if(s.done){
+    verdict='<div class="ans-verdict ok">最小可行容量 = '+s.l+'</div>';
+  }
+
+  return '<div class="ans-stage">'+
+    '<div class="ans-top">'+capChip+dayChip+loadChip+'</div>'+
+    '<div class="ans-days">'+(days.length?days.join(''):emptyBlock(s))+'</div>'+
+    verdict+
+  '</div>';
+}
+
+function emptyBlock(s){
+  if(s.done) return '<span class="ans-empty">已完成</span>';
+  const width=(s.r-s.l+1);
+  return '<div class="ans-interval">'+
+    '<div class="ans-interval-title">当前搜索区间</div>'+
+    '<div class="ans-interval-range">['+s.l+' , '+s.r+']</div>'+
+    '<div class="ans-interval-note">共 '+width+' 个候选容量，等待取中点</div>'+
+  '</div>';
+}
+
+/* ============================================================
+ * 6. 实数二分舞台
+ * ============================================================ */
+function renderReal(s){
+  const square=s.square==null?'—':s.square.toFixed(6);
+  const pos=v=>Math.max(2,Math.min(98,(v/10)*100));
+  const mark=(v,color,label,top)=>'<div style="position:absolute;left:'+pos(v)+'%;top:'+top+'px;transform:translateX(-50%);color:'+color+';text-align:center"><b style="font:800 11.5px Consolas;background:#fff;padding:1px 6px;border-radius:5px;border:1px solid currentColor;white-space:nowrap">'+label+'</b><div style="width:2px;height:9px;margin:2px auto 0;background:currentColor"></div></div>';
+  return '<div style="width:min(780px,100%)">'+
+    '<div style="text-align:center;color:#334155;margin-bottom:6px">目标 <code style="color:#2563EB;font-weight:900">x² = 10</code>　当前 <code>mid² = '+square+'</code></div>'+
+    '<div style="position:relative;height:108px;margin:0 30px">'+
+      '<div style="position:absolute;left:'+pos(s.l)+'%;width:'+Math.max(0,pos(s.r)-pos(s.l))+'%;top:56px;height:10px;border-radius:99px;background:rgba(37,99,235,.16);border:1px solid rgba(37,99,235,.4)"></div>'+
+      '<div style="position:absolute;left:0;right:0;top:58px;height:6px;border-radius:99px;background:linear-gradient(90deg,#BFDBFE,#FDE68A,#FECDD3)"></div>'+
+      mark(s.l,'#2563EB','l = '+s.l.toFixed(4),4)+
+      mark(s.r,'#EF4444','r = '+s.r.toFixed(4),4)+
+      (s.mid==null?'':mark(s.mid,'#D97706','mid = '+s.mid.toFixed(4),76))+
+    '</div>'+
+    '<div style="text-align:center;color:#475569;font:700 13.5px Consolas;margin-top:2px">当前区间宽度：'+(s.r-s.l).toFixed(8)+'</div>'+
+  '</div>';
+}
+
+/* ============================================================
+ * 7. 目标常驻条
+ * ============================================================ */
+function updateTargetBar(s){
+  const main=$('tbMain'),sub=$('tbSub'),tag=$('tbTag');
+  if(currentMode==='search'){
+    if(searchKind==='classic'){ main.textContent='target = 23'; sub.textContent='在 9 个有序元素中查找 23'; }
+    else if(searchKind==='lower'){ main.textContent='x = 2'; sub.textContent='lower_bound：第一个 ≥ x 的位置'; }
+    else { main.textContent='x = 2'; sub.textContent='upper_bound：第一个 > x 的位置'; }
+  }else if(currentMode==='answer'){
+    main.textContent='2 天内完成运输';
+    sub.textContent='当前尝试容量 mid = '+(s&&s.mid!=null?s.mid:'—');
+  }else{
+    main.textContent='x² = 10';
+    sub.textContent='求 √10 ≈ 3.16227766';
+  }
+  tag.textContent='第 '+(stateIndex+1)+' / '+states.length+' 步';
+}
+
+/* ============================================================
+ * 8. 渲染
+ * ============================================================ */
+const STAGE_TITLES=['','原理讲解','动画演示','动画 + 代码'];
+const STAGE_SUBS=['','跟着老师一步一步想清楚。','只看动画：区间如何一步步收缩。','左侧代码行与右侧动画同步高亮。'];
+
+function syncShell(){
+  $('kickerLesson').textContent='环节 '+currentStage+' / 3';
+  $('kickerAlgo').textContent=currentMode==='search'?(searchKind==='classic'?'二分查找':(searchKind==='lower'?'lower_bound':'upper_bound')):MODE_NAMES[currentMode];
+  $('lessonTitle').textContent=STAGE_TITLES[currentStage];
+  $('lessonSub').textContent=STAGE_SUBS[currentStage];
+  $('footStage').textContent='环节 '+currentStage+' / 3 · '+STAGE_TITLES[currentStage];
+  $('footHint').textContent=currentStage===1?'逐步点击「下一步」推进讲解':'空格播放 / 暂停，← → 单步';
+  $('principle').classList.toggle('is-hidden',currentStage!==1);
+  $('workbench').classList.toggle('is-hidden',currentStage===1);
+  $('workbench').classList.toggle('with-code',currentStage===3);
+  $('subtabs').classList.toggle('is-hidden',currentMode!=='search');
+  document.querySelectorAll('.stage-chip').forEach(chip=>{
+    const on=Number(chip.dataset.stage)===currentStage;
+    chip.classList.toggle('active',on);chip.setAttribute('aria-selected',String(on));
+  });
+  $('stagePrev').disabled=currentStage===1;
+  $('stageNext').disabled=currentStage===3;
+  $('footPrev').disabled=currentStage===1;
+  $('footNext').disabled=currentStage===3;
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b.dataset.kind===searchKind));
+  $('vizLegend').style.display=currentMode==='search'?'':'none';
+}
+
+function render(animate){
+  syncShell();
+  if(currentStage===1){renderPrinciple(false);return;}
+
+  const s=states[stateIndex];
+  updateTargetBar(s);
+  $('stepBadge').textContent='第 '+(stateIndex+1)+' / '+states.length+' 步';
+  $('statusPhase').textContent=s.phase;
+  $('statusText').innerHTML=s.desc;
+  $('prev').disabled=stateIndex===0;
+  $('next').disabled=stateIndex===states.length-1;
+
+  if(currentMode==='search'){
+    if(!viz.built||viz.key!==boardKey())buildBoard();
+    else applyStageState(s,animate!==false);
+  }else{
+    viz.built=false;viz.key=null;
+    $('stage').innerHTML=currentMode==='answer'?renderAnswer(s):renderReal(s);
+  }
+
+  if(codeBuiltFor!==codeKey())buildCode();
+  highlightCode(s.line);
+}
+
+/* ============================================================
+ * 9. 播放控制
+ * ============================================================ */
+function setStep(i,opts){
+  const next=Math.max(0,Math.min(states.length-1,i));
+  if(next===stateIndex&&!opts?.force)return;
+  stateIndex=next;render(true);
+}
+function play(){
+  if(playing)return;
+  if(stateIndex>=states.length-1){stateIndex=0;render(false);}
+  playing=true;syncPlayBtn();schedule();
+}
+function schedule(){
+  if(playTimer)clearTimeout(playTimer);
+  const interval=Math.round(900/speed);
+  playTimer=setTimeout(()=>{
+    playTimer=null;
+    if(!playing)return;
+    if(stateIndex<states.length-1){stateIndex+=1;render(true);schedule();}
+    else stopPlay();
+  },interval);
+}
+function stopPlay(){
+  playing=false;
+  if(playTimer){clearTimeout(playTimer);playTimer=null;}
+  syncPlayBtn();
+}
+function syncPlayBtn(){
+  const b=$('play');
+  b.textContent=playing?'⏸ 暂停':'▶ 播放';
+  b.classList.toggle('playing',playing);
+}
+function setSpeed(v){
+  speed=v;
+  document.querySelectorAll('.speed-btn').forEach(b=>b.classList.toggle('active',Number(b.dataset.speed)===v));
+  if(playing)schedule();
+}
+
+/* ============================================================
+ * 10. 环节 / 模式 / 子模式切换
+ * ============================================================ */
+function rebuildAll(){
+  if(currentMode==='search'){
+    values=(searchKind==='classic'?CLASSIC_VALUES:BOUND_VALUES).slice();
+    states=searchKind==='classic'?buildClassicStates():buildBoundStates(searchKind);
+  }else if(currentMode==='answer'){
+    values=[];states=buildAnswerStates();
+  }else{
+    values=[];states=buildRealStates();
+  }
+  stateIndex=0;
+  viz.built=false;viz.key=null;codeBuiltFor=null;
+  $('stage').innerHTML='';
+  principleStep=0;
+}
+
+function setStage(stage){
+  const next=Math.max(1,Math.min(3,Number(stage)||1));
+  if(next===currentStage){render(false);return;}
+  stopPlay();
+  currentStage=next;
+  render(false);
+  requestAnimationFrame(()=>{if(currentMode==='search'&&viz.built)applyStageState(states[stateIndex],false);});
+}
+
+function loadMode(mode,kind){
+  stopPlay();
+  currentMode=['search','answer','real'].includes(mode)?mode:'search';
+  if(currentMode==='search')searchKind=['classic','lower','upper'].includes(kind)?kind:'classic';
+  $('mode').value=currentMode;
+  rebuildAll();
+  const params=new URLSearchParams(location.search);
+  params.set('mode',currentMode);
+  if(currentMode==='search')params.set('kind',searchKind);else params.delete('kind');
+  history.replaceState(null,'','?'+params.toString());
+  renderPrinciple(true);
+  render(false);
+}
+
+function switchKind(kind){
+  if(kind===searchKind)return;
+  stopPlay();
+  searchKind=kind;
+  rebuildAll();
+  const params=new URLSearchParams(location.search);
+  params.set('mode','search');params.set('kind',searchKind);
+  history.replaceState(null,'','?'+params.toString());
+  renderPrinciple(true);
+  render(false);
+}
+
+/* ============================================================
+ * 11. 事件
+ * ============================================================ */
+$('prev').onclick=()=>{stopPlay();setStep(stateIndex-1);};
+$('next').onclick=()=>{stopPlay();setStep(stateIndex+1);};
+$('reset').onclick=()=>{stopPlay();stateIndex=0;render(false);};
+$('play').onclick=()=>{playing?stopPlay():play();};
+document.querySelectorAll('.speed-btn').forEach(b=>b.addEventListener('click',()=>setSpeed(Number(b.dataset.speed))));
+$('mode').onchange=e=>loadMode(e.target.value);
+document.querySelectorAll('.subtab').forEach(b=>b.addEventListener('click',()=>switchKind(b.dataset.kind)));
+
+document.querySelectorAll('.stage-chip').forEach(chip=>chip.addEventListener('click',()=>setStage(Number(chip.dataset.stage))));
+$('stagePrev').onclick=()=>setStage(currentStage-1);
+$('stageNext').onclick=()=>setStage(currentStage+1);
+$('footPrev').onclick=()=>setStage(currentStage-1);
+$('footNext').onclick=()=>setStage(currentStage+1);
+
+$('pPrev').onclick=()=>gotoPrincipleStep(principleStep-1);
+$('pNext').onclick=()=>gotoPrincipleStep(principleStep+1);
+$('pSteps').addEventListener('click',e=>{
+  const go=e.target.closest('[data-goto]');
+  if(go)setStage(Number(go.dataset.goto));
+});
+
+document.addEventListener('keydown',e=>{
+  const tag=e.target&&e.target.tagName;
+  if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;
+  if(currentStage===1){
+    if(e.key==='ArrowRight'){e.preventDefault();gotoPrincipleStep(principleStep+1);}
+    if(e.key==='ArrowLeft'){e.preventDefault();gotoPrincipleStep(principleStep-1);}
+    return;
+  }
+  if(e.code==='Space'){e.preventDefault();playing?stopPlay():play();return;}
+  if(e.key==='ArrowLeft'){e.preventDefault();stopPlay();setStep(stateIndex-1);}
+  if(e.key==='ArrowRight'){e.preventDefault();stopPlay();setStep(stateIndex+1);}
+});
+
+let resizeTimer=null;
+window.addEventListener('resize',()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{if(currentMode==='search'&&viz.built)applyStageState(states[stateIndex],false);},120);
+});
+
+/* 全屏 + iframe 通信 */
+function tellParent(action){if(window.parent!==window)window.parent.postMessage({type:'lesson-fullscreen',action},location.origin)}
+$('fullscreen').onclick=()=>{
+  if(document.fullscreenElement)document.exitFullscreen();
+  else{tellParent('enter');document.documentElement.requestFullscreen();}
+};
+document.addEventListener('fullscreenchange',()=>{
+  const full=!!document.fullscreenElement;
+  $('fullscreen').textContent=full?'🔳 退出全屏':'🖥️ 全屏演示';
+  if(!full)tellParent('exit');
+  resizeBoard();
+  requestAnimationFrame(()=>{if(currentMode==='search'&&viz.built)applyStageState(states[stateIndex],false);});
+});
+
+/* 白板 */
+const canvas=$('board'),ctx=canvas.getContext('2d');
+let drawing=false,boardOn=false;
+function resizeBoard(){
+  const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;
+  copy.getContext('2d').drawImage(canvas,0,0);
+  canvas.width=innerWidth;canvas.height=innerHeight;
+  ctx.drawImage(copy,0,0);
+}
+function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+canvas.onpointerdown=e=>{if(!boardOn)return;drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);canvas.setPointerCapture(e.pointerId)};
+canvas.onpointermove=e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke()};
+canvas.onpointerup=()=>drawing=false;
+$('toggleBoard').onclick=()=>{
+  boardOn=!boardOn;
+  canvas.style.display=boardOn?'block':'none';
+  canvas.style.pointerEvents=boardOn?'auto':'none';
+  document.body.classList.toggle('board-on',boardOn);
+  $('toggleBoard').classList.toggle('active',boardOn);
+  $('toggleBoard').textContent=boardOn?'✕ 关闭白板':'🖌️ 开启白板';
+};
+$('clearBoard').onclick=()=>ctx.clearRect(0,0,canvas.width,canvas.height);
+addEventListener('resize',resizeBoard);
+resizeBoard();
+
+/* ============================================================
+ * 12. 启动
+ * ============================================================ */
+(function boot(){
+  const params=new URLSearchParams(location.search);
+  loadMode(params.get('mode')||'search', params.get('kind')||'classic');
+})();
+</script>
+</body>
+</html>
