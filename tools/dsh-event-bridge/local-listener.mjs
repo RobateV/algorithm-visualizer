@@ -25,6 +25,7 @@
 import { readFile, writeFile, mkdir, rename, rm, access, appendFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 
@@ -53,7 +54,8 @@ export function loadConfig(env = process.env, argv = []) {
     once: false,
     statusOnly: false,
     pause: false,
-    resume: false
+    resume: false,
+    unlock: false
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -61,6 +63,7 @@ export function loadConfig(env = process.env, argv = []) {
     else if (a === '--status') cfg.statusOnly = true;
     else if (a === '--pause') cfg.pause = true;
     else if (a === '--resume') cfg.resume = true;
+    else if (a === '--unlock') cfg.unlock = true;
     else if (a === '--interval') cfg.intervalSec = Number.parseInt(argv[++i] || '', 10) || DEFAULT_INTERVAL_S;
     else if (a === '--state') cfg.stateDir = argv[++i] || cfg.stateDir;
   }
@@ -134,7 +137,6 @@ export class ListenerState {
   }
 
   async isPaused() {
-    if (this.state.paused) return { paused: true, reason: this.state.pausedReason || 'state.paused' };
     try {
       await access(this.pauseFile);
       return { paused: true, reason: 'PAUSED 文件存在' };
@@ -143,12 +145,17 @@ export class ListenerState {
     }
   }
 
-  async setPaused(paused, reason = '') {
-    this.state.paused = Boolean(paused);
-    this.state.pausedReason = reason;
-    await this.save();
-    if (paused) await writeFile(this.pauseFile, reason || 'paused', 'utf8').catch(() => {});
-    else await rm(this.pauseFile, { force: true }).catch(() => {});
+  /** 暂停/恢复只操作 PAUSED 文件，不写 state.json，避免与轮询竞争 */
+  async setPauseFile(paused, reason = '') {
+    if (paused) {
+      await writeFile(this.pauseFile, reason || 'paused', 'utf8');
+      this.state.paused = true;
+      this.state.pausedReason = reason;
+    } else {
+      await rm(this.pauseFile, { force: true }).catch(() => {});
+      this.state.paused = false;
+      this.state.pausedReason = '';
+    }
   }
 
   hasSeen(commentId) {
@@ -169,6 +176,16 @@ export class ListenerState {
 
 /* ------------------------------------------------------------------ 锁 */
 
+/**
+ * 单实例锁。
+ *
+ * 互斥性说明（重要）：
+ * 纯文件操作无法在 Windows/POSIX 上**可证明地**完成"检测陈旧 → 安全接管"：
+ * 两个进程可能都读到同一份陈旧锁信息，后者会误删前者刚创建的新锁。
+ * 因此本实现**不做自动陈旧锁接管**：检测到持有者已退出时 fail-closed，
+ * 由人工确认后执行 `--unlock`。这样宁可要求人工介入，也不制造双实例窗口。
+ */
+
 /** 判断 PID 是否存活；无法确认时返回 null（调用方必须 fail-closed） */
 export function pidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return null;
@@ -182,19 +199,20 @@ export function pidAlive(pid) {
   }
 }
 
+export function newNonce() {
+  return randomBytes(12).toString('hex');
+}
+
 /**
- * 获取单实例锁。
- * - 已有**存活**进程持锁 → 拒绝启动
- * - 能确认持锁进程**已退出** → 安全接管一次
- * - 锁内容损坏 / PID 无法确认 / 接管时竞争 → fail-closed
- * 不按文件年龄删除锁。
+ * 获取锁。锁内容 `{ pid, nonce, at }`。
+ * @returns {{ok:true, nonce:string} | {ok:false, reason:string, code:string}}
  */
-export async function acquireLock(state, { isAlive = pidAlive } = {}) {
-  const payload = JSON.stringify({ pid: process.pid, at: new Date().toISOString() });
+export async function acquireLock(state, { isAlive = pidAlive, nonce = newNonce() } = {}) {
+  const payload = JSON.stringify({ pid: process.pid, nonce, at: new Date().toISOString() });
 
   try {
     await writeFile(state.lockFile, payload, { flag: 'wx' });
-    return { ok: true, recovered: false };
+    return { ok: true, nonce };
   } catch (err) {
     if (err.code !== 'EEXIST') throw err;
   }
@@ -203,32 +221,99 @@ export async function acquireLock(state, { isAlive = pidAlive } = {}) {
   try {
     info = JSON.parse(await readFile(state.lockFile, 'utf8'));
   } catch {
-    return { ok: false, reason: '锁文件内容损坏，需人工确认后删除（fail-closed）' };
+    return {
+      ok: false,
+      code: 'lock-corrupt',
+      reason: '锁文件内容损坏，需人工确认无监听器运行后删除 .local-state/listener.lock'
+    };
   }
 
   const alive = isAlive(info && info.pid);
   if (alive === true) {
-    return { ok: false, reason: `已有监听器实例在运行（pid ${info.pid}）` };
+    return { ok: false, code: 'lock-busy', reason: `已有监听器实例在运行（pid ${info.pid}）` };
   }
   if (alive === null) {
-    return { ok: false, reason: `无法确认锁持有进程状态（pid ${info && info.pid}），保持 fail-closed 并需人工处理` };
+    return {
+      ok: false,
+      code: 'lock-unknown',
+      reason: `无法确认锁持有进程（pid ${info && info.pid}）状态，保持 fail-closed`
+    };
   }
-
-  // 确认进程已退出：安全接管
-  await rm(state.lockFile, { force: true });
-  try {
-    await writeFile(state.lockFile, payload, { flag: 'wx' });
-    return { ok: true, recovered: true, previousPid: info.pid };
-  } catch {
-    return { ok: false, reason: '锁接管过程中发生竞争，需人工确认（fail-closed）' };
-  }
+  return {
+    ok: false,
+    code: 'lock-stale',
+    reason: `检测到已退出进程（pid ${info.pid}）留下的锁；不做自动接管，请确认后运行 --unlock`
+  };
 }
 
-export async function releaseLock(state) {
-  await rm(state.lockFile, { force: true }).catch(() => {});
+/** 仅当锁仍属于本进程且 nonce 匹配时才释放 */
+export async function releaseLock(state, nonce) {
+  if (!nonce) return false;
+  let info = null;
+  try {
+    info = JSON.parse(await readFile(state.lockFile, 'utf8'));
+  } catch {
+    return false;
+  }
+  if (!info || info.pid !== process.pid || info.nonce !== nonce) return false;
+  await rm(state.lockFile, { force: true });
+  return true;
+}
+
+/**
+ * 人工解锁：只删除"持有者已确认退出"或"锁已损坏"的锁。
+ * 存活或状态未知时拒绝。
+ */
+export async function unlockStale(state, { isAlive = pidAlive } = {}) {
+  let info = null;
+  try {
+    info = JSON.parse(await readFile(state.lockFile, 'utf8'));
+  } catch (err) {
+    if (err.code === 'ENOENT') return { ok: true, removed: false, reason: '没有锁文件' };
+    await rm(state.lockFile, { force: true });
+    return { ok: true, removed: true, reason: '锁文件损坏，已删除' };
+  }
+  const alive = isAlive(info && info.pid);
+  if (alive === true) return { ok: false, reason: `锁被存活进程 pid ${info.pid} 持有，拒绝删除` };
+  if (alive === null) return { ok: false, reason: `无法确认 pid ${info && info.pid} 的状态，拒绝删除` };
+  await rm(state.lockFile, { force: true });
+  return { ok: true, removed: true, reason: `已删除 pid ${info.pid} 的陈旧锁` };
+}
+
+/** 在锁内执行 fn；拿不到锁直接返回，不执行 fn */
+export async function withLock(state, fn, { isAlive = pidAlive } = {}) {
+  const lock = await acquireLock(state, { isAlive });
+  if (!lock.ok) return { locked: false, code: lock.code, reason: lock.reason };
+  try {
+    return { locked: true, value: await fn() };
+  } finally {
+    await releaseLock(state, lock.nonce);
+  }
 }
 
 /* ------------------------------------------------------------------ 解析 */
+
+/**
+ * 仓库相对路径校验。
+ * 拒绝：空值、反斜杠、POSIX/Windows 绝对路径、UNC、盘符、`..`/`.`/空路径段、
+ * 规范化后越界的路径。只返回布尔值，不接触文件系统。
+ */
+export function isValidRepoPath(p) {
+  if (typeof p !== 'string') return false;
+  const s = p.trim();
+  if (!s) return false;
+  if (s.includes('\\')) return false;              // 反斜杠（Windows 分隔符/穿越）
+  if (s.startsWith('/')) return false;             // POSIX 绝对路径
+  if (/^[A-Za-z]:/.test(s)) return false;          // 盘符路径
+  if (s.startsWith('//')) return false;            // UNC 形式
+  if (s.length > 240) return false;
+  const parts = s.split('/');
+  if (parts.some((seg) => seg === '' || seg === '.' || seg === '..')) return false;
+  const norm = path.posix.normalize(s);
+  if (norm !== s) return false;                    // 必须已是规范形式
+  if (norm.startsWith('..') || path.posix.isAbsolute(norm)) return false;
+  return true;
+}
 
 /**
  * 解析评论正文。
@@ -266,7 +351,10 @@ export function parseComment(body) {
   else if (['main', 'master'].includes(branch) || branch.startsWith('main/')) problems.push('不允许以 main 为目标分支');
   if (!/^[0-9a-f]{40}$/.test(expectedSha)) problems.push('expected_sha 必须为 40 位十六进制');
   if (allow.length === 0) problems.push('缺少 allow 修改范围');
-  if (allow.some((p) => p.startsWith('/') || p.includes('..'))) problems.push('allow 路径必须是仓库内相对路径');
+  else {
+    const bad = allow.filter((p) => !isValidRepoPath(p));
+    if (bad.length) problems.push(`allow 含非法的仓库相对路径：${bad.join(', ')}`);
+  }
   if (!accept) problems.push('缺少 accept 验收标准');
 
   if (problems.length) return { kind: 'invalid', reason: problems.join('；') };
@@ -289,6 +377,7 @@ export function parseComment(body) {
 /* ------------------------------------------------------------------ GitHub */
 
 export const MAX_COMMENT_PAGES = 50;
+export const GITHUB_API_ORIGIN = 'https://api.github.com';
 
 /** 从 Link 头中取出 rel="next" 的地址 */
 export function parseNextLink(linkHeader) {
@@ -300,6 +389,31 @@ export function parseNextLink(linkHeader) {
   return null;
 }
 
+/**
+ * 校验分页 URL 只能指向固定 GitHub API 与固定仓库/Issue 的评论接口。
+ * 不合法时返回原因，调用方**不得**发起请求（避免把 Bearer token 发给任意域名）。
+ */
+export function validateNextUrl(url, { repo = REPO, issue = ISSUE_NUMBER } = {}) {
+  let u;
+  try {
+    u = new URL(String(url));
+  } catch {
+    return { ok: false, reason: 'Link 不是合法 URL' };
+  }
+  if (u.protocol !== 'https:') return { ok: false, reason: `Link 必须使用 HTTPS（实际 ${u.protocol}）` };
+  if (u.origin !== GITHUB_API_ORIGIN) return { ok: false, reason: `Link 指向非 api.github.com 域名（${u.origin}）` };
+  const expected = `/repos/${repo}/issues/${issue}/comments`;
+  if (u.pathname !== expected) return { ok: false, reason: `Link 路径不属于当前评论接口（${u.pathname}）` };
+  return { ok: true, url: u.toString() };
+}
+
+/** 抹掉文本中出现的 token，避免错误信息泄露凭据 */
+export function redactToken(text, token) {
+  const s = String(text == null ? '' : text);
+  if (!token) return s;
+  return s.split(String(token)).join('[REDACTED]');
+}
+
 async function githubGet(url, { token, fetchImpl }) {
   const res = await fetchImpl(url, {
     headers: {
@@ -309,8 +423,9 @@ async function githubGet(url, { token, fetchImpl }) {
     }
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    const err = new Error(`GitHub API ${res.status}${body ? `: ${body.slice(0, 160)}` : ''}`);
+    const raw = await res.text().catch(() => '');
+    const body = redactToken(String(raw).slice(0, 160), token);
+    const err = new Error(`GitHub API ${res.status}${body ? `: ${body}` : ''}`);
     err.status = res.status;
     throw err;
   }
@@ -348,7 +463,16 @@ export async function listIssueComments({ repo, issue, token, fetchImpl = fetch,
     }
     pages += 1;
     const link = res.headers && typeof res.headers.get === 'function' ? res.headers.get('link') : null;
-    url = parseNextLink(link);
+    const nextRaw = parseNextLink(link);
+    if (!nextRaw) {
+      url = null;
+    } else {
+      const checked = validateNextUrl(nextRaw, { repo, issue });
+      if (!checked.ok) {
+        throw new Error(`分页 Link 校验失败，已停止：${checked.reason}`);
+      }
+      url = checked.url;
+    }
   }
 
   return out;
@@ -474,8 +598,15 @@ async function main() {
   const cfg = loadConfig(process.env, process.argv.slice(2));
   const state = await new ListenerState(cfg.stateDir).init();
 
-  if (cfg.pause) { await state.setPaused(true, 'manual'); console.log('⏸ 监听器已暂停'); return; }
-  if (cfg.resume) { await state.setPaused(false, ''); console.log('▶ 监听器已恢复'); return; }
+  if (cfg.pause) { await state.setPauseFile(true, 'manual'); console.log('⏸ 监听器已暂停（PAUSED 文件）'); return; }
+  if (cfg.resume) { await state.setPauseFile(false, ''); console.log('▶ 监听器已恢复'); return; }
+
+  if (cfg.unlock) {
+    const r = await unlockStale(state);
+    if (!r.ok) { console.error('✗ ' + r.reason); process.exitCode = 4; return; }
+    console.log('✓ ' + r.reason);
+    return;
+  }
 
   if (cfg.statusOnly) {
     const paused = await state.isPaused();
@@ -506,16 +637,24 @@ async function main() {
       await state.log(`单次轮询跳过：监听器处于暂停状态（${paused.reason}）`);
       return;
     }
-    await state.log(`单次轮询：${cfg.repo} Issue #${cfg.issue}`);
-    try {
-      const s = await pollOnce({ state, token, repo: cfg.repo, issue: cfg.issue, log: state.log.bind(state) });
-      await state.log(`本轮结束 ${JSON.stringify(s)}`);
-    } catch (err) {
-      state.state.lastError = String(err.message);
-      await state.save();
-      await state.log(`✗ 轮询失败：${err.message}`);
-      process.exitCode = 1;
+    const guarded = await withLock(state, async () => {
+      await state.log(`单次轮询：${cfg.repo} Issue #${cfg.issue}`);
+      try {
+        return { ok: true, summary: await pollOnce({ state, token, repo: cfg.repo, issue: cfg.issue, log: state.log.bind(state) }) };
+      } catch (err) {
+        state.state.lastError = String(err.message);
+        await state.save();
+        await state.log(`✗ 轮询失败：${err.message}`);
+        return { ok: false, error: String(err.message) };
+      }
+    });
+    if (!guarded.locked) {
+      console.error('✗ ' + guarded.reason);
+      process.exitCode = 3;
+      return;
     }
+    if (!guarded.value.ok) { process.exitCode = 1; return; }
+    await state.log(`本轮结束 ${JSON.stringify(guarded.value.summary)}`);
     return;
   }
 
@@ -525,15 +664,12 @@ async function main() {
     process.exitCode = 3;
     return;
   }
-  if (lock.recovered) {
-    await state.log(`检测到已退出进程（pid ${lock.previousPid}）留下的陈旧锁，已安全接管`);
-  }
 
   let stopped = false;
   const stop = async () => {
     if (stopped) return;
     stopped = true;
-    await releaseLock(state);
+    await releaseLock(state, lock.nonce);
     await state.log('监听器已停止');
     process.exit(0);
   };

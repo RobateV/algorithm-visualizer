@@ -201,22 +201,33 @@ attempt: 1
 
 ### 单实例锁
 
-- 锁文件记录 `{ pid, at }`。
+- 锁文件记录 `{ pid, nonce, at }`，`nonce` 每次运行随机生成。
+- **所有会写状态的入口都持锁**：常驻轮询、`--once`、以及任何调用 `pollOnce()` 的路径。
+  `--status` 只读，不持锁。
+- 释放锁时必须 **PID 与 nonce 同时匹配**，否则不动锁文件，避免误删他人锁。
 - 持锁进程存活 → 拒绝启动。
-- 能确认 PID **已不存在** → 安全接管一次，并记录日志。
-- 锁内容损坏、PID 状态无法确认、接管竞争 → **fail-closed**，提示人工处理。
-- **不按文件年龄删除锁**。
+- **不做自动陈旧锁接管**：确认持有者已退出时仍 fail-closed，并提示人工执行 `--unlock`。
+  原因是纯文件操作无法证明互斥——两个进程可能同时读到同一陈旧锁并互删新锁。
+- `--unlock` 只删除"持有者确认已退出"或"锁已损坏"的锁；存活或状态未知一律拒绝。
+
+### 暂停 / 恢复
+
+`--pause` 与 `--resume` **只增删 `PAUSED` 文件**，不写 `state.json`，
+因此不会与轮询写状态发生覆盖竞争。监听器在每轮开始前读取该文件。
 
 ## 失败策略一览
 
 | 场景 | 行为 |
 | --- | --- |
 | 评论分页超过 50 页 | 本轮抛错，不处理任何评论 |
+| Link 指向非 `api.github.com` / 非 HTTPS / 非本仓库接口 | 拒绝并停止，不发起该请求 |
 | GitHub API 5xx / 网络错误 | 本轮报错，lastError 记录，下轮重试 |
+| 错误响应正文含 token | 写入日志前替换为 `[REDACTED]` |
 | 分支不存在 | 拒绝该任务，标记已见 |
 | HEAD 与 expected_sha 不一致 | 拒绝该任务，标记已见 |
+| `allow` 含绝对路径/UNC/反斜杠/`..` | 解析阶段直接判为非法任务 |
 | 锁被存活进程持有 | 拒绝启动 |
-| 锁损坏 / PID 未知 | 拒绝启动（fail-closed） |
+| 锁损坏 / PID 未知 / 陈旧锁 | 拒绝启动（fail-closed），提示 `--unlock` |
 
 ## 用法
 
@@ -224,11 +235,12 @@ attempt: 1
 cd tools\dsh-event-bridge
 $env:DSH_BRIDGE_TOKEN = (gh auth token)
 
-node local-listener.mjs --once              # 单次轮询（验证用）
+node local-listener.mjs --once              # 单次轮询（同样持锁）
 node local-listener.mjs --interval 20       # 常驻轮询（默认 20 秒）
-node local-listener.mjs --status            # 查看状态
-node local-listener.mjs --pause             # 暂停
+node local-listener.mjs --status            # 查看状态（只读，不持锁）
+node local-listener.mjs --pause             # 暂停（只写 PAUSED 文件）
 node local-listener.mjs --resume            # 恢复
+node local-listener.mjs --unlock            # 人工清理已退出进程留下的锁
 ```
 
 ## 任务格式

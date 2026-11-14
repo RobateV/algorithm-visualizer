@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
   parseComment, TASK_MARKER, PING_MARKER, loadConfig, emptyState, ListenerState,
-  parseNextLink, listIssueComments, getBranchHead, pollOnce, acquireLock
+  parseNextLink, listIssueComments, getBranchHead, pollOnce,
+  acquireLock, releaseLock, unlockStale, withLock, isValidRepoPath, redactToken, validateNextUrl
 } from '../local-listener.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -139,7 +140,7 @@ test('分页：跟随 Link 拉取全部评论', async () => {
   const fetchImpl = async (url) => {
     calls.push(url);
     if (url.includes('page=1')) {
-      return jsonResponse([comment(1), comment(2)], { link: '<https://api.github.com/p2>; rel="next"' });
+      return jsonResponse([comment(1), comment(2)], { link: '<https://api.github.com/repos/a/b/issues/21/comments?page=2>; rel="next"' });
     }
     return jsonResponse([comment(3)], { link: null });
   };
@@ -149,7 +150,7 @@ test('分页：跟随 Link 拉取全部评论', async () => {
 });
 
 test('分页：超过页数上限时显式报错，不返回不完整快照', async () => {
-  const fetchImpl = async (url) => jsonResponse([comment(1)], { link: '<https://api.github.com/next>; rel="next"' });
+  const fetchImpl = async (url) => jsonResponse([comment(1)], { link: '<https://api.github.com/repos/a/b/issues/21/comments?page=2>; rel="next"' });
   await assert.rejects(
     () => listIssueComments({ repo: 'a/b', issue: 21, token: 't', fetchImpl, maxPages: 3 }),
     /超过 3 页上限/
@@ -267,15 +268,15 @@ test('存活进程持有锁时拒绝启动', async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-test('确认进程已退出时安全接管陈旧锁', async () => {
+test('陈旧锁不再自动接管：fail-closed 并提示 --unlock', async () => {
   const { dir, state } = await makeState();
   await writeFile(state.lockFile, JSON.stringify({ pid: 4242, at: 'x' }), 'utf8');
   const r = await acquireLock(state, { isAlive: () => false });
-  assert.equal(r.ok, true);
-  assert.equal(r.recovered, true);
-  assert.equal(r.previousPid, 4242);
+  assert.equal(r.ok, false, '不得自动接管，否则存在双实例窗口');
+  assert.equal(r.code, 'lock-stale');
+  assert.match(r.reason, /--unlock/);
   const lock = JSON.parse(await readFile(state.lockFile, 'utf8'));
-  assert.equal(lock.pid, process.pid);
+  assert.equal(lock.pid, 4242, '原锁文件不得被改动');
   await rm(dir, { recursive: true, force: true });
 });
 
@@ -295,4 +296,150 @@ test('无法确认进程状态时 fail-closed', async () => {
   assert.equal(r.ok, false);
   assert.match(r.reason, /无法确认/);
   await rm(dir, { recursive: true, force: true });
+});
+
+/* ============================================ 第二轮：锁所有权与并发 */
+
+test('释放锁必须匹配 nonce，不能删除他人锁', async () => {
+  const { dir, state } = await makeState();
+  const lock = await acquireLock(state);
+  assert.equal(lock.ok, true);
+  assert.equal(await releaseLock(state, 'wrong-nonce'), false, '错误 nonce 不得删除');
+  await access(state.lockFile);
+  assert.equal(await releaseLock(state, lock.nonce), true);
+  await assert.rejects(() => access(state.lockFile));
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('并发获取同一目录的锁：恰好一个成功', async () => {
+  const { dir, state } = await makeState();
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () => acquireLock(state, { isAlive: () => true }))
+  );
+  const winners = results.filter((r) => r.ok);
+  assert.equal(winners.length, 1, '必须只有一个实例拿到锁');
+  await releaseLock(state, winners[0].nonce);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('两个实例竞争同一陈旧锁：都失败且锁文件不变', async () => {
+  const { dir, state } = await makeState();
+  await writeFile(state.lockFile, JSON.stringify({ pid: 999999, nonce: 'old', at: 'x' }), 'utf8');
+  const [a, b] = await Promise.all([
+    acquireLock(state, { isAlive: () => false }),
+    acquireLock(state, { isAlive: () => false })
+  ]);
+  assert.equal(a.ok, false);
+  assert.equal(b.ok, false);
+  const lock = JSON.parse(await readFile(state.lockFile, 'utf8'));
+  assert.equal(lock.nonce, 'old', '陈旧锁不得被任意一方删除');
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('withLock 在锁被占用时不执行回调', async () => {
+  const { dir, state } = await makeState();
+  const held = await acquireLock(state, { isAlive: () => true });
+  assert.equal(held.ok, true);
+  let called = false;
+  const r = await withLock(state, async () => { called = true; });
+  assert.equal(r.locked, false);
+  assert.equal(called, false, '拿不到锁不得写状态');
+  await releaseLock(state, held.nonce);
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('withLock 正常执行并释放锁', async () => {
+  const { dir, state } = await makeState();
+  const r = await withLock(state, async () => 42);
+  assert.equal(r.locked, true);
+  assert.equal(r.value, 42);
+  await assert.rejects(() => access(state.lockFile), '执行完必须释放');
+  await rm(dir, { recursive: true, force: true });
+});
+
+test('unlockStale 只删除已退出进程的锁', async () => {
+  const { dir, state } = await makeState();
+  await writeFile(state.lockFile, JSON.stringify({ pid: 4242, nonce: 'n' }), 'utf8');
+  const refused = await unlockStale(state, { isAlive: () => true });
+  assert.equal(refused.ok, false);
+  await access(state.lockFile);
+
+  const removed = await unlockStale(state, { isAlive: () => false });
+  assert.equal(removed.ok, true);
+  await assert.rejects(() => access(state.lockFile));
+  await rm(dir, { recursive: true, force: true });
+});
+
+/* ============================================ 第二轮：Link 白名单 */
+
+test('Link 指向外域时拒绝，且不发起第二次请求', async () => {
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return jsonResponse([comment(1)], { link: '<https://evil.example.com/steal>; rel="next"' });
+  };
+  await assert.rejects(
+    () => listIssueComments({ repo: 'a/b', issue: 21, token: 'secret-token', fetchImpl }),
+    /非 api\.github\.com/
+  );
+  assert.equal(calls, 1, '校验失败后不得再请求');
+});
+
+test('Link 使用 HTTP 时拒绝', async () => {
+  const fetchImpl = async () => jsonResponse([], { link: '<http://api.github.com/repos/a/b/issues/21/comments?page=2>; rel="next"' });
+  await assert.rejects(() => listIssueComments({ repo: 'a/b', issue: 21, token: 't', fetchImpl }), /HTTPS/);
+});
+
+test('Link 路径不属于当前评论接口时拒绝', async () => {
+  const fetchImpl = async () => jsonResponse([], { link: '<https://api.github.com/repos/other/repo/issues/21/comments?page=2>; rel="next"' });
+  await assert.rejects(() => listIssueComments({ repo: 'a/b', issue: 21, token: 't', fetchImpl }), /路径不属于/);
+});
+
+test('validateNextUrl 合法形态通过', () => {
+  const v = validateNextUrl('https://api.github.com/repos/a/b/issues/21/comments?page=3', { repo: 'a/b', issue: 21 });
+  assert.equal(v.ok, true);
+});
+
+/* ============================================ 第二轮：token 脱敏 */
+
+test('错误响应体中的 token 会被脱敏', async () => {
+  const token = 'fake-token-for-redaction-test';
+  const fetchImpl = async () => ({
+    ok: false,
+    status: 401,
+    text: async () => `bad credentials for ${token}`,
+    headers: { get: () => null }
+  });
+  await assert.rejects(
+    () => listIssueComments({ repo: 'a/b', issue: 21, token, fetchImpl }),
+    (err) => {
+      assert.equal(err.message.includes(token), false, '错误信息不得包含 token');
+      assert.match(err.message, /\[REDACTED\]/);
+      return true;
+    }
+  );
+});
+
+test('redactToken 处理空值', () => {
+  assert.equal(redactToken('abc', 'x'), 'abc');
+  assert.equal(redactToken('token-abc', 'abc'), 'token-[REDACTED]');
+});
+
+/* ============================================ 第二轮：路径校验 */
+
+test('仓库相对路径校验拒绝 Windows 与穿越形式', () => {
+  const good = ['public/lessons/binary-search.html', 'docs/knowledge-base/README.md', 'a.md'];
+  for (const p of good) assert.equal(isValidRepoPath(p), true, `应接受 ${p}`);
+
+  const bad = [
+    '', '  ', '/abs/path', 'C:\\temp\\x', 'C:/temp/x', '\\\\server\\share\\x',
+    '..\\..\\etc', 'a/../b', 'a//b', './a', 'a/./b', '../a', 'a\\b', 'a/b/'
+  ];
+  for (const p of bad) assert.equal(isValidRepoPath(p), false, `应拒绝 ${JSON.stringify(p)}`);
+});
+
+test('parseComment 拒绝 Windows 绝对路径的 allow', () => {
+  const r = parseComment(taskBody({ allow: 'C:\\Windows\\System32\\x' }));
+  assert.equal(r.kind, 'invalid');
+  assert.match(r.reason, /非法的仓库相对路径/);
 });
