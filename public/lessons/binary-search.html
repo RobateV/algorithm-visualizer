@@ -14,14 +14,85 @@
     .answer-scene{width:min(790px,100%)}.metrics{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-bottom:18px}.metric{min-width:92px;padding:8px 12px;border:2px solid #bae6fd;border-radius:10px;background:#fff;text-align:center}.metric span{display:block;color:#64748b;font-size:11px}.metric b{display:block;margin-top:2px;color:#0369a1;font:800 18px Consolas}.metric.hot{border-color:var(--amber);background:#fffbeb}.metric.hot b{color:#b45309}.packages{display:flex;justify-content:center;gap:9px;flex-wrap:wrap}.package{position:relative;width:74px;padding:13px 6px 9px;border:2px solid #cbd5e1;border-radius:11px;background:#fff;text-align:center;transition:.3s}.package b{font-size:19px}.package small{display:block;margin-top:5px;color:#64748b}.package.active{transform:translateY(-8px);border-color:var(--amber);background:#fffbeb;box-shadow:0 8px 16px rgba(245,158,11,.18)}.package.day1{border-color:#38bdf8;background:#e0f2fe}.package.day2{border-color:#a78bfa;background:#ede9fe}.package.day3{border-color:#fb7185;background:#ffe4e6}.day-legend{text-align:center;margin-top:16px;color:#64748b;font-size:12px}.feasible{text-align:center;margin-top:13px;font-weight:900}.feasible.yes{color:#059669}.feasible.no{color:#dc2626}
     .real-scene{width:min(780px,100%)}.equation{text-align:center;margin-bottom:24px;font-size:18px;color:#334155}.equation code{color:#7c3aed;font-weight:900}.number-line{position:relative;height:112px;margin:0 48px}.axis{position:absolute;left:0;right:0;top:48px;height:5px;border-radius:99px;background:linear-gradient(90deg,#2563eb,#f59e0b,#ef4444)}.mark{position:absolute;top:27px;transform:translateX(-50%);text-align:center;transition:.45s}.mark:after{content:"";display:block;width:4px;height:42px;margin:auto;border-radius:2px;background:currentColor}.mark b{display:block;padding:4px 7px;border-radius:6px;background:#fff;box-shadow:0 3px 9px rgba(15,23,42,.12);font:800 13px Consolas;white-space:nowrap}.mark.left{left:4%;color:#2563eb}.mark.middle{left:50%;color:#d97706}.mark.right{left:96%;color:#ef4444}.interval{text-align:center;color:#475569;font:700 15px Consolas}.zoom{text-align:center;margin-top:8px;color:#64748b;font-size:12px}
     .phase-strip{display:flex;justify-content:center;gap:8px;margin-bottom:10px}.phase{padding:5px 9px;border-radius:999px;background:#f1f5f9;color:#94a3b8;font-size:11px;font-weight:800}.phase.on{background:#fef3c7;color:#b45309}.phase.done{background:#d1fae5;color:#047857}@keyframes pulse{50%{transform:scale(1.08)}}
+    .is-hidden{display:none!important}
+    /* ===== 课堂三环节导航 ===== */
+    .stagebar{flex:none;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;border:1px solid rgba(255,255,255,.7);border-radius:16px;background:rgba(255,255,255,.8);backdrop-filter:blur(16px);box-shadow:0 8px 22px rgba(31,38,135,.08)}
+    .stage-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+    .stage-chip{display:flex;align-items:center;gap:8px;padding:7px 15px 7px 7px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#64748b;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap;transition:background .18s,border-color .18s,color .18s,box-shadow .18s}
+    .stage-chip .n{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#f1f5f9;color:#64748b;font-size:12px;transition:background .18s,color .18s}
+    .stage-chip:hover{border-color:var(--blue);color:var(--deep)}
+    .stage-chip.active{border-color:transparent;background:linear-gradient(135deg,var(--deep),var(--blue));color:#fff;box-shadow:0 6px 16px rgba(2,132,199,.25)}
+    .stage-chip.active .n{background:rgba(255,255,255,.25);color:#fff}
+    .stage-arrows{display:flex;align-items:center;gap:8px;flex:none}
+    .stage-arrow{padding:8px 14px;border:1px solid #cbd5e1;border-radius:999px;background:#fff;color:#475569;font-size:13.5px;font-weight:800;cursor:pointer;white-space:nowrap;transition:.18s}
+    .stage-arrow:hover:not(:disabled){border-color:var(--blue);color:var(--deep);box-shadow:0 4px 12px rgba(2,132,199,.12)}
+    .stage-arrow:disabled{opacity:.36;cursor:not-allowed}
+    /* ===== 环节一：原理讲解 ===== */
+    .principle-panel{flex:1;min-height:0;overflow:auto;padding:clamp(20px,2.5vw,40px) clamp(22px,3.2vw,56px);display:flex;flex-direction:column;gap:clamp(14px,1.5vw,22px)}
+    .principle-head{display:flex;align-items:flex-start;justify-content:space-between;gap:22px;flex-wrap:wrap}
+    .principle-kicker{display:inline-block;margin-bottom:7px;padding:4px 10px;border-radius:999px;background:#e0f2fe;color:var(--deep);font-size:13px;font-weight:800;letter-spacing:.4px}
+    .principle-title{margin:0;font-size:clamp(30px,3vw,46px);line-height:1.12;letter-spacing:-.5px}
+    .principle-lead{max-width:68ch;margin:10px 0 0;color:#334155;font-size:clamp(18px,1.55vw,25px);font-weight:650;line-height:1.65}
+    .principle-mark{flex:none;min-width:170px;padding:14px 18px;border:2px solid #bae6fd;border-radius:14px;background:linear-gradient(180deg,#f0f9ff,#fff);text-align:center}
+    .principle-mark span{display:block;color:#64748b;font-size:12px;font-weight:800;letter-spacing:.6px}
+    .principle-mark b{display:block;margin:5px 0 3px;color:var(--deep);font-size:20px}
+    .principle-mark small{color:#0369a1;font:700 14px Consolas,monospace}
+    .principle-grid{display:grid;grid-template-columns:minmax(0,1.08fr) minmax(0,.92fr);gap:clamp(12px,1.3vw,18px)}
+    .principle-grid-3{grid-template-columns:minmax(0,1fr) minmax(0,1.18fr) minmax(0,.92fr)}
+    .p-card{min-width:0;padding:clamp(14px,1.4vw,22px);border:1px solid #dbeafe;border-radius:14px;background:#fff;box-shadow:0 5px 14px rgba(2,132,199,.06)}
+    .p-card h3{margin:0 0 8px;color:#0f172a;font-size:clamp(17px,1.25vw,21px);line-height:1.35}
+    .p-card p{margin:0;color:#334155;font-size:clamp(15px,1.08vw,18px);line-height:1.72}
+    .p-card p + p{margin-top:8px}
+    .p-label{display:inline-block;margin-bottom:7px;color:#0369a1;font-size:12.5px;font-weight:900;letter-spacing:.5px}
+    .p-question{border-left:6px solid var(--amber);background:linear-gradient(180deg,#fffbeb,#fff)}
+    .p-question .p-label{color:#b45309}
+    .p-answer{padding-top:8px;border-top:1px dashed #fcd34d}
+    .p-answer b{color:#92400e}
+    .p-invariant{border-left:6px solid var(--blue)}
+    .p-steps{margin:0;padding-left:1.35em;color:#334155;font-size:clamp(15px,1.08vw,18px);line-height:1.75}
+    .p-steps li + li{margin-top:5px}
+    .p-steps li::marker{color:var(--deep);font-weight:900}
+    .example-list{display:flex;flex-direction:column;gap:8px}
+    .example-row{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(0,1.1fr) minmax(0,1fr);gap:8px;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;font-size:clamp(13.5px,.98vw,16px);line-height:1.45}
+    .example-row b{color:#0369a1}
+    .example-row span{color:#475569}
+    .example-row span:last-child{color:#64748b}
+    .p-note{font-size:clamp(15px,1.08vw,18px)!important}
+    .p-formula{margin-top:12px;padding:11px 12px;border-radius:10px;background:#0f172a;color:#fbbf24;font:800 clamp(15px,1.15vw,19px) Consolas,monospace;text-align:center;overflow-wrap:anywhere}
+    .principle-next{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding-top:4px;color:#475569;font-size:15px;font-weight:650}
+    .stage-cta{padding:10px 18px;border:0;border-radius:999px;background:linear-gradient(135deg,var(--deep),var(--blue));color:#fff;font-size:15px;font-weight:900;cursor:pointer;box-shadow:0 6px 16px rgba(2,132,199,.25)}
+    .stage-cta:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(2,132,199,.3)}
+    /* ===== 环节二 / 三：动画与代码工作台 ===== */
+    .visual-title-wrap{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
+    .stage-title{margin:0;color:#0369a1;font-size:clamp(20px,1.6vw,26px);line-height:1.25}
+    .visual-sub{color:#64748b;font-size:13px;font-weight:700}
+    .content.stage-2{grid-template-columns:1fr}
+    .content.stage-2 .code-window{display:none}
+    .content.stage-2 .visual-card{flex:1.18}
+    .content.stage-2 .lower{flex:.4}
+    .content.stage-3{grid-template-columns:minmax(380px,40%) 1fr}
+    .content.stage-2 .visual-head,.content.stage-3 .visual-head{padding-bottom:10px}
+    @media(max-width:1100px){.principle-grid,.principle-grid-3{grid-template-columns:1fr}.principle-mark{display:none}.content.stage-3{grid-template-columns:minmax(320px,42%) 1fr}}
     #board{position:fixed;inset:0;z-index:40;display:none;touch-action:none}.board-tools{position:fixed;right:22px;bottom:22px;z-index:45;display:flex;gap:8px}.board-btn{border:0;border-radius:999px;background:#fff;padding:11px 16px;color:#334155;font-weight:800;box-shadow:0 6px 20px rgba(15,23,42,.18);cursor:pointer}.board-btn.active{background:#ef4444;color:#fff}.clear-btn{display:none}.board-on .clear-btn{display:block}
-    @media(max-width:900px){body{height:auto;min-height:100vh;overflow:auto}.wrapper{height:auto;padding:10px}.app{min-height:100vh}.content{grid-template-columns:1fr}.code-window{height:420px}.right{min-height:680px}.subtitle{display:none}.lower{grid-template-columns:1fr}.trace,.tips{max-height:260px}}@media(max-width:560px){header{padding:10px 12px}h1{font-size:17px}.full-btn{display:none}.mode-select{max-width:170px}.array-row{gap:3px}.array-item{width:43px}.cell{height:48px;font-size:16px}.btn{min-width:88px;padding:8px}.wrapper{padding:5px}.metrics{gap:5px}.metric{min-width:70px}}
+    @media(max-width:900px){body{height:auto;min-height:100vh;overflow:auto}.wrapper{height:auto;padding:10px}.app{min-height:100vh}.content,.content.stage-3{grid-template-columns:1fr}.code-window{height:420px}.right{min-height:680px}.subtitle{display:none}.lower{grid-template-columns:1fr}.trace,.tips{max-height:260px}.stagebar{align-items:flex-start;flex-direction:column}.stage-arrows{align-self:flex-end}.principle-panel{overflow:visible;padding:20px}.principle-lead{font-size:18px}}@media(max-width:560px){header{padding:10px 12px}h1{font-size:17px}.full-btn{display:none}.mode-select{max-width:170px}.array-row{gap:3px}.array-item{width:43px}.cell{height:48px;font-size:16px}.btn{min-width:88px;padding:8px}.wrapper{padding:5px}.metrics{gap:5px}.metric{min-width:70px}.stage-chip{padding:6px 10px 6px 6px;font-size:13px}.stage-chip .n{width:21px;height:21px}.stage-arrow{padding:7px 10px;font-size:12px}.principle-panel{padding:14px}.principle-title{font-size:27px}.principle-lead{font-size:16.5px}.example-row{grid-template-columns:1fr}.principle-next{align-items:flex-start;flex-direction:column}.stage-cta{width:100%}}
   </style>
 </head>
 <body><canvas id="board"></canvas><div class="wrapper"><div class="app">
   <header><div><h1>✨ 白学在线 - 二分算法全景演练 <span class="subtitle">边界、单调性与精度</span></h1></div><div class="head-actions"><select id="mode" class="mode-select"><option value="search">二分查找 (Binary Search)</option><option value="answer">二分答案 (Binary Answer)</option><option value="real">实数二分 (Real Binary)</option></select><button id="fullscreen" class="full-btn">🖥️ 全屏演示</button></div></header>
-  <div class="content"><section class="code-window"><div class="code-head"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span id="codeName" class="code-name"></span><span id="complexity" class="complexity"></span></div><div id="code" class="code"></div></section>
-    <div class="right"><section class="visual-card glass"><div class="visual-head"><b id="visualTitle">状态变化</b><span id="stepBadge" class="step-badge"></span></div><div id="stage" class="stage"></div><div class="controls"><button id="prev" class="btn">← 上一步</button><button id="reset" class="btn">重置状态</button><button id="next" class="btn primary">下一步 →</button></div></section>
+  <nav class="stagebar" aria-label="教学环节">
+    <div class="stage-tabs" role="tablist" aria-label="课堂三环节">
+      <button type="button" class="stage-chip active" data-stage="1" role="tab" aria-selected="true"><span class="n">1</span>原理讲解</button>
+      <button type="button" class="stage-chip" data-stage="2" role="tab" aria-selected="false"><span class="n">2</span>动画演示</button>
+      <button type="button" class="stage-chip" data-stage="3" role="tab" aria-selected="false"><span class="n">3</span>动画 + 代码</button>
+    </div>
+    <div class="stage-arrows">
+      <button type="button" id="stagePrev" class="stage-arrow" disabled>← 上一环节</button>
+      <button type="button" id="stageNext" class="stage-arrow">下一环节 →</button>
+    </div>
+  </nav>
+  <section id="principle" class="principle-panel glass" aria-label="原理讲解"></section>
+  <div id="content" class="content is-hidden"><section class="code-window"><div class="code-head"><i class="dot r"></i><i class="dot y"></i><i class="dot g"></i><span id="codeName" class="code-name"></span><span id="complexity" class="complexity"></span></div><div id="code" class="code"></div></section>
+    <div class="right"><section class="visual-card glass"><div class="visual-head"><div class="visual-title-wrap"><h2 id="stageTitle" class="stage-title">动画演示</h2><span id="visualTitle" class="visual-sub">状态变化</span></div><span id="stepBadge" class="step-badge"></span></div><div id="stage" class="stage"></div><div class="controls"><button id="prev" class="btn">← 上一步</button><button id="reset" class="btn">重置状态</button><button id="next" class="btn primary">下一步 →</button></div></section>
       <div class="lower"><section class="trace glass"><h3>实时执行分析</h3><p id="description"></p></section><section class="tips glass"><h3>💡 算法答题思路与核心提炼</h3><div id="tips" class="tips-content"></div></section></div>
     </div></div>
 </div></div><div class="board-tools"><button id="clearBoard" class="board-btn clear-btn">清空</button><button id="toggleBoard" class="board-btn">🖌️ 开启白板</button></div>
@@ -37,20 +108,89 @@ const MODES={
   'double sqrtByBinary(double x) {','    double l = 0.0, r = max(1.0, x);','    for (int round = 1; round <= 12; round++) {','        double mid = (l + r) / 2.0;','        if (mid * mid < x) l = mid;','        else r = mid;','    }','    return (l + r) / 2.0;','}'
  ]}
 };
-const searchValues=[2,5,8,12,16,23,38,56,72],searchTarget=23,weights=[7,2,5,10,8],dayLimit=2;let currentMode='search',states=[],stateIndex=0;
+const PRINCIPLES={
+ search:{
+  label:'二分查找 · 有序数组 + 闭区间',
+  lead:'二分查找不是“随机猜”，而是利用数组已经有序这一条件，每次查看中间元素，把不可能的一半直接从候选区间中删掉。',
+  questionTitle:'先想一个具体问题',
+  question:'在有序数组 [2, 5, 8, 12, 16, 23, 38, 56, 72] 中查找 23。第一次应该看哪个位置？比较之后，哪一半可以整体排除？',
+  answer:'第一次取闭区间 [1, 9] 的中点 5，a[5] = 16 &lt; 23，所以下标 1～5 都不可能是答案，区间收缩为 [6, 9]。再查两次就能找到下标 6。',
+  invariantTitle:'边界与循环不变量',
+  invariant:'循环不变量：如果 23 存在，它一定始终位于闭区间 [l, r] 中。初始 [1, 9] 覆盖整个数组；每次排除 mid 后，新区间仍保留所有可能的答案。',
+  boundary:'闭区间写法使用 while (l &lt;= r)。排除中点时必须写成 l = mid + 1 或 r = mid - 1，不能写成 l = mid 或 r = mid，否则区间可能不缩小。',
+  steps:['取当前闭区间的中点 mid。','比较 a[mid] 与目标值 target。','相等就返回；a[mid] 偏小则丢弃左半，偏大则丢弃右半。','区间为空仍未找到，说明目标值不存在。'],
+  exampleTitle:'示例：在 9 个元素中查找 23',
+  examples:[
+    ['第 1 次','[1, 9]，mid = 5','a[5] = 16 &lt; 23','丢弃 1～5，l = 6'],
+    ['第 2 次','[6, 9]，mid = 7','a[7] = 38 &gt; 23','丢弃 7～9，r = 6'],
+    ['第 3 次','[6, 6]，mid = 6','a[6] = 23','找到答案，返回 6']
+  ],
+  note:'每次区间长度至少减半，最多比较 ⌊log₂ n⌋ + 1 次。本例 9 个元素只用了 3 次比较。'
+ },
+ answer:{
+  label:'二分答案 · 单调可行性 + 第一个可行值',
+  lead:'当答案本身很难直接算出，但“给定一个候选值，判断它行不行”很容易时，可以把答案当作有序区间来二分，这叫二分答案。',
+  questionTitle:'先想一个具体问题',
+  question:'包裹重量为 [7, 2, 5, 10, 8]，必须按顺序装运，2 天内运完。每辆车的容量至少多大？容量 17 行不行？容量 18 呢？',
+  answer:'容量 17 时，前两天分别装 7+2+5=14 和 10+8=18 &gt; 17，需要 3 天，不可行；容量 18 可以在 2 天内完成。因此最小容量就是 18。',
+  invariantTitle:'边界与单调性',
+  invariant:'答案区间 [l, r] 中，r 是一个已知可行值，l 左侧都是不可行值。循环不变量是“第一个可行值始终在 [l, r] 内”。',
+  boundary:'使用 while (l &lt; r)，mid = (l + r) / 2。check(mid) 为真时 r = mid，保留 mid；为假时 l = mid + 1。最终 l = r 就是最小可行容量。',
+  steps:['确定答案的下界 l 与上界 r：这里取最大包裹重量与总重量。','取 mid，调用 check(mid) 判断当前容量是否可行。','可行则收缩右边界 r = mid；不可行则收缩左边界 l = mid + 1。','区间只剩一个值时，得到最小可行答案。'],
+  exampleTitle:'示例：2 天运完的最小容量',
+  examples:[
+    ['容量 17','第 1 天：7+2+5 = 14','第 2 天：10+8 = 18 &gt; 17','需要 3 天，不可行'],
+    ['容量 18','第 1 天：7+2+5 = 14','第 2 天：10+8 = 18 ≤ 18','2 天完成，可行'],
+    ['结论','17 不可行','18 可行','最小容量 = 18']
+  ],
+  note:'check 的单调性是二分答案的前提：容量越大，所需天数只会不增。若 check 没有单调性，二分答案会失效。'
+ },
+ real:{
+  label:'实数二分 · 连续区间 + 精度控制',
+  lead:'实数二分把答案夹在一个不断缩小的区间里。因为实数没有“下一个整数”，所以用固定迭代次数或精度阈值来终止。',
+  questionTitle:'先想一个具体问题',
+  question:'要求 √10。区间 [0, 10] 的中点是 5，5² = 25 &gt; 10，说明答案在哪一半？下一步区间变成什么？',
+  answer:'5² = 25 &gt; 10，所以 √10 &lt; 5，保留左半区间 [0, 5]。下一次取 mid = 2.5，继续比较 mid² 与 10，循环往复即可逐步逼近。',
+  invariantTitle:'边界与终止条件',
+  invariant:'循环不变量：答案始终位于 [l, r] 内。若 mid² &lt; 10，则 l = mid；否则 r = mid。这里不写 mid ± 1，因为端点是实数。',
+  boundary:'常用两种终止方式：固定迭代次数（本页演示 12 轮），或 while (r - l &gt; eps)。固定次数可以避免浮点误差造成死循环。',
+  steps:['建立包含答案的初始区间 [l, r]。','取中点 mid = (l + r) / 2。','比较 mid² 与目标值 10。','丢弃不可能的一半，直到达到精度或迭代次数。'],
+  exampleTitle:'示例：逐步逼近 √10',
+  examples:[
+    ['第 1 轮','[0, 10]，mid = 5','25 &gt; 10','r = 5'],
+    ['第 2 轮','[0, 5]，mid = 2.5','6.25 &lt; 10','l = 2.5'],
+    ['第 3 轮','[2.5, 5]，mid = 3.75','14.0625 &gt; 10','r = 3.75'],
+    ['12 轮后','宽度约 0.00244','取区间中点','≈ 3.16227766']
+  ],
+  note:'每轮区间长度减半；12 轮后宽度为 10 / 2¹² ≈ 0.00244，已经足够接近 √10。精度要求越高，迭代次数越多。'
+ }
+};
+const searchValues=[2,5,8,12,16,23,38,56,72],searchTarget=23,weights=[7,2,5,10,8],dayLimit=2;let currentMode='search',states=[],stateIndex=0,currentStage=1;
 const $=id=>document.getElementById(id);function clone(x){return JSON.parse(JSON.stringify(x))}function state(line,phase,desc,data){return{line,phase,desc,...clone(data)}}
 function buildSearchStates(){const out=[];let l=1,r=searchValues.length;out.push(state(2,'初始化','建立闭区间 <code>[1,9]</code>。目标值 23 如果存在，一定在这个区间中。',{l,r,mid:null,status:'init'}));while(l<=r){out.push(state(3,'循环判断',`检查 <code>l &lt;= r</code>：${l} ≤ ${r} 成立，区间仍非空。`,{l,r,mid:null,status:'loop'}));const mid=(l+r)>>1;out.push(state(4,'计算中点',`计算 <code>mid = (${l}+${r})/2 = ${mid}</code>，读取 <code>a[${mid}] = ${searchValues[mid-1]}</code>。`,{l,r,mid,status:'mid'}));const value=searchValues[mid-1];if(value===searchTarget){out.push(state(5,'找到答案',`<code>a[${mid}] = ${value}</code>，恰好等于目标值 23，返回下标 ${mid}。`,{l,r,mid,status:'found'}));break}if(value<searchTarget){out.push(state(5,'比较',`<code>a[${mid}] = ${value} &lt; 23</code>，中点及其左侧都不可能是答案。`,{l,r,mid,status:'less'}));l=mid+1;out.push(state(6,'收缩区间',`执行 <code>l = mid + 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}))}else{out.push(state(5,'比较',`<code>a[${mid}] = ${value} &gt; 23</code>，中点及其右侧都不可能是答案。`,{l,r,mid,status:'greater'}));r=mid-1;out.push(state(7,'收缩区间',`执行 <code>r = mid - 1</code>，新区间变为 <code>[${l},${r}]</code>。`,{l,r,mid:null,status:'shrink'}))}}return out}
 function simulateCheck(cap){let days=1,load=0;const assignments=Array(weights.length).fill(0),trace=[];for(let i=0;i<weights.length;i++){const w=weights[i];let newDay=false;if(load+w>cap){days++;load=0;newDay=true}load+=w;assignments[i]=days;trace.push({i,days,load,newDay,assignments:[...assignments]})}return{feasible:days<=dayLimit,days,trace}}
 function buildAnswerStates(){const out=[];let l=Math.max(...weights),r=weights.reduce((a,b)=>a+b,0);out.push(state(12,'初始化',`答案下界取最大包裹重量 ${l}，上界取总重量 ${r}，搜索区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}));while(l<r){out.push(state(13,'循环判断',`检查 <code>l &lt; r</code>：${l} &lt; ${r} 成立，答案尚未确定。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}));const mid=(l+r)>>1;out.push(state(14,'计算中点',`尝试容量 <code>mid = (${l}+${r})/2 = ${mid}</code>，接下来完整执行 <code>check(${mid})</code>。`,{l,r,mid,assignments:[0,0,0,0,0],days:1,load:0,current:null}));const result=simulateCheck(mid);for(const t of result.trace){const action=t.newDay?`当前天装不下 ${weights[t.i]}，先开启第 ${t.days} 天，再装入。`:`第 ${t.days} 天还能装下 ${weights[t.i]}，直接装入。`;out.push(state(t.newDay?5:7,'执行 check',`${action} 当前载重为 <code>${t.load}/${mid}</code>。`,{l,r,mid,assignments:t.assignments,days:t.days,load:t.load,current:t.i}))}out.push(state(9,'可行性判定',`check(${mid}) 共使用 ${result.days} 天，${result.feasible?'不超过':'超过'}限制 ${dayLimit} 天，因此当前容量${result.feasible?'可行':'不可行'}。`,{l,r,mid,assignments:result.trace.at(-1).assignments,days:result.days,load:result.trace.at(-1).load,current:null,feasible:result.feasible}));if(result.feasible){r=mid;out.push(state(15,'收缩答案区间',`容量 ${mid} 可行，但还要尝试更小值，执行 <code>r = mid</code>，新区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}))}else{l=mid+1;out.push(state(16,'收缩答案区间',`容量 ${mid} 不可行，更小值也一定不可行，执行 <code>l = mid + 1</code>，新区间为 <code>[${l},${r}]</code>。`,{l,r,mid:null,assignments:[0,0,0,0,0],days:null,load:null,current:null}))}}out.push(state(18,'得到答案',`此时 <code>l = r = ${l}</code>，第一个可行容量就是 ${l}。`,{l,r,mid:l,assignments:simulateCheck(l).trace.at(-1).assignments,days:simulateCheck(l).days,load:null,current:null,feasible:true,done:true}));return out}
 function buildRealStates(){const out=[];let l=0,r=10;out.push(state(2,'初始化','要求 <code>√10</code>，先建立区间 <code>[0,10]</code>。',{l,r,mid:null,round:0,square:null}));for(let round=1;round<=12;round++){const mid=(l+r)/2,square=mid*mid;out.push(state(4,'计算中点',`第 ${round} 轮：<code>mid = (${l.toFixed(6)} + ${r.toFixed(6)}) / 2 = ${mid.toFixed(6)}</code>。`,{l,r,mid,round,square}));if(square<10){l=mid;out.push(state(5,'比较并收缩',`<code>mid² = ${square.toFixed(6)} &lt; 10</code>，答案在右半区，执行 <code>l = mid</code>。`,{l,r,mid,round,square,result:'less'}))}else{r=mid;out.push(state(6,'比较并收缩',`<code>mid² = ${square.toFixed(6)} ≥ 10</code>，答案在左半区，执行 <code>r = mid</code>。`,{l,r,mid,round,square,result:'greater'}))}}const answer=(l+r)/2;out.push(state(8,'得到近似值',`12 轮后区间宽度缩小到 ${(r-l).toFixed(8)}，返回中点 <code>${answer.toFixed(8)}</code>。`,{l,r,mid:answer,round:12,square:answer*answer,done:true}));return out}
 function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}function colorCode(s){let [main,comment]=s.split('//');let html=escapeHtml(main).replace(/\b(int|double|bool|return|while|for|if|else)\b/g,'<span class="kw">$1</span>').replace(/\b(\d+(?:\.\d+)?)\b/g,'<span class="num">$1</span>').replace(/\b(binarySearch|check|minimumCapacity|sqrtByBinary|max)\b/g,'<span class="fn">$1</span>');if(comment!==undefined)html+='<span class="comment">//'+escapeHtml(comment)+'</span>';return html}
-function renderCode(){const box=$('code');box.innerHTML='';MODES[currentMode].code.forEach((line,i)=>{const d=document.createElement('div');d.id='line-'+(i+1);d.className='code-line'+(states[stateIndex].line===i+1?' active':'');d.innerHTML=colorCode(line);box.appendChild(d)});const active=$('line-'+states[stateIndex].line);if(active)active.scrollIntoView({block:'center'})}
+function renderCode(){const box=$('code');box.innerHTML='';MODES[currentMode].code.forEach((line,i)=>{const d=document.createElement('div');d.id='line-'+(i+1);d.className='code-line'+(states[stateIndex].line===i+1?' active':'');d.innerHTML=colorCode(line);box.appendChild(d)});const active=$('line-'+states[stateIndex].line);if(active&&currentStage===3)active.scrollIntoView({block:'center'})}
 function phaseHtml(active){const phases=currentMode==='answer'?['初始化','计算中点','执行 check','可行性判定','收缩答案区间','得到答案']:currentMode==='real'?['初始化','计算中点','比较并收缩','得到近似值']:['初始化','计算中点','比较','收缩区间','找到答案'];const ai=Math.max(0,phases.indexOf(active));return '<div class="phase-strip">'+phases.map((p,i)=>`<span class="phase ${i===ai?'on':i<ai?'done':''}">${p}</span>`).join('')+'</div>'}
 function renderSearch(s){const width=((s.r-s.l+1)/searchValues.length)*100,left=((s.l-1)/searchValues.length)*100;return `<div class="array-scene">${phaseHtml(s.phase)}<div class="legend"><span><i style="background:#3b82f6"></i>l 左边界</span><span><i style="background:#f59e0b"></i>mid 中点</span><span><i style="background:#ef4444"></i>r 右边界</span></div><div class="array-row">${searchValues.map((v,i)=>{const idx=i+1,out=idx<s.l||idx>s.r,mid=idx===s.mid,found=mid&&s.status==='found',labels=[];if(idx===s.l)labels.push('l');if(idx===s.mid)labels.push('mid');if(idx===s.r)labels.push('r');const labelClass=labels.length>1?'combo':labels[0]==='l'?'l':labels[0]==='r'?'r':'m';return `<div class="array-item ${out?'out ':''}${mid?'mid ':''}${found?'found':''}"><div class="pointer ${labelClass}">${labels.join(' = ')}</div><div class="cell">${v}</div><div class="idx">[${idx}]</div></div>`}).join('')}</div><div class="range-line" style="width:${Math.max(8,width)}%;margin-left:${left}%"></div><div class="comparison">目标值：<strong>${searchTarget}</strong>${s.mid?`　当前：a[${s.mid}] = <strong>${searchValues[s.mid-1]}</strong>`:''}</div></div>`}
 function renderAnswer(s){return `<div class="answer-scene">${phaseHtml(s.phase)}<div class="metrics"><div class="metric"><span>l</span><b>${s.l}</b></div><div class="metric hot"><span>mid / 当前容量</span><b>${s.mid??'—'}</b></div><div class="metric"><span>r</span><b>${s.r}</b></div><div class="metric"><span>已用天数 / 限制</span><b>${s.days??'—'} / ${dayLimit}</b></div><div class="metric"><span>当天载重</span><b>${s.load??'—'}</b></div></div><div class="packages">${weights.map((w,i)=>`<div class="package ${s.assignments[i]?'day'+s.assignments[i]:''} ${s.current===i?'active':''}"><b>${w}</b><small>${s.assignments[i]?'第 '+s.assignments[i]+' 天':'未处理'}</small></div>`).join('')}</div><div class="day-legend">问题：这些包裹按顺序装运，能否在 2 天内完成？</div>${s.feasible===undefined?'':`<div class="feasible ${s.feasible?'yes':'no'}">check(${s.mid}) = ${s.feasible?'true，可行':'false，不可行'}</div>`}</div>`}
 function renderReal(s){const square=s.square==null?'—':s.square.toFixed(8);return `<div class="real-scene">${phaseHtml(s.phase)}<div class="equation">目标：<code>x² = 10</code>　当前 <code>mid² = ${square}</code></div><div class="number-line"><div class="axis"></div><div class="mark left"><b>l = ${s.l.toFixed(8)}</b></div>${s.mid==null?'':`<div class="mark middle"><b>mid = ${s.mid.toFixed(8)}</b></div>`}<div class="mark right"><b>r = ${s.r.toFixed(8)}</b></div></div><div class="interval">当前区间宽度：${(s.r-s.l).toFixed(10)}</div><div class="zoom">画面会持续放大当前 [l, r]，端点数值才是真实比例依据</div></div>`}
-function render(){const cfg=MODES[currentMode],s=states[stateIndex];$('codeName').textContent=cfg.file;$('complexity').textContent=cfg.complexity;$('visualTitle').textContent=cfg.visual;$('stepBadge').textContent=`第 ${stateIndex+1} / ${states.length} 步`;$('description').innerHTML=`<b>【${s.phase}】</b><br>${s.desc}`;$('tips').innerHTML=cfg.tips;$('stage').innerHTML=currentMode==='search'?renderSearch(s):currentMode==='answer'?renderAnswer(s):renderReal(s);$('prev').disabled=stateIndex===0;$('next').disabled=stateIndex===states.length-1;renderCode()}
-function loadMode(mode){currentMode=MODES[mode]?mode:'search';$('mode').value=currentMode;states=currentMode==='search'?buildSearchStates():currentMode==='answer'?buildAnswerStates():buildRealStates();stateIndex=0;history.replaceState(null,'','?mode='+currentMode);render()}$('prev').onclick=()=>{if(stateIndex>0){stateIndex--;render()}};$('next').onclick=()=>{if(stateIndex<states.length-1){stateIndex++;render()}};$('reset').onclick=()=>{stateIndex=0;render()};$('mode').onchange=e=>loadMode(e.target.value);document.addEventListener('keydown',e=>{if(e.key==='ArrowLeft')$('prev').click();if(e.key==='ArrowRight')$('next').click()});
+function renderPrinciple(){const p=PRINCIPLES[currentMode]||PRINCIPLES.search;const examples=p.examples.map(row=>`<div class="example-row">${row.map((cell,i)=>i===0?`<b>${cell}</b>`:`<span>${cell}</span>`).join('')}</div>`).join('');$('principle').innerHTML=`<div class="principle-head"><div><span class="principle-kicker">环节 1 / 3 · ${p.label}</span><h2 class="principle-title">原理讲解</h2><p class="principle-lead">${p.lead}</p></div><div class="principle-mark"><span>当前算法</span><b>${MODES[currentMode].name}</b><small>${MODES[currentMode].complexity}</small></div></div><div class="principle-grid"><article class="p-card p-question"><span class="p-label">先想一个问题</span><h3>${p.questionTitle}</h3><p>${p.question}</p><p class="p-answer"><b>参考答案：</b>${p.answer}</p></article><article class="p-card p-invariant"><span class="p-label">边界与不变量</span><h3>${p.invariantTitle}</h3><p>${p.invariant}</p><p>${p.boundary}</p></article></div><div class="principle-grid principle-grid-3"><article class="p-card"><h3>关键步骤</h3><ol class="p-steps">${p.steps.map(step=>`<li>${step}</li>`).join('')}</ol></article><article class="p-card"><h3>${p.exampleTitle}</h3><div class="example-list">${examples}</div></article><article class="p-card"><h3>复杂度与易错点</h3><p class="p-note">${p.note}</p><div class="p-formula">${MODES[currentMode].complexity}</div></article></div><div class="principle-next"><span>理解原理后，进入动画演示逐帧观察区间如何收缩。</span><button type="button" class="stage-cta" data-stage="2">进入动画演示 →</button></div>`}
+function syncStageUI(){const titles=['','原理讲解','动画演示','动画 + 代码'];$('stageTitle').textContent=titles[currentStage];document.querySelectorAll('.stage-chip').forEach(chip=>{const on=Number(chip.dataset.stage)===currentStage;chip.classList.toggle('active',on);chip.setAttribute('aria-selected',String(on))});$('stagePrev').disabled=currentStage===1;$('stageNext').disabled=currentStage===3;const content=$('content'),principle=$('principle');principle.classList.toggle('is-hidden',currentStage!==1);content.classList.toggle('is-hidden',currentStage===1);content.classList.toggle('stage-2',currentStage===2);content.classList.toggle('stage-3',currentStage===3)}
+function setStage(stage){const next=Math.max(1,Math.min(3,Number(stage)||1));if(next===currentStage){syncStageUI();render();return}currentStage=next;syncStageUI();render()}
+function render(){const cfg=MODES[currentMode],s=states[stateIndex];if(currentStage===1){renderPrinciple();return}$('codeName').textContent=cfg.file;$('complexity').textContent=cfg.complexity;$('visualTitle').textContent=cfg.visual;$('stepBadge').textContent=`第 ${stateIndex+1} / ${states.length} 步`;$('description').innerHTML=`<b>【${s.phase}】</b><br>${s.desc}`;$('tips').innerHTML=cfg.tips;$('stage').innerHTML=currentMode==='search'?renderSearch(s):currentMode==='answer'?renderAnswer(s):renderReal(s);$('prev').disabled=stateIndex===0;$('next').disabled=stateIndex===states.length-1;renderCode()}
+function loadMode(mode){currentMode=MODES[mode]?mode:'search';$('mode').value=currentMode;states=currentMode==='search'?buildSearchStates():currentMode==='answer'?buildAnswerStates():buildRealStates();stateIndex=0;history.replaceState(null,'','?mode='+currentMode);render()}
+$('prev').onclick=()=>{if(stateIndex>0){stateIndex--;render()}};
+$('next').onclick=()=>{if(stateIndex<states.length-1){stateIndex++;render()}};
+$('reset').onclick=()=>{stateIndex=0;render()};
+$('mode').onchange=e=>loadMode(e.target.value);
+document.querySelectorAll('.stage-chip').forEach(chip=>chip.addEventListener('click',()=>setStage(Number(chip.dataset.stage))));
+$('stagePrev').onclick=()=>setStage(currentStage-1);
+$('stageNext').onclick=()=>setStage(currentStage+1);
+$('principle').addEventListener('click',e=>{const jump=e.target.closest('[data-stage]');if(jump)setStage(Number(jump.dataset.stage))});
+document.addEventListener('keydown',e=>{const tag=e.target&&e.target.tagName;if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA')return;if(currentStage===1)return;if(e.key==='ArrowLeft')$('prev').click();if(e.key==='ArrowRight')$('next').click()});
 function tellParent(action){if(window.parent!==window)window.parent.postMessage({type:'lesson-fullscreen',action},location.origin)}$('fullscreen').onclick=()=>{if(document.fullscreenElement)document.exitFullscreen();else{tellParent('enter');document.documentElement.requestFullscreen()}};document.addEventListener('fullscreenchange',()=>{const full=!!document.fullscreenElement;$('fullscreen').textContent=full?'🔳 退出全屏':'🖥️ 全屏演示';if(!full)tellParent('exit');resizeBoard()});
-const canvas=$('board'),ctx=canvas.getContext('2d');let drawing=false,boardOn=false;function resizeBoard(){const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);canvas.width=innerWidth;canvas.height=innerHeight;ctx.drawImage(copy,0,0)}function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}canvas.onpointerdown=e=>{if(!boardOn)return;drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke()};canvas.onpointerup=()=>drawing=false;$('toggleBoard').onclick=()=>{boardOn=!boardOn;canvas.style.display=boardOn?'block':'none';canvas.style.pointerEvents=boardOn?'auto':'none';document.body.classList.toggle('board-on',boardOn);$('toggleBoard').classList.toggle('active',boardOn);$('toggleBoard').textContent=boardOn?'✕ 关闭白板':'🖌️ 开启白板'};$('clearBoard').onclick=()=>ctx.clearRect(0,0,canvas.width,canvas.height);addEventListener('resize',resizeBoard);resizeBoard();loadMode(new URLSearchParams(location.search).get('mode')||'search');
+const canvas=$('board'),ctx=canvas.getContext('2d');let drawing=false,boardOn=false;function resizeBoard(){const copy=document.createElement('canvas');copy.width=canvas.width;copy.height=canvas.height;copy.getContext('2d').drawImage(canvas,0,0);canvas.width=innerWidth;canvas.height=innerHeight;ctx.drawImage(copy,0,0)}function point(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}canvas.onpointerdown=e=>{if(!boardOn)return;drawing=true;const p=point(e);ctx.beginPath();ctx.moveTo(p.x,p.y);canvas.setPointerCapture(e.pointerId)};canvas.onpointermove=e=>{if(!drawing)return;const p=point(e);ctx.lineTo(p.x,p.y);ctx.strokeStyle='#ef4444';ctx.lineWidth=4;ctx.lineCap='round';ctx.stroke()};canvas.onpointerup=()=>drawing=false;$('toggleBoard').onclick=()=>{boardOn=!boardOn;canvas.style.display=boardOn?'block':'none';canvas.style.pointerEvents=boardOn?'auto':'none';document.body.classList.toggle('board-on',boardOn);$('toggleBoard').classList.toggle('active',boardOn);$('toggleBoard').textContent=boardOn?'✕ 关闭白板':'🖌️ 开启白板'};$('clearBoard').onclick=()=>ctx.clearRect(0,0,canvas.width,canvas.height);addEventListener('resize',resizeBoard);resizeBoard();loadMode(new URLSearchParams(location.search).get('mode')||'search');syncStageUI();
 </script></body></html>
