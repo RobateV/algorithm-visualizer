@@ -4,3 +4,10 @@
       inject: [tools]
 - id: headless-runner
   inject: [headlessStartup, localDshGuard]
+# 复用本机 DSH 已配置的凭据服务，不复制/输出密钥，也不要求新购 API。
+- id: credentials
+  disabled: false
+- id: authorization
+  disabled: false
+- id: deepseek-account
+  disabled: false
