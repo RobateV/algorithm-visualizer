@@ -32,6 +32,10 @@
 | 0x07 | 贪心 | 42 | 52 | `chapters/0x00-basic-algorithms/0x07-greedy.md` | 未开始 |
 | 0x08 | 总结与练习 | 46 | 56 | `chapters/0x00-basic-algorithms/0x08-summary-exercises.md` | 未开始 |
 
+> 页码说明：`0x02` 的非递归实现代码跨到印刷 p.21 上半页，p.21 随后即开始 `0x03`。
+> 因此 `0x02` 的实际内容范围是 p.11–p.21（与 `0x03` 共享末页），而 `0x03` 仍从 p.21 起算。
+> 表中「印刷页」列只记起始页，范围细节见 `chapter-status.md`。
+
 ## 0x10 基本数据结构（p.49）
 
 | 编号 | 名称 | 印刷页 | PDF 页 | 文档 | 状态 |
