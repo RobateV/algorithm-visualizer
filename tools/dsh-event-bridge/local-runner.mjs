@@ -31,7 +31,7 @@ export class RunnerState extends ListenerState {
 
 export async function git(cwd, args, { token = '' } = {}) {
   const safeRoot = path.resolve(cwd).replaceAll('\\', '/');
-  const { stdout } = await exec('git', ['-c', `safe.directory=${safeRoot}`, '-c', `safe.directory=${safeRoot}/.git`, '-c', 'core.hooksPath=NUL', '-c', 'core.quotePath=false', '-C', cwd, ...args], {
+  const { stdout } = await exec('git', ['-c', `safe.directory=${safeRoot}`, '-c', `safe.directory=${safeRoot}/.git`, '-c', 'core.longpaths=true', '-c', 'core.hooksPath=NUL', '-c', 'core.quotePath=false', '-C', cwd, ...args], {
     windowsHide: true, timeout: 60000, maxBuffer: 4 * 1024 * 1024,
     env: { ...buildSafeEnv(process.env), GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_TERMINAL_PROMPT: '0',
       ...(token ? { GIT_ASKPASS: path.join(HERE, 'lib', 'git-askpass.cmd'), DSH_GIT_PUSH_TOKEN: token } : {}) }
@@ -326,10 +326,26 @@ export async function runnerOnce({ stateDir, projectRoot = PROJECT, token = '', 
   });
 }
 
+export async function retryPreparation(stateDir, taskId) {
+  const runner = await new RunnerState(stateDir).init();
+  return withLock(runner, async () => {
+    const record = runner.taskById(taskId);
+    if (!record || record.status !== 'blocked' || record.modelCalls || (record.work && await exists(record.work))) throw new Error('仅允许重试未调用模型且未创建工作区的准备失败；其它情况需新任务');
+    record.preparationFailures = [...(record.preparationFailures || []), { error: record.error, at: record.updatedAt }];
+    record.status = 'pending'; record.error = ''; record.retryAt = ''; record.reportStopped = false;
+    await runner.save();
+  });
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const stateDir = path.resolve(args.includes('--state') ? args[args.indexOf('--state') + 1] : path.join(HERE, '.local-state'));
   if (args.includes('--status')) { console.log(JSON.stringify((await new RunnerState(stateDir).init()).state, null, 2)); return; }
+  if (args.includes('--retry-preparation')) {
+    const result = await retryPreparation(stateDir, args[args.indexOf('--retry-preparation') + 1]);
+    if (!result.locked) throw new Error(result.reason);
+    console.log('准备失败已重新排队；保留失败历史，模型最多调用一次'); return;
+  }
   const taskId = args.includes('--approve') ? args[args.indexOf('--approve') + 1] : null;
   if (taskId) {
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(taskId)) throw new Error('任务 ID 非法');
