@@ -2,6 +2,8 @@
 
 本阶段只完善执行基础设施。示例策略 `enabled`、`autoPush`、`autoReport` 均为 false，`knowledge.allowUnattended` 也为 false。不发布真实教材任务，不自动修改 main 或合并 PR。现有 Windows 启动、停止、状态入口继续使用，见 [LOCAL-RUNNER.md](LOCAL-RUNNER.md)。
 
+实际合成测试与尚未解决的普通 Windows 启动阻塞见 [验证记录](VALIDATION-KNOWLEDGE-20261115.md)。受限测试宿主跑通不代表一键无人值守已经可用；在真实宿主重新验证之前保持关闭。
+
 ## 本机配置与任务
 
 将 `local-books.example.json` 的内容保存到**仓库外**，由本机策略 `knowledge.configFile` 指定。实际路径不进入任务评论或公开配置；不要将填写后的配置复制回仓库。
