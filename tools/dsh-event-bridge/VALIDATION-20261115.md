@@ -10,7 +10,9 @@
 - 覆盖真实文件系统双解锁竞争、新实例获取、释放期间竞争、8 个独立 Node 进程竞争、残留 guard、读写 IO 异常、暂停持锁复查和 rename 失败保留旧状态。
 - 新执行器 15 项：授权绑定、有效期/次数限制、秘密/设备路径门禁、目录联接拒绝、结构化编辑、guard、stdin/安全环境、超时/非零退出、崩溃恢复、真实 Git 隔离开发与测试提交、报告重试去重、评论复核、审查 ACK、准备阶段恢复。
 - 在 `tools/dsh-event-bridge` 运行 `node --test`：**178/178 通过**；监听器 **51/51**，执行器 **15/15**，旧模块 **112/112**。
-- PowerShell 脚本语法解析通过。Windows 实机启停结果另见最终交付记录。
+- PowerShell 脚本语法解析通过。实际 E 盘仓库：start → status（running，PID 存活）→ stop → status（stopped，PID 已退出）通过；再次启动、暂停标记、恢复、停止均通过，重启期间没有新增 DSH CLI 调用。
+- 原分支与 bridge/状态已备份在本机 `_codex-bridge-backup-20261115`；安装在独立 codex 分支，工作区干净。旧任务已依据核实的结果补 ACK 为 reported，失败测试任务保持 blocked，无永久 pending。
+- 测试失败的固定命令/退出码会持久化并阻断提交，原始 stdout/stderr 不自动上传。成功时只回传 TAP 的测试数量摘要，避免日志误传。
 
 ## 真实 DSH 与 GitHub 端到端
 

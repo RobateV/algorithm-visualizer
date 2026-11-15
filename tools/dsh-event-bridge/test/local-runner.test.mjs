@@ -150,6 +150,13 @@ test('真实 Git 隔离开发→测试→提交→推送/报告重试；模型�
     body: `[LOCAL-DSH-REVIEW]\ntask_id: smoke\ncommit: ${record.commit}\nverdict: accept` }] });
   assert.equal(record.status, 'done'); assert.equal(listener.taskById('smoke').status, 'done');
   await executeQueued(opts); assert.equal(modelCalls, 1);
+  const failing = { ...bound, taskId: 'smoke-fail', commentId: 124 };
+  listener.state.tasks[failing.taskId] = failing; await listener.save();
+  await writeFile(path.join(stateDir, 'grant-smoke-fail.json'), JSON.stringify({ ...grant, ...failing }));
+  await executeQueued({ ...opts, runModel: async () => ({ proposal: { edits: [{ path: 'fixture.txt', content: 'wrong\n' }] } }) });
+  assert.equal(runner.taskById('smoke-fail').status, 'failed');
+  assert.equal(runner.taskById('smoke-fail').tests[0].passed, false);
+  assert.equal(runner.taskById('smoke-fail').commit, undefined);
 });
 
 test('历史/篡改/错误提交的审查不能把任务标记 done', async (t) => {

@@ -248,9 +248,16 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
         for (const testName of policy.tests || []) {
           if (testName !== 'bridge') throw new Error('未知的本地测试集合');
           const started = Date.now();
-          await exec(process.execPath, ['--test'], { cwd: path.join(work, 'tools/dsh-event-bridge'),
-            env: buildSafeEnv(process.env), windowsHide: true, timeout: 120000, maxBuffer: 2 * 1024 * 1024, signal });
-          tests.push({ command: 'node --test (tools/dsh-event-bridge)', passed: true, durationMs: Date.now() - started });
+          try {
+            const result = await exec(process.execPath, ['--test', '--test-reporter=tap'], { cwd: path.join(work, 'tools/dsh-event-bridge'),
+              env: buildSafeEnv(process.env), windowsHide: true, timeout: 120000, maxBuffer: 2 * 1024 * 1024, signal });
+            const counts = Object.fromEntries([...result.stdout.matchAll(/^# (tests|pass|fail) (\d+)$/gm)].map((m) => [m[1], Number(m[2])]));
+            tests.push({ command: 'node --test (tools/dsh-event-bridge)', passed: true, counts, durationMs: Date.now() - started });
+          } catch (e) {
+            tests.push({ command: 'node --test (tools/dsh-event-bridge)', passed: false, exitCode: e.code || 'unknown', durationMs: Date.now() - started });
+            record.tests = tests; await runner.save();
+            throw new Error(`固定 bridge 测试失败（${e.code || 'unknown'}）；未提交或推送`);
+          }
         }
         if (!tests.length) throw new Error('本地策略必须指定测试集合');
         if (signal?.aborted || (await listener.isPaused()).paused) throw new Error('测试后已暂停或停止，拒绝提交');
