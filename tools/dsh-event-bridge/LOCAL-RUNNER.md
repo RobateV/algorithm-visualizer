@@ -2,6 +2,8 @@
 
 监听器只接收 Issue #21；执行器与旧 receiver/云端 PR 协议隔离。不修改 main，不合并 PR，不需要 OpenAI API。
 
+当前默认采用 [知识库 Markdown 专用模式](KNOWLEDGE-MODE.md)，其配置与限额优先于下述历史通用模式说明。它只读取仓库外的指定教材页，不能执行仓库测试代码，页图未由模型视觉核对。未验证实际 Windows 启动宿主前保持 `knowledge.allowUnattended: false`。
+
 ```text
 ChatGPT 发布任务 → GitHub #21 → listener 入队 → 本地授权复核
   → DSH headless 生成 JSON 修改 → 隔离 clone 校验/落盘/测试

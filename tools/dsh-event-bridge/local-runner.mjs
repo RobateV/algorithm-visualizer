@@ -172,7 +172,7 @@ export function resultBody(task, record) {
     `parent_task_id: ${record.parentTaskId || 'none'}`, `input_branch: ${task.branch}`, `result_branch: ${record.branch || 'none'}`,
     `authorization_expires_at: ${record.authorizationExpiresAt || 'unknown'}`,
     `commit: ${record.commit || 'none'}`, `status: ${record.outcome || record.status}`, `dsh_cli_calls: ${record.modelCalls || 0}`,
-    `pr: ${record.pr || 'none'}`, `model_requests: ${record.modelRequests || 0}`, '---', `文件：${(record.files || []).join(', ') || '无'}`,
+    `pr: ${record.pr || 'none'}`, `model_requests: ${record.modelRequests ?? (record.modelCalls ? 'unknown' : 0)}`, '---', `文件：${(record.files || []).join(', ') || '无'}`,
     `教材来源记录（不含原文及路径）：${JSON.stringify(record.material || null)}`,
     `测试：${JSON.stringify(record.tests || [])}`, `预览：${record.preview || '本任务未生成视觉素材；未做视觉验收'}`,
     `错误：${record.error || '无'}`, '费用/额度：CLI 未提供可核实数值。',
