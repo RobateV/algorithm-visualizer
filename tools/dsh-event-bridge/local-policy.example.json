@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "enabled": false,
+  "autoPush": false,
+  "autoReport": false,
+  "branches": ["dev/local-dsh-20261114"],
+  "allowedFiles": ["tools/dsh-event-bridge/fixtures/local-smoke.txt"],
+  "tests": ["bridge"],
+  "timeoutMs": 180000,
+  "dshEntry": ""
+}

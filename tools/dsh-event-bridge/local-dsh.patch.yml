@@ -1,0 +1,6 @@
+- insert:
+    - id: local-dsh-guard
+      name: ./lib/local-dsh-guard.mjs
+      inject: [tools]
+- id: headless-runner
+  inject: [headlessStartup, localDshGuard]
