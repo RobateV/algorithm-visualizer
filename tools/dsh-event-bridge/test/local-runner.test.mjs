@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { checkAuthorization, assertSafeFile, assertPublicText, applyProposal, RunnerState, executeQueued, makeGitHub, resultBody, git, reconcileReviews, retryPreparation } from '../local-runner.mjs';
+import { checkAuthorization, assertSafeFile, assertPublicText, applyProposal, RunnerState, executeQueued, makeGitHub, resultBody, git, reconcileReviews, retryPreparation, makePrompt } from '../local-runner.mjs';
 import { ListenerState } from '../local-listener.mjs';
 import { parseDshEvents, runLocalDsh } from '../lib/local-dsh.mjs';
 import { apply as applyGuard } from '../lib/local-dsh-guard.mjs';
@@ -22,6 +22,59 @@ test('本地授权绑定任务/评论/摘要/SHA/文件/到期时间，默认拒
   }
   assert.throws(() => checkAuthorization({ ...task, branch: 'main' }, policy, grant));
   assert.throws(() => checkAuthorization({ ...task, allow: ['else.txt'] }, policy, grant));
+});
+
+test('验证过程中 stop 后，push、PR、结果发布全部为零', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'cancel-write-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const listener = await new ListenerState(dir).init(), runner = await new RunnerState(dir).init();
+  listener.state.tasks.smoke = task; await listener.save();
+  runner.state.tasks.smoke = { status: 'review_ready', branch: 'local-dsh/smoke-123', commit: 'c'.repeat(40), work: dir, modelCalls: 1 };
+  await writeFile(path.join(dir, 'grant-smoke.json'), JSON.stringify(grant));
+  const controller = new AbortController(); let writes = 0;
+  await executeQueued({ listener, runner, policy: { ...policy, autoPush: true, autoReport: true }, signal: controller.signal,
+    api: { validate: async () => { controller.abort(); }, pr: async () => { writes++; }, publish: async () => { writes++; } },
+    gitImpl: async () => { writes++; return ''; } });
+  assert.equal(writes, 0);
+});
+
+for (const revoked of ['pause', 'stop-file', 'policy', 'grant', 'after-push']) {
+  test(`远程写入复查：${revoked} 阻止后续副作用`, async (t) => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'write-revoke-')); t.after(() => rm(dir, { recursive: true, force: true }));
+    const listener = await new ListenerState(dir).init(), runner = await new RunnerState(dir).init();
+    listener.state.tasks.smoke = task; await listener.save();
+    runner.state.tasks.smoke = { status: 'review_ready', branch: 'local-dsh/smoke-123', commit: 'c'.repeat(40), work: dir, modelCalls: 1 };
+    const grantFile = path.join(dir, 'grant-smoke.json'); await writeFile(grantFile, JSON.stringify(grant));
+    const current = { ...policy, autoPush: true, autoReport: true }; const controller = new AbortController(); let pushes = 0, other = 0;
+    await executeQueued({ listener, runner, policy: current, signal: controller.signal, readCurrentPolicy: async () => current,
+      api: { validate: async () => {
+        if (revoked === 'pause') await listener.setPauseFile(true);
+        if (revoked === 'stop-file') await writeFile(path.join(dir, 'STOP'), 'stop');
+        if (revoked === 'policy') current.autoPush = false;
+        if (revoked === 'grant') await rm(grantFile);
+      }, pr: async () => { other++; }, publish: async () => { other++; } },
+      gitImpl: async () => { pushes++; controller.abort(); return ''; } });
+    assert.equal(pushes, revoked === 'after-push' ? 1 : 0); assert.equal(other, 0);
+  });
+}
+
+test('GitHub 查询期间取消，在真正 POST 前再次检查', async () => {
+  const controller = new AbortController(); let posts = 0;
+  const api = await makeGitHub({ token: 'fake', fetchImpl: async (_, options) => {
+    if (options.method === 'POST') posts++;
+    controller.abort();
+    return { ok: true, headers: { get: () => null }, json: async () => [] };
+  } });
+  await assert.rejects(() => api.publish(task, {}, 'body', { signal: controller.signal }));
+  assert.equal(posts, 0);
+});
+
+test('限制任务总输入，自动模式禁止执行性文件', () => {
+  assert.throws(() => makePrompt(task, [{ path: 'a.md', content: 'x'.repeat(70000) }, { path: 'b.md', content: 'x'.repeat(70000) }]), /128 KiB/);
+  assert.ok(makePrompt(task, [{ path: 'a.md', content: 'small' }]).length);
+  for (const p of ['test.mjs', 'package.json', 'vite.config.ts', 'page.html']) {
+    const modified = { ...task, allow: [p] };
+    assert.throws(() => checkAuthorization(modified, { ...policy, enabled: true, allowedFiles: [p] }), /仅允许/);
+  }
 });
 
 test('文本白名单拒绝 PDF/OCR/密钥、Windows 设备与 ADS 路径', () => {
