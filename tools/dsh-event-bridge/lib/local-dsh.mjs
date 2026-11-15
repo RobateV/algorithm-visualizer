@@ -25,7 +25,7 @@ export async function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, sign
   try { return await new Promise((resolve, reject) => {
     const command = windowsJob ? native.executable : process.execPath;
     const argv = windowsJob
-      ? [process.execPath, entry, PATCH]
+      ? [process.execPath, entry, PATCH, String(process.pid), String(Math.max(1000, Math.min(timeoutMs, 600000)))]
       : [entry, '--profile', 'headless', '--patch', PATCH, '--json', '-'];
     const child = spawnImpl(command, argv, {
       cwd, env: childEnv, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
@@ -50,6 +50,7 @@ export async function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, sign
     child.once('error', (err) => { cleanup(); reject(new Error(`DSH 无法启动：${err.code || 'unknown'}`)); });
     child.once('close', (code) => {
       cleanup();
+      if (stderr.includes('LOCAL_DSH_JOB_TIMEOUT')) return reject(new Error('DSH 超时（Windows Job 独立计时器）'));
       if (stderr.includes('LOCAL_DSH_BUDGET_EXCEEDED')) return reject(new Error('DSH 模型请求次数超限，任务停止'));
       if (windowsJob && !stderr.includes('LOCAL_DSH_JOB_READY')) return reject(new Error(reason || 'Windows 包装进程未建立 Job，拒绝继续；需核实实际启动宿主'));
       if (reason || code !== 0) return reject(new Error(reason || `DSH exit=${code}（原始输出未发布，可能含敏感内容）`));

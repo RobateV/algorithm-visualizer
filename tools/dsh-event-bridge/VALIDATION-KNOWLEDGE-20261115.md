@@ -1,6 +1,6 @@
 # 知识库执行模式验证记录（2026-11-15）
 
-状态：基础设施实现与受限端到端测试已完成，**尚不具备开启无人值守的条件**，等待 ChatGPT 独立复审。未发布 0x03 或任何真实教材任务；没有读取真实教材 PDF。本记录不取代独立验收。
+状态：基础设施实现与普通隐藏后台的完整合成端到端测试已完成，等待 ChatGPT 独立复审，默认无人值守关闭。未发布 0x03 或任何真实教材任务；没有读取真实教材 PDF。本记录不取代独立验收。
 
 ## 基线与修改范围
 
@@ -12,11 +12,11 @@
 
 ## 回归测试
 
-实际 Windows 运行 `node --test --test-reporter=tap`，同时设置 `DSH_TEST_PYTHON` 为本机已有 Python：**199/199 通过，0 skip**。没有新增安装依赖。
+实际 Windows 运行 `node --test --test-reporter=tap`，同时设置 `DSH_TEST_PYTHON` 为本机已有 Python：**201/201 通过，0 skip**。没有新增安装依赖。
 
 新增教材测试覆盖协议解析、页码/书籍范围、精确 Markdown 白名单、输出大小/路径/图像嵌入/原 OCR 长段转储、队列页码篡改、真实合成 PDF 页图和 OCR、中文编码、原 PDF 指纹不变、错误指纹、缺页、拒绝仓库内配置及未授权发送 OCR。既有暂停、停止、授权撤销、去重、IO 异常、报告重试和崩溃不重放测试全部保留。
 
-Windows 原有三项真实进程测试全部通过：普通及 detached 后代取消回收，以及正常结束后的后代清理与中文 stdin/JSON。它们运行于 Node 测试子进程；不能证明下述普通启动宿主问题已修复。
+Windows 五项真实进程测试全部通过：普通及 detached 后代取消回收、正常结束后的后代清理与中文 stdin/JSON、父 runner 被直接终止后的全树回收、原生启动器独立超时回收。额外用普通 Node 直接运行 `fixtures/windows-job-smoke.mjs`，约 0.47 秒通过；Start-Process 隐藏后台运行同一探针约 0.44 秒通过，exit=0、0 模型调用。
 
 ## 真实 GitHub → DSH → GitHub
 
@@ -39,9 +39,22 @@ Windows 原有三项真实进程测试全部通过：普通及 detached 后代�
 7. 通过 GitHub 连接器独立读取 PR metadata 和绑定 commit 的实际文件，确认只有一份五行 Markdown，无 PDF/OCR/页图/密钥/本机路径。此步骤证明 ChatGPT 工具能够读取实际成果，**不是伪称原网页聊天已自动被唤醒或已经完成审查**。
 8. 再次 runnerOnce 后状态仍 reported、CLI 调用数仍为 1，GitHub 结果评论恰好一条，源合成 PDF 指纹不变。测试 enabled、autoPush、autoReport、allowUnattended 全部恢复 false。
 
-## 尚未解决的启动与安全问题
+### 原生 Job 修复后，普通隐藏后台完整成功
 
-- **启动阻塞仍存在**：相同假 DSH 夹具在 Node 独立测试子进程内两种 PowerShell 路径都成功；在当前普通 Node 命令宿主以及 Start-Process 隐藏后台方式中会超时。临时本机阶段记录表明 PowerShell 脚本首行尚未执行；绝对路径、脱离父进程、去掉 stdin 管道均未解决。原始诊断只保存在本机。还没有查明根因，不能把这项归为已修复或声称一键无人值守稳定可用。当前默认关闭，实际 Job/guard 未确认时拒绝执行。
+首次失败的反馈环路已固定：旧 PowerShell 包装在普通宿主的无模型探针稳定超时，改为直接运行同一份受信任 C# Job 代码后探针通过。每次用系统已有 csc.exe 编译到独立本机临时目录，不下载或提交二进制；不再依赖 PowerShell 作为 DSH 父进程。旧 powershellPath 已停用，手动 PS 入口只引用同一 C# 文件，避免两份实现分叉。PowerShell 自身为何在该宿主阻塞尚未查明，但它已退出当前 DSH 启动链路。
+
+[kb-mode-smoke-20261115-native](https://github.com/RobateV/algorithm-visualizer/issues/21#issuecomment-6896149122) 在与一键启动相同的 Start-Process 隐藏后台中执行，**没有使用 Node 测试宿主**。
+
+- 本机 runner 源码 commit：`d01bfa4bba2f848d5091cbe96d914d7f0c09343c`；输入 dev SHA 仍为 `f21e063c4cd8afdd1ed17078e32dd735a1649a6e`。
+- 真实监听器收取、核验；一次 DSH CLI，一次实际模型请求，15,721 ms（含本地 Job 编译）；固定 Markdown 检查通过。
+- 仅新增一个九行的 `docs/knowledge-base/automation-smoke.md`，提交 `eaed8c917cc2cacd4f139b0eeca321975c0cfefd`；自动推送独立 local-dsh 分支，创建 [Draft PR #25](https://github.com/RobateV/algorithm-visualizer/pull/25)，自动发布[结果评论](https://github.com/RobateV/algorithm-visualizer/issues/21#issuecomment-6896164074)。未合并。
+- GitHub 连接器重新读取实际 PR 和绑定 commit 的 Markdown，确认只有该文件且不含原 PDF/OCR/页图/本机路径；等待独立审查，没有发布 ACCEPT。
+- 再次 runnerOnce 不重复调用；CLI 调用数仍 1、结果评论恰好一条、合成 PDF 指纹未变、四个本地测试开关全部 false。
+- 此次完整链路后继续加固父 runner 崩溃监视和原生独立硬超时；两项实际进程回归均通过。没有为这些进程测试再次调用模型。
+
+## 尚未解决的安全问题
+
+- 实际验证限于当前 Windows 本机；缺少系统 C# 编译器、不同 .NET/Windows/DSH 版本或严格权限策略时仍需重新验证，失败时拒绝执行。旧 PowerShell 手动兼容入口仍受其宿主问题影响，不能用它的历史结果替代原生启动器验证。
 - 独立 clone 不隔离 Windows 用户权限。当前方案只让受信任 DSH 返回结构化文本、禁用工具并避免执行仓库代码；不具有任意代码安全沙箱能力。
 - PDF 提取只支持一页一张图、无文字层的扫描件；页图准备不代表模型视觉核对。OCR、公式、代码和教材忠实性仍需独立审查，本次也没有做真实教材准确性验收。
 - 明确允许 OCR 发给 DSH 配置模型时，选定 OCR 可能离开电脑；默认拒绝。复制检测/密钥规则有识别边界；同用户恶意进程、本地依赖受损、解析器内存配额均未隔离。
@@ -51,3 +64,12 @@ Windows 原有三项真实进程测试全部通过：普通及 detached 后代�
 ## 关闭与回滚
 
 没有生产部署、数据库迁移或远程删除。可先停止 bridge，再撤销本地测试 grant、保持四个开关 false。代码变更集中在 tools/dsh-event-bridge，可逐提交 revert；本次未修改原 E 盘工作区。测试分支与草稿 PR 保留供审查，不 force push、不自动合并或删除。
+
+## 本轮修改文件
+
+以下路径均相对于 tools/dsh-event-bridge，合计 21 个文件：
+
+- 执行与配置：local-listener.mjs、local-runner.mjs、local-policy.example.json、local-books.example.json、local-dsh.patch.yml。
+- 受信任模块：lib/knowledge-mode.mjs、lib/textbook-pages.py、lib/local-dsh.mjs、lib/local-dsh-guard.mjs、lib/windows-job.cs、lib/windows-job.mjs、lib/windows-job.ps1。
+- 验证：test/knowledge-mode.test.mjs、test/local-runner.test.mjs、test/windows-job.test.mjs、test/fixtures/synthetic-book.py、fixtures/windows-job-smoke.mjs。
+- 文档：README.md、LOCAL-RUNNER.md、KNOWLEDGE-MODE.md、VALIDATION-KNOWLEDGE-20261115.md。

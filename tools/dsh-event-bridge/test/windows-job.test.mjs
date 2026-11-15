@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runLocalDsh } from '../lib/local-dsh.mjs';
+import { runLocalDsh, PATCH } from '../lib/local-dsh.mjs';
+import { spawn } from 'node:child_process';
+import { buildWindowsJob } from '../lib/windows-job.mjs';
+import { buildSafeEnv } from '../lib/dsh-cli.mjs';
 
 const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { return e.code !== 'ESRCH'; } };
 
@@ -13,7 +16,7 @@ for (const detached of [false, true]) test(`Windows 取消 DSH 时，真实派�
   let childPid;
   t.after(async () => {
     if (childPid && alive(childPid)) process.kill(childPid, 'SIGKILL');
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
   });
   await writeFile(entry, `const {spawn}=require('node:child_process');const fs=require('node:fs');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true,detached:${detached}});fs.writeFileSync(${JSON.stringify(marker)},JSON.stringify({parent:process.pid,child:child.pid}));setInterval(()=>{},1000);`);
   const controller = new AbortController();
@@ -43,4 +46,36 @@ test('Windows Job 正常结束时清理 detached 后代，并保留中文 stdin/
   assert.equal(result.proposal.echo, '中文任务 $() & 不作为命令');
   for (let i = 0; i < 40 && alive(childPid); i++) await new Promise((r) => setTimeout(r, 50));
   assert.equal(alive(childPid), false);
+});
+
+for (const failure of ['runner-crash', 'native-timeout']) test(`Windows Job 独立回收：${failure}`, { skip: process.platform !== 'win32', timeout: 15000 }, async (t) => {
+  const root = await mkdtemp(path.join(tmpdir(), 'job-watchdog-'));
+  const marker = path.join(root, 'pids.json'), entry = path.join(root, 'bin.js');
+  let parent, pids;
+  t.after(async () => {
+    for (const pid of [parent?.pid, pids?.dsh, pids?.child, pids?.job].filter(Boolean)) if (alive(pid)) process.kill(pid, 'SIGKILL');
+    if (path.dirname(root) !== path.resolve(tmpdir()) || !path.basename(root).startsWith('job-watchdog-')) throw new Error('test directory escape');
+    // Windows may release working-directory handles shortly after process exit.
+    await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
+  });
+  await writeFile(entry, `const{spawn}=require('node:child_process');const fs=require('node:fs');const child=spawn(process.execPath,['-e','setInterval(()=>{},1000)'],{stdio:'ignore',windowsHide:true,detached:true});fs.writeFileSync(${JSON.stringify(marker)},JSON.stringify({dsh:process.pid,child:child.pid,job:process.ppid}));setInterval(()=>{},1000);`);
+  if (failure === 'runner-crash') {
+    const script = path.join(root, 'runner.mjs');
+    await writeFile(script, `import{runLocalDsh}from ${JSON.stringify(new URL('../lib/local-dsh.mjs', import.meta.url).href)};await runLocalDsh({entry:${JSON.stringify(entry)},cwd:${JSON.stringify(root)},prompt:'fixture',timeoutMs:10000});`);
+    parent = spawn(process.execPath, [script], { windowsHide: true, stdio: 'ignore', env: buildSafeEnv(process.env) });
+  } else {
+    const native = await buildWindowsJob(); t.after(native.cleanup);
+    parent = spawn(native.executable, [process.execPath, entry, PATCH, String(process.pid), '1000'], { windowsHide: true, stdio: 'ignore', env: buildSafeEnv(process.env) });
+  }
+  const finished = new Promise((resolve, reject) => { parent.once('error', reject); parent.once('close', resolve); });
+  for (let i = 0; i < 100; i++) {
+    try { pids = JSON.parse(await readFile(marker, 'utf8')); break; }
+    catch (e) { if (e.code !== 'ENOENT') throw e; await new Promise(r => setTimeout(r, 50)); }
+  }
+  assert.ok(pids, 'actual descendant must start');
+  if (failure === 'runner-crash') process.kill(parent.pid, 'SIGKILL');
+  const code = await finished;
+  if (failure === 'native-timeout') assert.equal(code, 124);
+  for (let i = 0; i < 60 && [pids.dsh, pids.child, pids.job].some(alive); i++) await new Promise(r => setTimeout(r, 50));
+  assert.equal(alive(pids.dsh), false); assert.equal(alive(pids.child), false); assert.equal(alive(pids.job), false);
 });

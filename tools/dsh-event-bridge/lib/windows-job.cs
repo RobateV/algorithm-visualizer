@@ -1,6 +1,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Diagnostics;
 public static class LocalDshJob {
   [StructLayout(LayoutKind.Sequential)] struct STARTUPINFO {
     public uint cb; public IntPtr reserved, desktop, title;
@@ -26,6 +27,7 @@ public static class LocalDshJob {
   [DllImport("kernel32.dll")] static extern bool GetExitCodeProcess(IntPtr process,out uint code);
   [DllImport("kernel32.dll")] static extern bool TerminateProcess(IntPtr process,uint code);
   [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr handle);
+  [DllImport("kernel32.dll", SetLastError=true)] static extern IntPtr OpenProcess(uint access,bool inherit,int pid);
   static string Quote(string s) {
     var result = new StringBuilder("\""); int slashes=0;
     foreach(char c in s) {
@@ -37,9 +39,17 @@ public static class LocalDshJob {
     return result.Append('\\',slashes*2).Append('"').ToString();
   }
   public static int Run(string node,string entry,string patch) {
+    return Run(node,entry,patch,0,180000);
+  }
+  public static int Run(string node,string entry,string patch,int parentPid,int timeoutMs) {
     IntPtr job=CreateJobObject(IntPtr.Zero,null); PROCESS_INFORMATION pi=new PROCESS_INFORMATION();
+    IntPtr parent=IntPtr.Zero;
     if(job==IntPtr.Zero) throw new Exception("CreateJobObject failed");
     try {
+      if(parentPid != 0) {
+        parent=OpenProcess(0x00100000,false,parentPid); // SYNCHRONIZE only.
+        if(parent==IntPtr.Zero || WaitForSingleObject(parent,0)!=0x102) throw new Exception("Parent unavailable");
+      }
       var limits=new EXTENDED_LIMIT(); limits.basic.flags=0x2000; // KILL_ON_JOB_CLOSE, no breakaway.
       if(!SetInformationJobObject(job,9,ref limits,(uint)Marshal.SizeOf(limits))) throw new Exception("Job limits failed");
       var si=new STARTUPINFO(); si.cb=(uint)Marshal.SizeOf(si); si.flags=0x100;
@@ -49,17 +59,33 @@ public static class LocalDshJob {
       if(!AssignProcessToJobObject(job,pi.process)) { TerminateProcess(pi.process,1); throw new Exception("Job assignment failed; DSH was not started"); }
       Console.Error.WriteLine("LOCAL_DSH_JOB_READY");
       if(ResumeThread(pi.thread)==0xffffffff) { TerminateProcess(pi.process,1); throw new Exception("Resume failed"); }
-      WaitForSingleObject(pi.process,0xffffffff); uint code;
+      var timer=Stopwatch.StartNew();
+      while(true) {
+        uint wait=WaitForSingleObject(pi.process,100);
+        if(wait==0) break;
+        if(wait!=0x102) throw new Exception("Process wait failed");
+        if(parent!=IntPtr.Zero && WaitForSingleObject(parent,0)!=0x102) return 125;
+        if(timer.ElapsedMilliseconds>=timeoutMs) {
+          Console.Error.WriteLine("LOCAL_DSH_JOB_TIMEOUT"); return 124;
+        }
+      }
+      uint code;
       if(!GetExitCodeProcess(pi.process,out code)) throw new Exception("Exit code unavailable");
       return (int)code;
     } finally {
       CloseHandle(job);
+      if(parent!=IntPtr.Zero) CloseHandle(parent);
       if(pi.thread!=IntPtr.Zero) CloseHandle(pi.thread);
       if(pi.process!=IntPtr.Zero) CloseHandle(pi.process);
     }
   }
   public static int Main(string[] args) {
-    try { if(args.Length != 3) throw new Exception(); return Run(args[0],args[1],args[2]); }
+    try {
+      if(args.Length != 5) throw new Exception();
+      int parent=int.Parse(args[3]), timeout=int.Parse(args[4]);
+      if(parent<=0 || timeout<1000 || timeout>600000) throw new Exception();
+      return Run(args[0],args[1],args[2],parent,timeout);
+    }
     catch { Console.Error.WriteLine("LOCAL_DSH_JOB_FAILED: launch containment failed"); return 1; }
   }
 }
