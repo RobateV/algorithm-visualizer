@@ -4,8 +4,10 @@
   "autoPush": false,
   "autoReport": false,
   "branches": ["dev/local-dsh-20261114"],
-  "allowedFiles": ["tools/dsh-event-bridge/fixtures/local-smoke.txt"],
-  "tests": ["bridge"],
+  "mode": "knowledge-markdown",
+  "allowedFiles": ["docs/knowledge-base/automation-smoke.md"],
+  "tests": ["knowledge-markdown"],
+  "knowledge": { "allowUnattended": false, "configFile": "" },
   "timeoutMs": 180000,
   "dshEntry": "",
   "powershellPath": "pwsh.exe"

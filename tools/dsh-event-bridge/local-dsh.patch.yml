@@ -1,7 +1,7 @@
 - insert:
     - id: local-dsh-guard
       name: ./lib/local-dsh-guard.mjs
-      inject: [tools]
+      inject: [tools, llm]
 - id: headless-runner
   inject: [headlessStartup, localDshGuard]
 # 复用本机 DSH 已配置的凭据服务，不复制/输出密钥，也不要求新购 API。
@@ -11,3 +11,7 @@
   disabled: false
 - id: deepseek-account
   disabled: false
+- id: session-title-llm
+  disabled: true
+- id: llm-retry
+  disabled: true

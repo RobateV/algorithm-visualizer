@@ -280,3 +280,5 @@ accept: 页面无控制台报错；知识库页码可核对
 
 受控自动执行、Windows 启停与恢复见 [LOCAL-RUNNER.md](LOCAL-RUNNER.md)。监听器本身继续只收件；自动执行默认关闭。
 
+当前默认策略为 [知识库 Markdown 专用模式](KNOWLEDGE-MODE.md)，需仓库外教材配置及明确本地授权；不执行网站测试或教材真实任务。
+

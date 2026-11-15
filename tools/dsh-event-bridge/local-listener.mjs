@@ -28,6 +28,7 @@ import { promisify } from 'node:util';
 import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { knowledgeRequest } from './lib/knowledge-mode.mjs';
 
 const run = promisify(execFile);
 
@@ -402,6 +403,11 @@ export function parseComment(body) {
   }
   if (!accept) problems.push('缺少 accept 验收标准');
 
+  let knowledge;
+  if (fields.mode || fields.book_id || fields.print_pages) {
+    try { knowledge = knowledgeRequest(fields); if (!knowledge) throw new Error('缺少教材 mode'); }
+    catch (e) { problems.push(e.message); }
+  }
   if (problems.length) return { kind: 'invalid', reason: problems.join('；') };
 
   const detail = text.split(/\n---\n/).slice(1).join('\n---\n').trim();
@@ -414,7 +420,8 @@ export function parseComment(body) {
       allow,
       accept,
       detail,
-      digest: null
+      digest: null,
+      ...(knowledge ? { knowledge } : {})
     }
   };
 }
@@ -624,6 +631,7 @@ export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER
       allow: task.allow,
       accept: task.accept,
       detail: task.detail,
+      ...(task.knowledge ? { knowledge: task.knowledge } : {}),
       bodyDigest: createHash('sha256').update(c.body).digest('hex'),
       createdAt: c.createdAt,
       updatedAt: c.updatedAt,

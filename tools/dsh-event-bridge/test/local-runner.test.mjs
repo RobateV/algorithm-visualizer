@@ -95,10 +95,12 @@ test('结构化编辑先校验全部文件，越权时没有部分写入', async
 });
 
 test('DSH guard 拒绝任意工具且只有安装后提供启动依赖', () => {
-  let guard, ready = false;
-  applyGuard({ tools: { guard: (fn) => { guard = fn; } }, provide: (name, value) => { assert.equal(name, 'localDshGuard'); ready = value; } });
+  let guard, stream, ready = false;
+  applyGuard({ on: (event, fn) => { assert.equal(event, 'llm/stream'); stream = fn; }, tools: { guard: (fn) => { guard = fn; } }, provide: (name, value) => { assert.equal(name, 'localDshGuard'); ready = value; } });
   assert.equal(ready, true);
   assert.match(guard({ name: 'pwsh', args: { command: 'anything' } }), /disabled/);
+  assert.equal(stream({}, () => 'one'), 'one');
+  assert.throws(() => stream({}, () => 'two'), /one provider request/);
 });
 
 test('DSH final 流解析拒绝错误事件与多个 final', () => {

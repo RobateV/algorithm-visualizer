@@ -35,10 +35,11 @@ export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, en
     signal?.addEventListener('abort', abort, { once: true });
     if (signal?.aborted) abort();
     const append = (kind, chunk) => {
-      total += chunk.length;
+      total += Buffer.byteLength(chunk);
       if (total > 2 * 1024 * 1024) { stop('DSH 输出超限'); return; }
       if (kind === 'out') stdout += chunk.toString(); else stderr += chunk.toString();
     };
+    child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
     child.stdout.on('data', (s) => append('out', s));
     child.stderr.on('data', (s) => append('err', s));
     child.stdin.on('error', () => {});
@@ -47,10 +48,11 @@ export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, en
     child.once('error', (err) => { cleanup(); reject(new Error(`DSH 无法启动：${err.code || 'unknown'}`)); });
     child.once('close', (code) => {
       cleanup();
+      if (stderr.includes('LOCAL_DSH_BUDGET_EXCEEDED')) return reject(new Error('DSH 模型请求次数超限，任务停止'));
       if (reason || code !== 0) return reject(new Error(reason || `DSH exit=${code}（原始输出未发布，可能含敏感内容）`));
       if (!stderr.includes('LOCAL_DSH_GUARD_READY')) return reject(new Error('DSH 权限 guard 未确认生效'));
       if (windowsJob && !stderr.includes('LOCAL_DSH_JOB_READY')) return reject(new Error('Windows 进程归属未确认生效'));
-      try { resolve({ ...parseDshEvents(stdout), code, durationMs: Date.now() - started }); }
+      try { resolve({ ...parseDshEvents(stdout), code, durationMs: Date.now() - started, contained: windowsJob, toolsGuarded: true, modelRequests: Number(stderr.match(/LOCAL_DSH_MODEL_CALLS:(\d+)/)?.[1] || 0) }); }
       catch { reject(new Error('DSH 结果不符合结构化编辑协议')); }
     });
   });

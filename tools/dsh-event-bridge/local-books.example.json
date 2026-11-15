@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "pythonPath": "",
+  "cacheDir": "",
+  "books": {
+    "algorithm-guide": {
+      "pdfPath": "",
+      "pdfSha256": "",
+      "ocrDir": "",
+      "pdfOffset": 10,
+      "allowedPrintRanges": [],
+      "allowOcrToModel": false
+    }
+  }
+}
