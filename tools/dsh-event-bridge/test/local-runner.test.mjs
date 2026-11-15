@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
-import { checkAuthorization, assertSafeFile, assertPublicText, applyProposal, RunnerState, executeQueued, makeGitHub, resultBody, git, reconcileReviews } from '../local-runner.mjs';
+import { checkAuthorization, assertSafeFile, assertPublicText, applyProposal, RunnerState, executeQueued, makeGitHub, resultBody, git, reconcileReviews, retryPreparation } from '../local-runner.mjs';
 import { ListenerState } from '../local-listener.mjs';
 import { parseDshEvents, runLocalDsh } from '../lib/local-dsh.mjs';
 import { apply as applyGuard } from '../lib/local-dsh-guard.mjs';
@@ -159,4 +159,31 @@ test('历史/篡改/错误提交的审查不能把任务标记 done', async (t) 
   runner.state.tasks.smoke = { status: 'reported', commit: task.expectedSha };
   await reconcileReviews({ listener, runner, comments: [{ author: 'RobateV', createdAt: 'x', updatedAt: 'y', body: `[LOCAL-DSH-REVIEW]\ntask_id: smoke\ncommit: ${task.expectedSha}\nverdict: accept` }, { author: 'someone', createdAt: 'x', updatedAt: 'x', body: `[LOCAL-DSH-REVIEW]\ntask_id: smoke\ncommit: ${task.expectedSha}\nverdict: accept` }] });
   assert.equal(runner.state.tasks.smoke.status, 'reported');
+});
+
+test('准备失败仅在 CLI 从未启动且工作区不存在时可显式恢复', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'prepare-retry-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const runner = await new RunnerState(dir).init();
+  runner.state.tasks.smoke = { status: 'blocked', modelCalls: 0, error: 'clone failed', work: path.join(dir, 'absent') }; await runner.save();
+  assert.equal((await retryPreparation(dir, 'smoke')).locked, true);
+  await runner.init(); assert.equal(runner.taskById('smoke').status, 'pending'); assert.equal(runner.taskById('smoke').preparationFailures.length, 1);
+  runner.taskById('smoke').status = 'blocked'; runner.taskById('smoke').modelCalls = 1; await runner.save();
+  await assert.rejects(() => retryPreparation(dir, 'smoke'));
+  runner.taskById('smoke').modelCalls = 0; await mkdir(runner.taskById('smoke').work); await runner.save();
+  await assert.rejects(() => retryPreparation(dir, 'smoke'));
+});
+
+test('自动授权必须有期限和累计调用上限；不允许主分支和旧云端分支', () => {
+  assert.throws(() => checkAuthorization(task, { ...policy, enabled: true }));
+  assert.equal(checkAuthorization(task, { ...policy, enabled: true, maxTasks: 2, expiresAt: new Date(Date.now() + 3600000).toISOString() }), true);
+  for (const branch of ['main', 'master', 'lesson/dsh-binary-issue-17', 'codex/other']) {
+    assert.throws(() => checkAuthorization({ ...task, branch }, { ...policy, branches: [branch] }, grant));
+  }
+});
+
+test('目录联接中的编辑被拒绝，不会写到工作区外', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'junction-check-')); t.after(() => rm(dir, { recursive: true, force: true }));
+  const work = path.join(dir, 'work'), outside = path.join(dir, 'outside'); await mkdir(work); await mkdir(outside);
+  await symlink(outside, path.join(work, 'link'), process.platform === 'win32' ? 'junction' : 'dir');
+  await assert.rejects(() => applyProposal(work, { ...task, allow: ['link/file.txt'] }, { edits: [{ path: 'link/file.txt', content: 'x' }] }));
 });

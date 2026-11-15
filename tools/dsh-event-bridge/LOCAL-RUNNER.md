@@ -52,6 +52,12 @@ verdict: accept
 
 `accept` 才 ACK done；`rework` 置 blocked，ChatGPT 发布新 task_id、当前 dev SHA 和相同或更窄范围再执行。每任务一次模型调用、自动策略总次数最多 10；不根据模型自己给出的“通过”结束任务。作者白名单只证明 GitHub 身份，不能证明评论确由 ChatGPT 生成；独立审查仍是流程约束。
 
+连续返工时，新任务 branch/expected_sha 可以指向前一个已推送的 local-dsh 分支及其完整 commit；本地执行记录必须能匹配该分支和 SHA，才继承分支授权。输出仍创建新的任务分支和指向 dev 的 Draft PR，不自动覆盖旧 PR 或推进 dev。累计 CLI 次数上限约束整个迭代过程。
+
+统计字段 `dsh_cli_calls` 表示 CLI 启动次数；CLI 内部标题生成、模型请求或重试次数及实际费用尚未暴露，不据此推算成本。实际测试确认本机 headless 默认禁用已保存凭据；专用 patch 恢复 credentials/authorization/deepseek-account 服务以复用现有 DSH 配置，密钥不经桥接器读写。
+
+准备阶段在 CLI 从未启动、工作区也未创建时可显式 `node local-runner.mjs --retry-preparation <task_id>`；失败历史保留。只要曾启动 CLI 或留下工作区，就拒绝这种恢复，避免重复副作用。
+
 常驻服务重启不自动清陈旧锁。先停止全部桥接进程，备份 `.local-state`，核对 PID；普通锁可在持有者已退出时使用 `local-listener.mjs --unlock`。runner.lock/service.lock 使用同一实现，但恢复时需要人工核对相应文件，不提供在线强制删除。guard 残留必须停机人工移走，禁止运行中删除。错误状态与 CLI 输出在 `.local-state`，不要上传整个目录。
 
 ## 平台边界与回滚

@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { readFile, writeFile, rm, access } from 'node:fs/promises';
+import { readFile, writeFile, rm, access, rename } from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ListenerState, withLock, pollIfActive, resolveToken, redactToken } from './local-listener.mjs';
+import { ListenerState, withLock, pollIfActive, resolveToken, redactToken, pidAlive } from './local-listener.mjs';
 import { RunnerState, runnerOnce, HERE } from './local-runner.mjs';
 
 const present = async (p) => { try { await access(p); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
@@ -13,6 +13,12 @@ export async function service({ stateDir, once = false, token = '', intervalMs =
   const stopFile = path.join(stateDir, 'STOP');
   const heartbeat = path.join(stateDir, 'service.json');
   const controller = new AbortController();
+  let lastError = '';
+  const health = async (status) => {
+    const tmp = `${heartbeat}.${process.pid}.tmp`;
+    await writeFile(tmp, JSON.stringify({ pid: process.pid, status, at: new Date().toISOString(), error: lastError }));
+    await rename(tmp, heartbeat);
+  };
   const stop = () => controller.abort();
   const guarded = await withLock(lockState, async () => {
     await rm(stopFile, { force: true });
@@ -22,14 +28,19 @@ export async function service({ stateDir, once = false, token = '', intervalMs =
     }, 250);
     try {
       do {
-        await writeFile(heartbeat, JSON.stringify({ pid: process.pid, status: 'running', at: new Date().toISOString() }));
+        await health('running');
         try {
           const listener = await new ListenerState(stateDir).init();
           const polled = await withLock(listener, () => pollIfActive({ state: listener, token, log: listener.log.bind(listener) }));
           if (!polled.locked) throw new Error(polled.reason);
-          if (!controller.signal.aborted) await runnerOnce({ stateDir, token, signal: controller.signal });
+          if (!controller.signal.aborted) {
+            const ran = await runnerOnce({ stateDir, token, signal: controller.signal });
+            if (!ran.locked) throw new Error(ran.reason);
+          }
+          lastError = '';
         } catch (e) {
-          await writeFile(heartbeat, JSON.stringify({ pid: process.pid, status: 'error', at: new Date().toISOString(), error: redactToken(e.message, token) }));
+          lastError = redactToken(e.message, token);
+          await health('error');
           if (once) throw e;
         }
         if (once) break;
@@ -39,7 +50,7 @@ export async function service({ stateDir, once = false, token = '', intervalMs =
     } finally {
       clearInterval(watchStop);
       process.off('SIGINT', stop); process.off('SIGTERM', stop);
-      await writeFile(heartbeat, JSON.stringify({ pid: process.pid, status: 'stopped', at: new Date().toISOString() }));
+      await health('stopped');
     }
   });
   if (!guarded.locked) throw new Error(guarded.reason);
@@ -57,7 +68,7 @@ async function main() {
     try { health = JSON.parse(await readFile(path.join(stateDir, 'service.json'), 'utf8')); }
     catch (e) { if (e.code !== 'ENOENT') throw e; }
     const runner = await new RunnerState(stateDir).init();
-    console.log(JSON.stringify({ health, paused: (await state.isPaused()).paused, execution: Object.values(runner.state.tasks).map(({ work, ...record }) => record), queue: Object.values(state.state.tasks).map((t) => ({ taskId: t.taskId, status: t.status })) }, null, 2));
+    console.log(JSON.stringify({ health: health && { ...health, processAlive: pidAlive(health.pid) }, paused: (await state.isPaused()).paused, execution: Object.values(runner.state.tasks).map(({ work, ...record }) => record), queue: Object.values(state.state.tasks).map((t) => ({ taskId: t.taskId, status: t.status })) }, null, 2));
     return;
   }
   const token = await resolveToken({ token: process.env.DSH_BRIDGE_TOKEN || process.env.GH_TOKEN || '' });
