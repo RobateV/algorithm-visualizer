@@ -24,7 +24,7 @@
 | 编号 | 名称 | 印刷页 | PDF 页 | 文档 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | 0x01 | 位运算 | 1 | 11 | `chapters/0x00-basic-algorithms/0x01-bit-manipulation.md` | 已整理 |
-| 0x02 | 递推与递归 | 11 | 21 | `chapters/0x00-basic-algorithms/0x02-recursion.md` | 未开始 |
+| 0x02 | 递推与递归 | 11 | 21 | `chapters/0x00-basic-algorithms/0x02-recursion.md` | 草稿 |
 | 0x03 | 前缀和与差分 | 21 | 31 | `chapters/0x00-basic-algorithms/0x03-prefix-sum-difference.md` | 未开始 |
 | 0x04 | 二分 | 25 | 35 | `chapters/0x00-basic-algorithms/0x04-binary-search.md` | 已核验 |
 | 0x05 | 排序 | 32 | 42 | `chapters/0x00-basic-algorithms/0x05-sorting.md` | 未开始 |
@@ -151,7 +151,8 @@
 | --- | --- |
 | 一级章节 | 9（含附录） |
 | 二级章节 | 55 |
-| 已建文档 | 2（0x01、0x04） |
+| 已建文档 | 3（0x01、0x02、0x04） |
 | 已完成文档 | 0 |
 | 已核验文档 | 1（0x04） |
 | 已整理文档 | 1（0x01） |
+| 草稿文档 | 1（0x02） |
