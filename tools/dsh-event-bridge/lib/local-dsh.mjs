@@ -14,13 +14,18 @@ export function parseDshEvents(stdout) {
 }
 
 // 直接运行 npm 启动器的 JS 入口，避开 Windows .cmd + Shell 引号注入。
-export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, env = process.env, spawnImpl = spawn }) {
+export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, env = process.env, spawnImpl = spawn, powershellPath = 'pwsh.exe' }) {
   if (!entry || !entry.endsWith('bin.js')) throw new Error('请配置 npm DSH 的 lib/bin.js 绝对入口');
   const childEnv = buildSafeEnv(env);
   childEnv.DSH_PERMISSION_MODE = 'read-only';
   const started = Date.now();
   return new Promise((resolve, reject) => {
-    const child = spawnImpl(process.execPath, [entry, '--profile', 'headless', '--patch', PATCH, '--json', '-'], {
+    const windowsJob = process.platform === 'win32' && spawnImpl === spawn;
+    const command = windowsJob ? powershellPath : process.execPath;
+    const argv = windowsJob
+      ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fileURLToPath(new URL('./windows-job.ps1', import.meta.url)), '-NodePath', process.execPath, '-EntryPath', entry, '-PatchPath', PATCH]
+      : [entry, '--profile', 'headless', '--patch', PATCH, '--json', '-'];
+    const child = spawnImpl(command, argv, {
       cwd, env: childEnv, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
     });
     let stdout = '', stderr = '', reason = '', total = 0;
@@ -44,6 +49,7 @@ export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, en
       cleanup();
       if (reason || code !== 0) return reject(new Error(reason || `DSH exit=${code}（原始输出未发布，可能含敏感内容）`));
       if (!stderr.includes('LOCAL_DSH_GUARD_READY')) return reject(new Error('DSH 权限 guard 未确认生效'));
+      if (windowsJob && !stderr.includes('LOCAL_DSH_JOB_READY')) return reject(new Error('Windows 进程归属未确认生效'));
       try { resolve({ ...parseDshEvents(stdout), code, durationMs: Date.now() - started }); }
       catch { reject(new Error('DSH 结果不符合结构化编辑协议')); }
     });

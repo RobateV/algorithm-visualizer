@@ -1,0 +1,4 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>本地 DSH 中转</title><body style="width:320px;font:14px sans-serif;padding:12px">
+<h3>本地 DSH → 指定 ChatGPT 聊天</h3><p>实验版本，默认关闭。只发送 GitHub 结果位置；不读取登录凭据。发送后会触发 ChatGPT 回复。</p>
+<label>导入本机 browser-relay.json <input type="file" id="file" accept="application/json"></label><p>配置含本机密钥，请勿上传或粘贴到聊天。</p>
+<label><input type="checkbox" id="enabled">授权自动向指定聊天发送结果通知</label><p id="status">尚未配置</p><button id="check">检查一次</button><script src="popup.js"></script></body></html>

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ListenerState, withLock, pollIfActive, resolveToken, redactToken, pidAlive } from './local-listener.mjs';
 import { RunnerState, runnerOnce, HERE } from './local-runner.mjs';
+import { loadBrowserRelayConfig, startBrowserRelay } from './browser-relay.mjs';
 
 const present = async (p) => { try { await access(p); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } };
 
@@ -21,12 +22,14 @@ export async function service({ stateDir, once = false, token = '', intervalMs =
   };
   const stop = () => controller.abort();
   const guarded = await withLock(lockState, async () => {
+    let relay = null;
     await rm(stopFile, { force: true });
     process.on('SIGINT', stop); process.on('SIGTERM', stop);
     const watchStop = setInterval(() => {
       present(stopFile).then((v) => { if (v) stop(); }).catch(stop);
     }, 250);
     try {
+      relay = await startBrowserRelay({ stateDir, config: await loadBrowserRelayConfig(stateDir) });
       do {
         await health('running');
         try {
@@ -48,6 +51,7 @@ export async function service({ stateDir, once = false, token = '', intervalMs =
         while (!controller.signal.aborted && Date.now() < until) await new Promise((r) => setTimeout(r, 250));
       } while (!controller.signal.aborted);
     } finally {
+      if (relay) { relay.closeAllConnections(); await new Promise((resolve) => relay.close(resolve)); }
       clearInterval(watchStop);
       process.off('SIGINT', stop); process.off('SIGTERM', stop);
       await health('stopped');

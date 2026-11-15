@@ -58,6 +58,12 @@ verdict: accept
 
 准备阶段在 CLI 从未启动、工作区也未创建时可显式 `node local-runner.mjs --retry-preparation <task_id>`；失败历史保留。只要曾启动 CLI 或留下工作区，就拒绝这种恢复，避免重复副作用。
 
+根任务可以使用 `--approve-family <task_id>` 绑定 24 小时授权，最多三轮、三次 CLI；普通 `--approve` 仍只授权一轮。同一需求返工继承根授权和精确文件范围，需要上一轮真实提交已有 rework 审查；不能换新 ID 或改回旧 dev 基线绕过限制。结果报告附 root_task_id/round/max_rounds/授权到期时间。通过后才能启动下一根任务；下一需求可以基于最终已接受的结果分支，避免丢失前次成果。上述协议已通过自动测试，网页自动返工仍未实测。
+
+Windows 的真实 DSH 调用通过 PowerShell 7 和 Job Object 包装。先以 suspended 创建 Node，再挂入禁止 breakaway 的 KILL_ON_JOB_CLOSE 作业，最后启动；包装器结束会回收其普通及 detached 派生进程。Job/guard 任一不能确认时不接受成功。仅管理本次调用的进程，不按名称终止其它 DSH/Node。`powershellPath` 应配置为本机已安装 PowerShell 7 的固定绝对路径（本机可使用已存在的 Codex bundled runtime），默认从 PATH 查找 pwsh.exe；缺失时 fail-closed，不自动安装软件。此机制管理生命周期，不是本机文件/网络的低权限沙箱。
+
+普通/ detached 子进程取消、正常退出回收后代、中文及带空格路径、stdin/JSON 传输均已实测。本机真实 DSH 包装调用也已取得 exit=0 和 guard/Job 标志；受限 Codex 文件沙箱内原生接口不可用时测试会失败，完整原生接口回归应在用户授权的 Windows 运行环境验证，不静默跳过。
+
 常驻服务重启不自动清陈旧锁。先停止全部桥接进程，备份 `.local-state`，核对 PID；普通锁可在持有者已退出时使用 `local-listener.mjs --unlock`。runner.lock/service.lock 使用同一实现，但恢复时需要人工核对相应文件，不提供在线强制删除。guard 残留必须停机人工移走，禁止运行中删除。错误状态与 CLI 输出在 `.local-state`，不要上传整个目录。
 
 ## 平台边界与回滚

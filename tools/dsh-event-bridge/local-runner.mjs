@@ -12,6 +12,7 @@ import {
 import { assertInside } from './lib/workspace.mjs';
 import { buildSafeEnv } from './lib/dsh-cli.mjs';
 import { runLocalDsh } from './lib/local-dsh.mjs';
+import { taskFamily, checkFamilyLimits } from './lib/task-family.mjs';
 
 const exec = promisify(execFile);
 export const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -163,6 +164,9 @@ export async function makeGitHub({ token, fetchImpl = fetch }) {
 
 export function resultBody(task, record) {
   return ['[LOCAL-DSH-RESULT]', `task_id: ${task.taskId}`, `comment_id: ${task.commentId}`, `input_sha: ${task.expectedSha}`,
+    `root_task_id: ${record.rootTaskId || task.taskId}`, `round: ${record.round || 1}`, `max_rounds: ${record.maxRounds || 1}`,
+    `parent_task_id: ${record.parentTaskId || 'none'}`, `input_branch: ${task.branch}`, `result_branch: ${record.branch || 'none'}`,
+    `authorization_expires_at: ${record.authorizationExpiresAt || 'unknown'}`,
     `commit: ${record.commit || 'none'}`, `status: ${record.outcome || record.status}`, `dsh_cli_calls: ${record.modelCalls || 0}`,
     `pr: ${record.pr || 'none'}`, '---', `文件：${(record.files || []).join(', ') || '无'}`,
     `测试：${JSON.stringify(record.tests || [])}`, `预览：${record.preview || '本任务未生成视觉素材；未做视觉验收'}`,
@@ -180,6 +184,22 @@ async function acknowledge(listener, task, record) {
   return result.locked;
 }
 
+export async function taskAuthority(task, policy, listener, runner) {
+  const family = taskFamily(task, runner.state.tasks);
+  const root = listener.taskById(family.rootTaskId);
+  let grant;
+  try { grant = JSON.parse(await readFile(path.join(runner.dir, `grant-${family.rootTaskId}.json`), 'utf8')); }
+  catch (e) { if (e.code !== 'ENOENT') throw e; }
+  const rootTask = root || task;
+  const approvedBase = Object.values(runner.state.tasks).filter((r) => r.pushed && r.status === 'done' && r.reviewVerdict === 'accept' && r.branch === rootTask.branch && r.commit === rootTask.expectedSha);
+  const allowed = checkAuthorization(rootTask, { ...policy, branches: [...(policy.branches || []), ...approvedBase.map((r) => r.branch)] }, grant);
+  if (!allowed) return { allowed: false, family };
+  const maxRounds = policy.enabled ? (policy.maxRounds || 3) : (grant.maxRounds || 1);
+  const maxCliCalls = policy.enabled ? Math.min(policy.maxTasks, 3) : (grant.maxCliCalls || 1);
+  const limits = checkFamilyLimits({ task, root, family, records: runner.state.tasks, maxRounds, maxCliCalls });
+  return { allowed: true, family, ...limits, maxRounds, expiresAt: policy.enabled ? policy.expiresAt : grant.expiresAt };
+}
+
 export async function executeQueued({ listener, runner, policy, api, projectRoot = PROJECT, token = '', runModel = runLocalDsh, signal, gitImpl = git, readCurrentPolicy = async () => policy }) {
   const tasks = Object.values(listener.state.tasks);
   for (const task of tasks) {
@@ -188,11 +208,7 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
       if (await exists(path.join(runner.dir, 'STOP')) || (await listener.isPaused()).paused) throw new Error('停止/暂停：拒绝后续远程写入');
       const current = await readCurrentPolicy();
       if (current.autoPush !== true || current.autoReport !== true) throw new Error('本地发布授权已撤销');
-      const previous = Object.values(runner.state.tasks).filter((r) => r.pushed && r.branch === task.branch && r.commit === task.expectedSha);
-      let grant;
-      try { grant = JSON.parse(await readFile(path.join(runner.dir, `grant-${task.taskId}.json`), 'utf8')); }
-      catch (e) { if (e.code !== 'ENOENT') throw e; }
-      if (!checkAuthorization(task, { ...current, branches: [...(current.branches || []), ...previous.map((r) => r.branch)] }, grant)) throw new Error('任务授权已到期或撤销');
+      if (!(await taskAuthority(task, current, listener, runner)).allowed) throw new Error('任务授权已到期或撤销');
       signal?.throwIfAborted();
     };
     let record = runner.state.tasks[task.taskId];
@@ -223,12 +239,10 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
       // 仅准备执行的任务校验远程输入；已生成的提交保留，报告重试不再调用模型。
       if (!['review_ready', 'reporting'].includes(record.status)) {
         await api.validate(task);
-        let grant;
-        try { grant = JSON.parse(await readFile(path.join(runner.dir, `grant-${task.taskId}.json`), 'utf8')); }
-        catch (e) { if (e.code !== 'ENOENT') throw e; }
-        const previous = Object.values(runner.state.tasks).filter((r) => r.pushed && r.branch === task.branch && r.commit === task.expectedSha);
-        const executionPolicy = { ...policy, branches: [...(policy.branches || []), ...previous.map((r) => r.branch)] };
-        if (!checkAuthorization(task, executionPolicy, grant)) { await persist('awaiting_approval'); await acknowledge(listener, task, record); continue; }
+        const authority = await taskAuthority(task, policy, listener, runner);
+        if (!authority.allowed) { await persist('awaiting_approval'); await acknowledge(listener, task, record); continue; }
+        if (authority.calls >= authority.maxCliCalls) throw new Error('根任务 CLI 调用次数已用尽');
+        Object.assign(record, authority.family, { maxRounds: authority.maxRounds, maxCliCalls: authority.maxCliCalls, authorizationExpiresAt: authority.expiresAt });
         if (policy.enabled && Object.values(runner.state.tasks).reduce((sum, r) => sum + (r.modelCalls || 0), 0) >= policy.maxTasks) throw new Error('本地策略的模型调用上限已达到');
         if (record.modelCalls) throw new Error('该任务已调用模型，禁止重复执行；请发布新 task_id');
         if (await gitImpl(projectRoot, ['status', '--porcelain', '--untracked-files=all'])) throw new Error('用户工作区有未提交修改，拒绝执行');
@@ -259,7 +273,7 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
         if ((await listener.isPaused()).paused || signal?.aborted) throw new Error('任务执行前已暂停或停止');
         const prompt = makePrompt(task, files);
         await persist('running', { modelCalls: 1 });
-        const model = await runModel({ entry: policy.dshEntry, cwd: work, prompt, timeoutMs: Math.min(policy.timeoutMs || 180000, 600000), signal });
+        const model = await runModel({ entry: policy.dshEntry, cwd: work, prompt, timeoutMs: Math.min(policy.timeoutMs || 180000, 600000), signal, powershellPath: policy.powershellPath });
         await applyProposal(work, task, model.proposal, token);
         await persist('testing', { sessionId: model.sessionId, durationMs: model.durationMs });
         const tests = [];
@@ -339,7 +353,7 @@ export async function reconcileReviews({ listener, runner, comments }) {
     const fields = Object.fromEntries(c.body.split('\n').slice(1).map((line) => line.match(/^([a-z_]+):\s*(\S+)\s*$/)).filter(Boolean).map((m) => [m[1], m[2]]));
     const record = runner.state.tasks[fields.task_id], task = listener.taskById(fields.task_id);
     if (!task || record?.status !== 'reported' || record.commit !== fields.commit || !['accept', 'rework'].includes(fields.verdict)) continue;
-    Object.assign(record, { status: fields.verdict === 'accept' ? 'done' : 'blocked', reviewCommentId: c.id,
+    Object.assign(record, { status: fields.verdict === 'accept' ? 'done' : 'blocked', reviewCommentId: c.id, reviewVerdict: fields.verdict,
       error: fields.verdict === 'rework' ? '独立审查要求返工；请发布绑定新 SHA 的新任务，禁止原任务自动重跑' : '' });
     await runner.save(); await acknowledge(listener, task, record);
   }
@@ -350,14 +364,15 @@ export async function loadPolicy(dir) {
   catch (err) { if (err.code !== 'ENOENT') throw err; return { version: 1, enabled: false, branches: [], allowedFiles: [] }; }
 }
 
-export async function runnerOnce({ stateDir, projectRoot = PROJECT, token = '', policy, runModel, signal, api } = {}) {
+export async function runnerOnce({ stateDir, projectRoot, token = '', policy, runModel, signal, api } = {}) {
   const listener = await new ListenerState(stateDir).init();
   const runner = await new RunnerState(stateDir).init();
   return withLock(runner, async () => {
     await listener.init();
     const github = api || await makeGitHub({ token });
+    const currentPolicy = policy || await loadPolicy(stateDir);
     if (Object.values(runner.state.tasks).some((r) => r.status === 'reported')) await reconcileReviews({ listener, runner, comments: await github.comments() });
-    return executeQueued({ listener, runner, policy: policy || await loadPolicy(stateDir), api: github, projectRoot, token, runModel, signal,
+    return executeQueued({ listener, runner, policy: currentPolicy, api: github, projectRoot: projectRoot || currentPolicy.projectRoot || PROJECT, token, runModel, signal,
       readCurrentPolicy: policy ? async () => policy : () => loadPolicy(stateDir) });
   });
 }
@@ -382,7 +397,9 @@ async function main() {
     if (!result.locked) throw new Error(result.reason);
     console.log('准备失败已重新排队；保留失败历史，模型最多调用一次'); return;
   }
-  const taskId = args.includes('--approve') ? args[args.indexOf('--approve') + 1] : null;
+  const familyApproval = args.includes('--approve-family');
+  const approveFlag = familyApproval ? '--approve-family' : '--approve';
+  const taskId = args.includes(approveFlag) ? args[args.indexOf(approveFlag) + 1] : null;
   if (taskId) {
     if (!/^[A-Za-z0-9._-]{1,64}$/.test(taskId)) throw new Error('任务 ID 非法');
     const listener = await new ListenerState(stateDir).init();
@@ -392,9 +409,11 @@ async function main() {
     const runner = await new RunnerState(stateDir).init();
     const previous = Object.values(runner.state.tasks).filter((r) => r.pushed && r.branch === task.branch && r.commit === task.expectedSha);
     checkAuthorization(task, { ...policy, branches: [...(policy.branches || []), ...previous.map((r) => r.branch)], enabled: true, expiresAt: new Date(Date.now() + 3600000).toISOString(), maxTasks: 1 });
-    const grant = { taskId, commentId: task.commentId, expectedSha: task.expectedSha, bodyDigest: task.bodyDigest, allow: task.allow, expiresAt: new Date(Date.now() + 3600000).toISOString() };
+    const grant = { taskId, commentId: task.commentId, expectedSha: task.expectedSha, bodyDigest: task.bodyDigest, allow: task.allow,
+      ...(familyApproval ? { maxRounds: 3, maxCliCalls: 3 } : {}),
+      expiresAt: new Date(Date.now() + (familyApproval ? 86400000 : 3600000)).toISOString() };
     await writeFile(path.join(stateDir, `grant-${taskId}.json`), JSON.stringify(grant, null, 2), { flag: 'wx' });
-    console.log(`已授权 ${taskId} 一次执行，有效期一小时；推送仍受本地策略控制`); return;
+    console.log(familyApproval ? `已授权根任务 ${taskId}：24 小时、最多三轮及三次 CLI；范围扩大或到期即停止` : `已授权 ${taskId} 一次执行，有效期一小时；推送仍受本地策略控制`); return;
   }
   if (!args.includes('--once')) throw new Error('使用 --once / --status / --approve <task_id>');
   const token = await resolveToken({ token: process.env.DSH_BRIDGE_TOKEN || process.env.GH_TOKEN || '' });
