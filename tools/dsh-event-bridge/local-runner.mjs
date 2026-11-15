@@ -30,7 +30,7 @@ export class RunnerState extends ListenerState {
 }
 
 export async function git(cwd, args, { token = '' } = {}) {
-  const { stdout } = await exec('git', ['-c', 'core.hooksPath=NUL', '-c', 'core.quotePath=false', '-C', cwd, ...args], {
+  const { stdout } = await exec('git', ['-c', `safe.directory=${path.resolve(cwd).replaceAll('\\', '/')}`, '-c', 'core.hooksPath=NUL', '-c', 'core.quotePath=false', '-C', cwd, ...args], {
     windowsHide: true, timeout: 60000, maxBuffer: 4 * 1024 * 1024,
     env: { ...buildSafeEnv(process.env), GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null', GIT_TERMINAL_PROMPT: '0',
       ...(token ? { GIT_ASKPASS: path.join(HERE, 'lib', 'git-askpass.cmd'), DSH_GIT_PUSH_TOKEN: token } : {}) }
