@@ -9,6 +9,5 @@
   "tests": ["knowledge-markdown"],
   "knowledge": { "allowUnattended": false, "configFile": "" },
   "timeoutMs": 180000,
-  "dshEntry": "",
-  "powershellPath": "pwsh.exe"
+  "dshEntry": ""
 }

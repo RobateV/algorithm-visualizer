@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildSafeEnv } from './dsh-cli.mjs';
+import { buildWindowsJob } from './windows-job.mjs';
 
 export const PATCH = fileURLToPath(new URL('../local-dsh.patch.yml', import.meta.url));
 
@@ -14,16 +15,17 @@ export function parseDshEvents(stdout) {
 }
 
 // 直接运行 npm 启动器的 JS 入口，避开 Windows .cmd + Shell 引号注入。
-export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, env = process.env, spawnImpl = spawn, powershellPath = 'pwsh.exe' }) {
+export async function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, env = process.env, spawnImpl = spawn }) {
   if (!entry || !entry.endsWith('bin.js')) throw new Error('请配置 npm DSH 的 lib/bin.js 绝对入口');
   const childEnv = buildSafeEnv(env);
   childEnv.DSH_PERMISSION_MODE = 'read-only';
   const started = Date.now();
-  return new Promise((resolve, reject) => {
-    const windowsJob = process.platform === 'win32' && spawnImpl === spawn;
-    const command = windowsJob ? powershellPath : process.execPath;
+  const windowsJob = process.platform === 'win32' && spawnImpl === spawn;
+  const native = windowsJob ? await buildWindowsJob({ signal }) : null;
+  try { return await new Promise((resolve, reject) => {
+    const command = windowsJob ? native.executable : process.execPath;
     const argv = windowsJob
-      ? ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', fileURLToPath(new URL('./windows-job.ps1', import.meta.url)), '-NodePath', process.execPath, '-EntryPath', entry, '-PatchPath', PATCH]
+      ? [process.execPath, entry, PATCH]
       : [entry, '--profile', 'headless', '--patch', PATCH, '--json', '-'];
     const child = spawnImpl(command, argv, {
       cwd, env: childEnv, shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe']
@@ -55,5 +57,5 @@ export function runLocalDsh({ entry, cwd, prompt, timeoutMs = 180000, signal, en
       try { resolve({ ...parseDshEvents(stdout), code, durationMs: Date.now() - started, contained: windowsJob, toolsGuarded: true, modelRequests: Number(stderr.match(/LOCAL_DSH_MODEL_CALLS:(\d+)/)?.[1] || 0) }); }
       catch { reject(new Error('DSH 结果不符合结构化编辑协议')); }
     });
-  });
+  }); } finally { await native?.cleanup(); }
 }

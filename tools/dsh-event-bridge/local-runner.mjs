@@ -295,7 +295,7 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
         if (!(await taskAuthority(task, current, listener, runner)).allowed || (await listener.isPaused()).paused || await exists(path.join(runner.dir, 'STOP'))) throw new Error('执行前授权撤销、暂停或停止');
         signal?.throwIfAborted();
         await persist('running', { modelCalls: 1 });
-        const model = await runModel({ entry: policy.dshEntry, cwd: work, prompt, timeoutMs: Math.min(policy.timeoutMs || 180000, 600000), signal, powershellPath: policy.powershellPath });
+        const model = await runModel({ entry: policy.dshEntry, cwd: work, prompt, timeoutMs: Math.min(policy.timeoutMs || 180000, 600000), signal });
         if (material && (!model.contained || !model.toolsGuarded || model.modelRequests !== 1)) throw new Error('教材执行未确认 Windows Job、工具禁用或单次模型请求，拒绝写入');
         if (material) validateKnowledgeEdits(task, model.proposal, material);
         signal?.throwIfAborted();
