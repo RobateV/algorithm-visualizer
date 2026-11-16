@@ -13,10 +13,9 @@ chrome.runtime.onMessage.addListener((request, sender, respond) => {
     if (sessionStorage.getItem(key)) return { delivered: false, reason: '上次送达状态不明，停止自动重发，请核实原聊天' };
     if (delivering || document.querySelector('[data-testid="stop-button"]')) return { delivered: false, reason: '聊天正在回复，稍后重试' };
     const editor = document.querySelector('#prompt-textarea[contenteditable="true"]');
-    const button = document.querySelector('[data-testid="send-button"]');
-    if (!editor || !button) return { delivered: false, reason: '登录、页面加载或输入界面需要人工检查' };
+    if (!editor) return { delivered: false, reason: '未识别到可编辑输入框，页面结构需检查' };
     if (editor.textContent.trim()) return { delivered: false, reason: '输入框已有草稿，未覆盖' };
-    if (button.disabled) return { delivered: false, reason: '发送按钮不可用，稍后重试' };
+    // Empty composers may show voice controls; sending is checked after insertion.
     if (request.type === 'relay-prepare') return { ready: true };
     if (!/^[a-f0-9]{64}$/.test(request.attempt || '')) return { delivered: false, reason: '缺少本机一次性发送凭证' };
     delivering = true;

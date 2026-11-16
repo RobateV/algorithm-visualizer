@@ -24,7 +24,7 @@ function content(options = {}) {
     location: { origin: 'https://chatgpt.com', pathname: options.pathname || `/c/${chatId}` },
     sessionStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
     document: {
-      querySelector: selector => selector.includes('stop-button') ? (options.busy ? {} : null) : options.unloaded ? null : selector.includes('prompt-textarea') ? editor : button,
+      querySelector: selector => selector.includes('stop-button') ? (options.busy ? {} : null) : options.unloaded ? null : selector.includes('prompt-textarea') ? editor : (options.buttonAfterTyping && !stats.writes ? null : button),
       querySelectorAll: () => messages,
       execCommand(_command, _ui, text) { stats.writes++; editor.textContent = text; options.afterInsert?.(c); }
     }
@@ -45,13 +45,23 @@ test('页面先准备不填写；有效凭证只发送一次；已出现的标�
 });
 
 test('已有草稿、正在回复、页面未就绪、错误聊天或到期时不修改页面', async () => {
-  for (const options of [{ draft: 'my draft' }, { busy: true }, { unloaded: true }, { disabled: true }, { pathname: '/c/another' }, { config: { enabled: false } }, { config: { expiresAt: '2000-01-01' } }]) {
+  for (const options of [{ draft: 'my draft' }, { busy: true }, { unloaded: true }, { pathname: '/c/another' }, { config: { enabled: false } }, { config: { expiresAt: '2000-01-01' } }]) {
     const page = content(options);
     assert.equal((await page.send('relay-prepare')).ready, undefined);
     assert.equal((await page.send('relay-result')).delivered, false);
     assert.equal(page.stats.writes, 0); assert.equal(page.stats.clicks, 0);
     if (options.draft) assert.equal(page.editor.textContent, options.draft);
   }
+});
+
+test('空输入框只显示语音按钮时可以准备，填入后才核验发送按钮', async () => {
+  const page = content({ buttonAfterTyping: true });
+  assert.equal((await page.send('relay-prepare')).ready, true);
+  assert.equal((await page.send('relay-result')).delivered, true);
+  assert.equal(page.stats.clicks, 1);
+  const disabled = content({ disabled: true });
+  assert.equal((await disabled.send('relay-result')).delivered, false);
+  assert.equal(disabled.stats.clicks, 0);
 });
 
 test('拒绝错误扩展来源、标记/id 不一致和缺少发送凭证', async () => {
