@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Local DSH Review Relay (Experimental)",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "仅将本机 DSH 的 GitHub 结果位置送往指定 ChatGPT 聊天。默认关闭。",
   "permissions": ["storage", "alarms"],
   "host_permissions": ["http://127.0.0.1:17321/*", "https://chatgpt.com/*"],
