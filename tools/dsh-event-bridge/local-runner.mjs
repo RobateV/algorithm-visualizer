@@ -215,14 +215,19 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
     signal = policy.mode === KNOWLEDGE_MODE
       ? AbortSignal.any([...(parentSignal ? [parentSignal] : []), AbortSignal.timeout(300000)]) : parentSignal;
     gitImpl = (cwd, args, options = {}) => baseGit(cwd, args, { ...options, signal });
-    const beforeWrite = async () => {
+    const assertLocalWriteAllowed = async () => {
       signal?.throwIfAborted();
-      if (await exists(path.join(runner.dir, 'STOP')) || (await listener.isPaused()).paused) throw new Error('停止/暂停：拒绝后续远程写入');
       const current = await readCurrentPolicy();
       if (current.autoPush !== true || current.autoReport !== true) throw new Error('本地发布授权已撤销');
       if (!(await taskAuthority(task, current, listener, runner)).allowed) throw new Error('任务授权已到期或撤销');
-      await api.validate(task);
+      if (await exists(path.join(runner.dir, 'STOP')) || (await listener.isPaused()).paused) throw new Error('停止/暂停：拒绝后续远程写入');
       signal?.throwIfAborted();
+    };
+    const beforeWrite = async () => {
+      signal?.throwIfAborted();
+      await api.validate(task);
+      // The final disk authorization check must follow every remote lookup.
+      await assertLocalWriteAllowed();
     };
     let record = runner.state.tasks[task.taskId];
     if (record && TERMINAL.has(record.status)) {
@@ -230,7 +235,7 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
         try {
           if (!record.retryAt || Date.parse(record.retryAt) <= Date.now()) {
             record.reportAttempts = (record.reportAttempts || 0) + 1; await runner.save();
-            await beforeWrite();
+            await assertLocalWriteAllowed();
             record.resultUrl = await api.publish(task, record, resultBody(task, record), { beforeWrite, signal }); await runner.save();
           }
         } catch {
@@ -349,16 +354,16 @@ export async function executeQueued({ listener, runner, policy, api, projectRoot
       if ((await listener.isPaused()).paused || signal?.aborted) return;
       record.reportAttempts = (record.reportAttempts || 0) + 1; await runner.save();
       if (!record.noChanges && !record.pushed) {
-        await api.validate(task);
+        await assertLocalWriteAllowed();
         await beforeWrite();
         await gitImpl(record.work, ['push', REMOTE, `${record.commit}:refs/heads/${record.branch}`], { token, signal });
         await persist('review_ready', { pushed: true });
       }
-      if (!record.noChanges && !record.pr) { await beforeWrite(); record.pr = await api.pr(task, record, { beforeWrite, signal }); await runner.save(); }
+      if (!record.noChanges && !record.pr) { await assertLocalWriteAllowed(); record.pr = await api.pr(task, record, { beforeWrite, signal }); await runner.save(); }
       await persist('reporting');
       const body = resultBody(task, record);
       assertPublicText(body, token);
-      await beforeWrite();
+      await assertLocalWriteAllowed();
       const resultUrl = await api.publish(task, record, body, { beforeWrite, signal });
       await persist('reported', { resultUrl, error: '' });
       await acknowledge(listener, task, record);

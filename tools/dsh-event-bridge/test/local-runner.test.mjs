@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
+import { createHash } from 'node:crypto';
 import { checkAuthorization, assertSafeFile, assertPublicText, applyProposal, RunnerState, executeQueued, makeGitHub, resultBody, git, reconcileReviews, retryPreparation, makePrompt } from '../local-runner.mjs';
 import { ListenerState } from '../local-listener.mjs';
 import { parseDshEvents, runLocalDsh } from '../lib/local-dsh.mjs';
@@ -13,6 +14,65 @@ import { apply as applyGuard } from '../lib/local-dsh-guard.mjs';
 const task = { taskId: 'smoke', commentId: 123, expectedSha: 'a'.repeat(40), bodyDigest: 'b'.repeat(64), branch: 'dev/local-dsh-20261114', allow: ['fixture.txt'] };
 const policy = { version: 1, enabled: false, branches: [task.branch], allowedFiles: task.allow, tests: ['bridge'] };
 const grant = { ...task, expiresAt: new Date(Date.now() + 3600000).toISOString() };
+
+for (const route of ['push', 'pr', 'comment']) for (const revoke of ['pause', 'stop', 'policy', 'grant', 'none']) {
+  test(`最终 GET barrier：${route}/${revoke}`, async (t) => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'final-write-'));
+    t.after(async () => {
+      assert.equal(path.dirname(dir), path.resolve(tmpdir()));
+      await rm(dir, { recursive: true, force: true, maxRetries: 5 });
+    });
+    const body = `[LOCAL-DSH-TASK]\ntask_id: smoke\nbranch: ${task.branch}\nexpected_sha: ${task.expectedSha}\nallow: fixture.txt\naccept: pass\n---\nfixture`;
+    const bound = { ...task, bodyDigest: createHash('sha256').update(body).digest('hex') };
+    const listener = await new ListenerState(dir).init(), runner = await new RunnerState(dir).init();
+    listener.state.tasks.smoke = bound; await listener.save();
+    const record = runner.state.tasks.smoke = { taskId: 'smoke', rootTaskId: 'smoke', status: 'review_ready', branch: 'local-dsh/smoke-123',
+      commit: 'c'.repeat(40), work: dir, modelCalls: 1, pushed: route !== 'push', ...(route === 'comment' ? { pr: 'https://github.com/pr' } : {}) };
+    const grantFile = path.join(dir, 'grant-smoke.json');
+    await writeFile(grantFile, JSON.stringify({ ...grant, ...bound }));
+    const current = { ...policy, autoPush: true, autoReport: true };
+    const policyFile = path.join(dir, 'policy.json'); await writeFile(policyFile, JSON.stringify(current));
+    const writes = { push: 0, pr: 0, comment: 0 }; let localReads = 0, lookupDone = false, gated = false, models = 0;
+    let enter, release;
+    const entered = new Promise(resolve => { enter = resolve; }), gate = new Promise(resolve => { release = resolve; });
+    const api = await makeGitHub({ token: 'fake', fetchImpl: async (url, options) => {
+      if (options.method === 'POST') {
+        const kind = url.endsWith('/pulls') ? 'pr' : 'comment'; writes[kind]++;
+        return { ok: true, json: async () => ({ html_url: `https://github.com/${kind}` }) };
+      }
+      let data;
+      if (url.endsWith('/issues/21')) data = { state: 'open' };
+      else if (url.endsWith('/issues/comments/123')) data = { body, user: { login: 'RobateV' }, issue_url: 'https://api.github.com/repos/RobateV/algorithm-visualizer/issues/21', created_at: 'x', updated_at: 'x' };
+      else if (url.includes('/branches/')) {
+        // PR/comment barriers are inside request()'s final beforeWrite callback, after their lookup GET.
+        if (!gated && (route === 'push' ? localReads > 0 : lookupDone)) { gated = true; enter(); await gate; }
+        data = { commit: { sha: task.expectedSha } };
+      } else { lookupDone = true; data = []; }
+      return { ok: true, headers: { get: () => null }, json: async () => data };
+    } });
+    const execution = executeQueued({ listener, runner, policy: current, api,
+      readCurrentPolicy: async () => { localReads++; return JSON.parse(await readFile(policyFile, 'utf8')); },
+      runModel: async () => { models++; throw new Error('must not run'); },
+      gitImpl: async (_cwd, args) => { assert.equal(args[0], 'push'); writes.push++; return ''; } });
+    await Promise.race([entered, execution.then(() => { throw new Error('final GET was not reached'); })]);
+    assert.deepEqual(writes, { push: 0, pr: 0, comment: 0 });
+    try {
+      if (revoke === 'pause') await listener.setPauseFile(true);
+      if (revoke === 'stop') await writeFile(path.join(dir, 'STOP'), 'stop');
+      if (revoke === 'policy') await writeFile(policyFile, JSON.stringify({ ...current, autoPush: false }));
+      if (revoke === 'grant') await rm(grantFile);
+    } finally { release(); }
+    await execution;
+    if (revoke === 'none') {
+      assert.equal(writes[route], 1); assert.equal(record.status, 'reported'); assert.ok(record.resultUrl);
+    } else {
+      assert.deepEqual(writes, { push: 0, pr: 0, comment: 0 });
+      assert.equal(record.status, route === 'comment' ? 'reporting' : 'review_ready');
+      assert.ok(record.error); assert.ok(record.retryAt); assert.equal(record.commit, 'c'.repeat(40));
+    }
+    assert.equal(models, 0); assert.equal(record.modelCalls, 1);
+  });
+}
 
 test('本地授权绑定任务/评论/摘要/SHA/文件/到期时间，默认拒绝', () => {
   assert.equal(checkAuthorization(task, policy), false);
