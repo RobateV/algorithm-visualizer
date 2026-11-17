@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "enabled": false,
+  "autoPush": false,
+  "autoReport": false,
+  "branches": ["dev/local-dsh-20261114"],
+  "mode": "knowledge-markdown",
+  "allowedFiles": ["docs/knowledge-base/automation-smoke.md"],
+  "tests": ["knowledge-markdown"],
+  "knowledge": { "allowUnattended": false, "configFile": "" },
+  "timeoutMs": 180000,
+  "dshEntry": ""
+}

@@ -204,16 +204,19 @@ attempt: 1
 - 锁文件记录 `{ pid, nonce, at }`，`nonce` 每次运行随机生成。
 - **所有会写状态的入口都持锁**：常驻轮询、`--once`、以及任何调用 `pollOnce()` 的路径。
   `--status` 只读，不持锁。
-- 释放锁时必须 **PID 与 nonce 同时匹配**，否则不动锁文件，避免误删他人锁。
+- 创建、释放、`--unlock` 统一先用原子 `mkdir(listener.lock.guard)` 串行化。释放仍须 PID 与 nonce 匹配；检查与删除均在 guard 内。
+- guard 等待最多 2 秒；残留、损坏或访问异常均 fail-closed，不自动接管。正常退出会释放，进程崩溃时需要停机人工恢复。
 - 持锁进程存活 → 拒绝启动。
 - **不做自动陈旧锁接管**：确认持有者已退出时仍 fail-closed，并提示人工执行 `--unlock`。
   原因是纯文件操作无法证明互斥——两个进程可能同时读到同一陈旧锁并互删新锁。
-- `--unlock` 只删除"持有者确认已退出"或"锁已损坏"的锁；存活或状态未知一律拒绝。
+- `--unlock` 只删除持有者确认已退出的锁；读取 EACCES/EPERM/EIO 等错误绝不删除。JSON 损坏需先停止所有桥接进程，再显式 `--unlock --confirm-corrupt`。guard 残留需停机后人工移走，不能在线删除。
 
 ### 暂停 / 恢复
 
 `--pause` 与 `--resume` **只增删 `PAUSED` 文件**，不写 `state.json`，
-因此不会与轮询写状态发生覆盖竞争。监听器在每轮开始前读取该文件。
+因此不会与轮询写状态发生覆盖竞争。监听器在每轮开始前读取该文件；`--once` 在持锁后再检查。仅 ENOENT 表示未暂停，其余访问错误阻断轮询；恢复删除失败会非零退出，不报告成功。
+
+状态写入采用独立临时文件、fsync、rename，失败时保留原状态并报错，不再直接覆盖旧文件。持锁后重新读取状态，防止锁外快照覆盖其它实例更新。退出信号等待当前轮结束后释放锁。此策略防进程中断；不承诺磁盘控制器故障/断电后的绝对持久性。
 
 ## 失败策略一览
 
@@ -227,7 +230,7 @@ attempt: 1
 | HEAD 与 expected_sha 不一致 | 拒绝该任务，标记已见 |
 | `allow` 含绝对路径/UNC/反斜杠/`..` | 解析阶段直接判为非法任务 |
 | 锁被存活进程持有 | 拒绝启动 |
-| 锁损坏 / PID 未知 / 陈旧锁 | 拒绝启动（fail-closed），提示 `--unlock` |
+| 锁损坏 / PID 未知 / 陈旧锁 / guard 残留 | 拒绝启动（fail-closed）；停机后按上述流程检查 |
 
 ## 用法
 
@@ -250,7 +253,7 @@ node local-listener.mjs --unlock            # 人工清理已退出进程留下�
 task_id: 20261114-01
 branch: dev/local-dsh-20261114
 expected_sha: <40 位十六进制>
-allow: public/lessons/binary-search.html, docs/knowledge-base/
+allow: public/lessons/binary-search.html, docs/knowledge-base/README.md
 accept: 页面无控制台报错；知识库页码可核对
 ---
 任务详情（自然语言）
@@ -274,4 +277,8 @@ accept: 页面无控制台报错；知识库页码可核对
 - 无任务时只发一次 GitHub 请求，不调用任何模型。
 - 令牌只从环境变量或 `gh auth token` 读取，不落盘、不打印。
 - 监听器不开放入站端口，也不注册 GitHub self-hosted runner。
+
+受控自动执行、Windows 启停与恢复见 [LOCAL-RUNNER.md](LOCAL-RUNNER.md)。监听器本身继续只收件；自动执行默认关闭。
+
+当前默认策略为 [知识库 Markdown 专用模式](KNOWLEDGE-MODE.md)，需仓库外教材配置及明确本地授权；不执行网站测试或教材真实任务。
 

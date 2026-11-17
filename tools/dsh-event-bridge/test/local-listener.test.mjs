@@ -1,13 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, access } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, access, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import {
   parseComment, TASK_MARKER, PING_MARKER, loadConfig, emptyState, ListenerState,
   parseNextLink, listIssueComments, getBranchHead, pollOnce,
-  acquireLock, releaseLock, unlockStale, withLock, isValidRepoPath, redactToken, validateNextUrl
+  acquireLock, releaseLock, unlockStale, withLock, isValidRepoPath, redactToken, validateNextUrl, pollIfActive
 } from '../local-listener.mjs';
 
 const SHA = 'a'.repeat(40);
@@ -442,4 +444,126 @@ test('parseComment 拒绝 Windows 绝对路径的 allow', () => {
   const r = parseComment(taskBody({ allow: 'C:\\Windows\\System32\\x' }));
   assert.equal(r.kind, 'invalid');
   assert.match(r.reason, /非法的仓库相对路径/);
+});
+
+test('第三轮：残留 guard 阻止获取、释放和人工解锁，原锁保持不变', async () => {
+  const { dir, state } = await makeState();
+  try {
+    const held = await acquireLock(state);
+    const before = await readFile(state.lockFile, 'utf8');
+    await mkdir(`${state.lockFile}.guard`);
+    assert.equal((await acquireLock(state, { guardWaitMs: 0 })).ok, false);
+    assert.equal(await releaseLock(state, held.nonce, { guardWaitMs: 0 }), false);
+    assert.equal((await unlockStale(state, { isAlive: () => false, guardWaitMs: 0 })).ok, false);
+    assert.equal(await readFile(state.lockFile, 'utf8'), before);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：损坏锁未经明确确认不得删除', async () => {
+  const { dir, state } = await makeState();
+  try {
+    await writeFile(state.lockFile, 'broken-json');
+    assert.equal((await unlockStale(state)).ok, false);
+    assert.equal(await readFile(state.lockFile, 'utf8'), 'broken-json');
+    assert.equal((await unlockStale(state, { confirmCorrupt: true })).ok, true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：锁读取 EIO 不得被当作损坏并删除', async () => {
+  const { dir, state } = await makeState();
+  try {
+    await writeFile(state.lockFile, '{"pid":4242}');
+    const before = await readFile(state.lockFile, 'utf8');
+    const io = { readFile: async () => { throw Object.assign(new Error('io failure'), { code: 'EIO' }); } };
+    const result = await unlockStale(state, { io, confirmCorrupt: true });
+    assert.equal(result.ok, false);
+    assert.equal(await readFile(state.lockFile, 'utf8'), before);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+for (const code of ['EACCES', 'EPERM', 'EIO']) {
+  test(`第三轮：暂停读取 ${code} 和恢复删除失败必须抛错`, async () => {
+    const { dir } = await makeState();
+    try {
+      const fail = async () => { throw Object.assign(new Error(code), { code }); };
+      const state = await new ListenerState(dir, { access: fail, rm: fail }).init();
+      await assert.rejects(() => state.isPaused(), { code });
+      await assert.rejects(() => state.setPauseFile(false), { code });
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  });
+}
+
+test('第三轮：持锁之后再次确认暂停，禁止调用 GitHub', async () => {
+  const { dir, state } = await makeState();
+  try {
+    assert.equal((await state.isPaused()).paused, false);
+    await state.setPauseFile(true);
+    const result = await withLock(state, () => pollIfActive({ state, fetchImpl: () => assert.fail('暂停后不得联网') }));
+    assert.equal(result.value.skipped, true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：rename 失败保留原状态，不降级覆盖', async () => {
+  const { dir, state } = await makeState();
+  try {
+    await state.save();
+    const original = await readFile(state.file, 'utf8');
+    state.state.lastPollAt = 'new';
+    state.io.rename = async () => { throw Object.assign(new Error('blocked'), { code: 'EPERM' }); };
+    await assert.rejects(() => state.save(), { code: 'EPERM' });
+    assert.equal(await readFile(state.file, 'utf8'), original);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：两个解锁者与新实例竞争，新锁不会被旧判断删除', async () => {
+  const { dir, state } = await makeState();
+  try {
+    await writeFile(state.lockFile, '{"pid":4242,"nonce":"old"}');
+    let entered;
+    const enteredPromise = new Promise((r) => { entered = r; });
+    let resume;
+    const gate = new Promise((r) => { resume = r; });
+    const a = unlockStale(state, { isAlive: () => false, io: { readFile: async (...args) => {
+      const raw = await readFile(...args); entered(); await gate; return raw;
+    } } });
+    await enteredPromise;
+    const c = acquireLock(state);
+    const b = unlockStale(state);
+    resume();
+    await a;
+    const [acquired] = await Promise.all([c, b]);
+    assert.equal(acquired.ok, true);
+    assert.equal(JSON.parse(await readFile(state.lockFile, 'utf8')).nonce, acquired.nonce);
+    await releaseLock(state, acquired.nonce);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：释放锁读后期间，新的合法获取操作不能替换锁', async () => {
+  const { dir, state } = await makeState();
+  try {
+    const held = await acquireLock(state);
+    let competitor;
+    const released = await releaseLock(state, held.nonce, { io: { readFile: async (...args) => {
+      const raw = await readFile(...args);
+      competitor = await acquireLock(state, { guardWaitMs: 0 });
+      return raw;
+    } } });
+    assert.equal(released, true);
+    assert.equal(competitor.ok, false);
+    const next = await acquireLock(state);
+    assert.equal(next.ok, true);
+    assert.equal(await releaseLock(state, held.nonce), false);
+    await releaseLock(state, next.nonce);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('第三轮：八个独立 Node 进程竞争真实文件系统锁，恰好一个成功', async () => {
+  const { dir, state } = await makeState();
+  try {
+    const moduleUrl = new URL('../local-listener.mjs', import.meta.url).href;
+    const source = `import {ListenerState,acquireLock} from ${JSON.stringify(moduleUrl)}; const state=await new ListenerState(process.argv[1]).init(); console.log(JSON.stringify(await acquireLock(state)));`;
+    const results = await Promise.all(Array.from({ length: 8 }, () => promisify(execFile)(process.execPath, ['--input-type=module', '-e', source, dir])));
+    assert.equal(results.map((r) => JSON.parse(r.stdout)).filter((r) => r.ok).length, 1);
+    assert.equal((await unlockStale(state)).ok, true);
+  } finally { await rm(dir, { recursive: true, force: true }); }
 });

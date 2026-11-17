@@ -22,12 +22,13 @@
  * 10. 单进程锁，任务串行
  * 11. 无任务时只做一次 HTTP 请求，不调用任何模型
  */
-import { readFile, writeFile, mkdir, rename, rm, access, appendFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, rm, rmdir, access, appendFile, open } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { randomBytes } from 'node:crypto';
+import { randomBytes, createHash } from 'node:crypto';
 import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
+import { knowledgeRequest } from './lib/knowledge-mode.mjs';
 
 const run = promisify(execFile);
 
@@ -71,7 +72,7 @@ export function loadConfig(env = process.env, argv = []) {
   return cfg;
 }
 
-async function resolveToken(cfg) {
+export async function resolveToken(cfg) {
   if (cfg.token) return cfg.token;
   try {
     const { stdout } = await run('gh', ['auth', 'token'], { windowsHide: true });
@@ -97,7 +98,8 @@ export function emptyState() {
 }
 
 export class ListenerState {
-  constructor(dir) {
+  constructor(dir, io = {}) {
+    this.io = { readFile, writeFile, rename, rm, access, open, ...io };
     this.dir = dir;
     this.file = path.join(dir, 'listener-state.json');
     this.logFile = path.join(dir, 'listener.log');
@@ -109,7 +111,7 @@ export class ListenerState {
   async init() {
     await mkdir(this.dir, { recursive: true });
     try {
-      const raw = await readFile(this.file, 'utf8');
+      const raw = await this.io.readFile(this.file, 'utf8');
       const parsed = JSON.parse(raw);
       this.state = { ...emptyState(), ...parsed };
     } catch (err) {
@@ -119,14 +121,18 @@ export class ListenerState {
   }
 
   async save() {
-    const tmp = `${this.file}.tmp`;
+    const tmp = `${this.file}.${newNonce()}.tmp`;
     const text = JSON.stringify(this.state, null, 2);
-    await writeFile(tmp, text, 'utf8');
+    const handle = await this.io.open(tmp, 'wx');
     try {
-      await rename(tmp, this.file);
-    } catch {
-      await writeFile(this.file, text, 'utf8');
-      await rm(tmp, { force: true });
+      await handle.writeFile(text, 'utf8');
+      await handle.sync();
+    } finally { await handle.close(); }
+    try {
+      await this.io.rename(tmp, this.file);
+    } catch (err) {
+      await this.io.rm(tmp, { force: true });
+      throw err;
     }
   }
 
@@ -138,9 +144,10 @@ export class ListenerState {
 
   async isPaused() {
     try {
-      await access(this.pauseFile);
+      await this.io.access(this.pauseFile);
       return { paused: true, reason: 'PAUSED 文件存在' };
-    } catch {
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err;
       return { paused: false, reason: '' };
     }
   }
@@ -148,11 +155,11 @@ export class ListenerState {
   /** 暂停/恢复只操作 PAUSED 文件，不写 state.json，避免与轮询竞争 */
   async setPauseFile(paused, reason = '') {
     if (paused) {
-      await writeFile(this.pauseFile, reason || 'paused', 'utf8');
+      await this.io.writeFile(this.pauseFile, reason || 'paused', 'utf8');
       this.state.paused = true;
       this.state.pausedReason = reason;
     } else {
-      await rm(this.pauseFile, { force: true }).catch(() => {});
+      await this.io.rm(this.pauseFile, { force: true });
       this.state.paused = false;
       this.state.pausedReason = '';
     }
@@ -207,7 +214,26 @@ export function newNonce() {
  * 获取锁。锁内容 `{ pid, nonce, at }`。
  * @returns {{ok:true, nonce:string} | {ok:false, reason:string, code:string}}
  */
-export async function acquireLock(state, { isAlive = pidAlive, nonce = newNonce() } = {}) {
+async function lockMutation(state, options, fn) {
+  const guard = `${state.lockFile}.guard`;
+  const deadline = Date.now() + (options.guardWaitMs ?? 2000);
+  while (true) {
+    try { await mkdir(guard); break; }
+    catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      if (Date.now() >= deadline) return { ok: false, code: 'guard-busy', reason: '锁 guard 被占用或残留；停止全部桥接进程后人工检查，禁止自动接管' };
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+  try { return await fn(); }
+  finally { await rmdir(guard); }
+}
+
+export async function acquireLock(state, options = {}) {
+  return lockMutation(state, options, () => acquireLockGuarded(state, options));
+}
+
+async function acquireLockGuarded(state, { isAlive = pidAlive, nonce = newNonce() } = {}) {
   const payload = JSON.stringify({ pid: process.pid, nonce, at: new Date().toISOString() });
 
   try {
@@ -247,11 +273,18 @@ export async function acquireLock(state, { isAlive = pidAlive, nonce = newNonce(
 }
 
 /** 仅当锁仍属于本进程且 nonce 匹配时才释放 */
-export async function releaseLock(state, nonce) {
+export async function releaseLock(state, nonce, options = {}) {
+  const result = await lockMutation(state, options, async () => {
+    return { ok: await releaseLockGuarded(state, nonce, options) };
+  });
+  return result.ok;
+}
+
+async function releaseLockGuarded(state, nonce, { io = {} } = {}) {
   if (!nonce) return false;
   let info = null;
   try {
-    info = JSON.parse(await readFile(state.lockFile, 'utf8'));
+    info = JSON.parse(await (io.readFile || readFile)(state.lockFile, 'utf8'));
   } catch {
     return false;
   }
@@ -264,14 +297,25 @@ export async function releaseLock(state, nonce) {
  * 人工解锁：只删除"持有者已确认退出"或"锁已损坏"的锁。
  * 存活或状态未知时拒绝。
  */
-export async function unlockStale(state, { isAlive = pidAlive } = {}) {
+export async function unlockStale(state, options = {}) {
+  return lockMutation(state, options, () => unlockStaleGuarded(state, options));
+}
+
+async function unlockStaleGuarded(state, { isAlive = pidAlive, confirmCorrupt = false, io = {} } = {}) {
   let info = null;
+  let raw;
   try {
-    info = JSON.parse(await readFile(state.lockFile, 'utf8'));
+    raw = await (io.readFile || readFile)(state.lockFile, 'utf8');
   } catch (err) {
     if (err.code === 'ENOENT') return { ok: true, removed: false, reason: '没有锁文件' };
+    return { ok: false, reason: `锁文件读取失败（${err.code || 'unknown'}），拒绝删除` };
+  }
+  try {
+    info = JSON.parse(raw);
+  } catch {
+    if (!confirmCorrupt) return { ok: false, reason: '锁损坏：先确认全部桥接进程已停止，再使用 --unlock --confirm-corrupt' };
     await rm(state.lockFile, { force: true });
-    return { ok: true, removed: true, reason: '锁文件损坏，已删除' };
+    return { ok: true, removed: true, reason: '经明确确认，已删除损坏锁' };
   }
   const alive = isAlive(info && info.pid);
   if (alive === true) return { ok: false, reason: `锁被存活进程 pid ${info.pid} 持有，拒绝删除` };
@@ -285,6 +329,8 @@ export async function withLock(state, fn, { isAlive = pidAlive } = {}) {
   const lock = await acquireLock(state, { isAlive });
   if (!lock.ok) return { locked: false, code: lock.code, reason: lock.reason };
   try {
+    // 状态必须在持锁后重读，防止等锁期间其它实例已经更新队列。
+    await state.init();
     return { locked: true, value: await fn() };
   } finally {
     await releaseLock(state, lock.nonce);
@@ -357,6 +403,11 @@ export function parseComment(body) {
   }
   if (!accept) problems.push('缺少 accept 验收标准');
 
+  let knowledge;
+  if (fields.mode || fields.book_id || fields.print_pages) {
+    try { knowledge = knowledgeRequest(fields); if (!knowledge) throw new Error('缺少教材 mode'); }
+    catch (e) { problems.push(e.message); }
+  }
   if (problems.length) return { kind: 'invalid', reason: problems.join('；') };
 
   const detail = text.split(/\n---\n/).slice(1).join('\n---\n').trim();
@@ -369,7 +420,8 @@ export function parseComment(body) {
       allow,
       accept,
       detail,
-      digest: null
+      digest: null,
+      ...(knowledge ? { knowledge } : {})
     }
   };
 }
@@ -414,17 +466,19 @@ export function redactToken(text, token) {
   return s.split(String(token)).join('[REDACTED]');
 }
 
-async function githubGet(url, { token, fetchImpl }) {
+export async function githubGet(url, { token, fetchImpl = fetch }) {
   const res = await fetchImpl(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(30000),
     headers: {
       accept: 'application/vnd.github+json',
-      authorization: `Bearer ${token}`,
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
       'user-agent': 'dsh-local-listener'
     }
   });
   if (!res.ok) {
     const raw = await res.text().catch(() => '');
-    const body = redactToken(String(raw).slice(0, 160), token);
+    const body = redactToken(String(raw), token).slice(0, 160);
     const err = new Error(`GitHub API ${res.status}${body ? `: ${body}` : ''}`);
     err.status = res.status;
     throw err;
@@ -577,6 +631,10 @@ export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER
       allow: task.allow,
       accept: task.accept,
       detail: task.detail,
+      ...(task.knowledge ? { knowledge: task.knowledge } : {}),
+      bodyDigest: createHash('sha256').update(c.body).digest('hex'),
+      createdAt: c.createdAt,
+      updatedAt: c.updatedAt,
       status: 'pending',
       receivedAt: now().toISOString(),
       executedAt: null
@@ -594,6 +652,12 @@ export async function pollOnce({ state, token, repo = REPO, issue = ISSUE_NUMBER
 
 /* ------------------------------------------------------------------ CLI */
 
+export async function pollIfActive(params) {
+  const paused = await params.state.isPaused();
+  if (paused.paused) return { skipped: true };
+  return pollOnce(params);
+}
+
 async function main() {
   const cfg = loadConfig(process.env, process.argv.slice(2));
   const state = await new ListenerState(cfg.stateDir).init();
@@ -602,7 +666,7 @@ async function main() {
   if (cfg.resume) { await state.setPauseFile(false, ''); console.log('▶ 监听器已恢复'); return; }
 
   if (cfg.unlock) {
-    const r = await unlockStale(state);
+    const r = await unlockStale(state, { confirmCorrupt: process.argv.includes('--confirm-corrupt') });
     if (!r.ok) { console.error('✗ ' + r.reason); process.exitCode = 4; return; }
     console.log('✓ ' + r.reason);
     return;
@@ -625,11 +689,6 @@ async function main() {
   }
 
   const token = await resolveToken(cfg);
-  if (!token) {
-    console.error('✗ 缺少 GitHub token：请设置 DSH_BRIDGE_TOKEN，或确保 gh 已登录');
-    process.exitCode = 2;
-    return;
-  }
 
   if (cfg.once) {
     const paused = await state.isPaused();
@@ -640,7 +699,7 @@ async function main() {
     const guarded = await withLock(state, async () => {
       await state.log(`单次轮询：${cfg.repo} Issue #${cfg.issue}`);
       try {
-        return { ok: true, summary: await pollOnce({ state, token, repo: cfg.repo, issue: cfg.issue, log: state.log.bind(state) }) };
+        return { ok: true, summary: await pollIfActive({ state, token, repo: cfg.repo, issue: cfg.issue, log: state.log.bind(state) }) };
       } catch (err) {
         state.state.lastError = String(err.message);
         await state.save();
@@ -666,18 +725,17 @@ async function main() {
   }
 
   let stopped = false;
-  const stop = async () => {
+  const stop = () => {
     if (stopped) return;
     stopped = true;
-    await releaseLock(state, lock.nonce);
-    await state.log('监听器已停止');
-    process.exit(0);
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
 
   await state.log(`监听启动：${cfg.repo} Issue #${cfg.issue}，间隔 ${cfg.intervalSec}s（只读模式，不执行任务）`);
 
+  try {
+  await state.init();
   while (!stopped) {
     const paused = await state.isPaused();
     if (paused.paused) {
@@ -695,6 +753,10 @@ async function main() {
       await state.log(`✗ 轮询失败：${err.message}`);
     }
     await new Promise((r) => setTimeout(r, cfg.intervalSec * 1000));
+  }
+  } finally {
+    await releaseLock(state, lock.nonce);
+    await state.log('监听器已停止');
   }
 }
 
