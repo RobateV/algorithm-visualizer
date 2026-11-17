@@ -14,23 +14,29 @@ const nonce = 'c'.repeat(64);
 
 function content(options = {}) {
   let listener;
+  const events = new Map();
   const storage = new Map(), c = { ...config(), ...options.config }, messages = [...(options.messages || [])];
-  const stats = { clicks: 0, writes: 0 };
+  const stats = { clicks: 0, writes: 0, submits: 0 };
   const editor = { textContent: options.draft || '', focus() {} };
-  const button = { disabled: !!options.disabled, click() { stats.clicks++; if (options.confirm !== false) messages.push({ textContent: editor.textContent }); editor.textContent = ''; } };
+  const nodes = options.nodes || [];
+  const form = { tagName: 'FORM', attributes: [], childNodes: [], elements: options.associated || [], contains: node => node === editor || nodes.includes(node), getAttribute: () => null,
+    querySelectorAll: selector => selector === '#prompt-textarea' ? [editor] : [editor, ...nodes] };
+  Object.assign(editor, { tagName: 'DIV', attributes: [], childNodes: [], getAttribute: () => null, closest: () => options.noComposer ? null : form, contains: node => node === editor });
+  const button = { disabled: !!options.disabled, click() { stats.clicks++; stats.submits++; if (options.confirm !== false) messages.push({ textContent: editor.textContent }); editor.textContent = ''; } };
   const ctx = vm.createContext({
     Date, setTimeout: (fn) => queueMicrotask(fn),
-    chrome: { runtime: { id: 'own-extension', async sendMessage() { options.afterPermit?.(c, editor); return { allowed: options.permit !== false }; }, onMessage: { addListener(fn) { listener = fn; } } }, storage: { local: { async get() { return { relayConfig: structuredClone(c) }; } } } },
+    chrome: { runtime: { id: 'own-extension', async sendMessage() { options.afterPermit?.(c, editor, nodes); return { allowed: options.permit !== false }; }, onMessage: { addListener(fn) { listener = fn; } } }, storage: { local: { async get() { return { relayConfig: structuredClone(c) }; } } } },
     location: { origin: 'https://chatgpt.com', pathname: options.pathname || `/c/${chatId}` },
     sessionStorage: { getItem: k => storage.get(k), setItem: (k, v) => storage.set(k, v) },
     document: {
+      addEventListener: (type, fn) => events.set(type, fn),
       querySelector: selector => selector.includes('stop-button') ? (options.busy ? {} : null) : options.unloaded ? null : selector.includes('prompt-textarea') ? editor : (options.buttonAfterTyping && !stats.writes ? null : button),
-      querySelectorAll: () => messages,
+      querySelectorAll: selector => selector.includes('data-message-author-role') ? messages : [...nodes.filter(n => n.tagName === 'INPUT'), ...(options.externalFiles || [])],
       execCommand(_command, _ui, text) { stats.writes++; editor.textContent = text; options.afterInsert?.(c); }
     }
   });
   vm.runInContext(contentSource, ctx);
-  return { stats, editor, config: c, send: (type, payload = packet, attempt = nonce, sender = 'own-extension') => new Promise(resolve => {
+  return { stats, editor, config: c, emit: (type, event) => events.get(type)(event), send: (type, payload = packet, attempt = nonce, sender = 'own-extension') => new Promise(resolve => {
     const pending = listener({ type, packet: payload, attempt }, { id: sender }, resolve);
     if (!pending) resolve({ ignored: true });
   }) };
@@ -42,6 +48,59 @@ test('页面先准备不填写；有效凭证只发送一次；已出现的标�
   assert.equal((await page.send('relay-result')).delivered, true);
   assert.equal((await page.send('relay-result')).delivered, true);
   assert.equal(page.stats.writes, 1); assert.equal(page.stats.clicks, 1);
+});
+
+function composerNode(tagName = 'DIV', attrs = {}, extra = {}) {
+  return { tagName, attributes: Object.entries(attrs).map(([name, value]) => ({ name, value })), childNodes: [],
+    getAttribute: name => attrs[name] || null, closest: () => null, ...extra };
+}
+
+for (const [type, event] of [['change', { target: { type: 'file' } }], ['drop', { dataTransfer: { types: ['Files'], files: [] } }], ['paste', { clipboardData: { items: [{ kind: 'file' }] } }]]) {
+  test(`附件安全：${type} 文件活动后即使卡片和 files 已清空也拒绝提交`, async () => {
+    const page = content(); page.emit(type, event);
+    assert.equal((await page.send('relay-prepare')).ready, undefined);
+    assert.equal((await page.send('relay-result')).delivered, false);
+    assert.equal(page.stats.clicks, 0); assert.equal(page.stats.submits, 0); assert.equal(page.stats.writes, 0);
+  });
+}
+
+for (const [name, options] of [
+  ['PDF 附件', { nodes: [composerNode('DIV', { title: 'draft.pdf' })] }],
+  ['图片附件', { nodes: [composerNode('IMG', { src: 'blob:local-only' })] }],
+  ['文件上传中', { nodes: [composerNode('DIV', { role: 'progressbar' })] }],
+  ['已上传文件卡片', { nodes: [composerNode('DIV', { 'data-testid': 'file-card' })] }],
+  ['已选择未完成上传', { nodes: [composerNode('INPUT', {}, { type: 'file', files: [{ name: 'private.pdf' }], value: 'C:/fakepath/private.pdf' })] }],
+  ['未知附件状态', { nodes: [composerNode('DIV', { 'data-attachment-state': 'unknown' })] }],
+  ['未知自定义上传控件', { nodes: [composerNode('CUSTOM-UPLOADER')] }],
+  ['未知 shadow 控件', { nodes: [composerNode('DIV', {}, { shadowRoot: {} })] }],
+  ['其他文件类型预览', { nodes: [composerNode('BUTTON', { 'aria-label': 'notes.docx' })] }],
+  ['无法读取文件选择状态', { nodes: [composerNode('INPUT', {}, { type: 'file', files: null, value: '' })] }],
+  ['无法识别 composer', { noComposer: true }],
+  ['form 外关联文件控件', { associated: [composerNode('INPUT', {}, { type: 'file', files: [{}], value: '' })] }],
+  ['composer 外已选文件', { externalFiles: [composerNode('INPUT', {}, { type: 'file', files: [{}], value: '' })] }],
+  ['无标识附件卡片', { nodes: [composerNode('DIV', {}, { childNodes: [{ nodeType: 3, textContent: 'private-document.pdf' }] })] }]
+]) test(`附件安全：${name} 拒绝准备和提交且不更改附件`, async () => {
+  const before = JSON.stringify(options), page = content(options);
+  assert.equal((await page.send('relay-prepare')).ready, undefined);
+  assert.equal((await page.send('relay-result')).delivered, false);
+  assert.equal(page.stats.clicks, 0); assert.equal(page.stats.submits, 0); assert.equal(page.stats.writes, 0);
+  assert.equal(JSON.stringify(options), before);
+});
+
+test('附件安全：空 composer 与空闲文件选择控件允许；普通文字拒绝', async () => {
+  const page = content({ nodes: [composerNode('INPUT', {}, { type: 'file', files: [], value: '' })] });
+  assert.equal((await page.send('relay-prepare')).ready, true);
+  assert.equal((await page.send('relay-result')).delivered, true); assert.equal(page.stats.submits, 1);
+  const draft = content({ draft: '用户文字' });
+  assert.equal((await draft.send('relay-result')).delivered, false);
+  assert.equal(draft.stats.clicks, 0); assert.equal(draft.stats.submits, 0); assert.equal(draft.editor.textContent, '用户文字');
+});
+
+for (const phase of ['insert', 'permit']) test(`附件安全：${phase} 之后出现附件拒绝点击`, async () => {
+  const nodes = [], add = () => nodes.push(composerNode('IMG'));
+  const page = content({ nodes, ...(phase === 'insert' ? { afterInsert: add } : { afterPermit: add }) });
+  assert.equal((await page.send('relay-result')).delivered, false);
+  assert.equal(page.stats.clicks, 0); assert.equal(page.stats.submits, 0); assert.equal(nodes.length, 1);
 });
 
 test('已有草稿、正在回复、页面未就绪、错误聊天或到期时不修改页面', async () => {
