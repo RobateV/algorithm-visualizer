@@ -54,3 +54,7 @@ next-env.d.ts
 # reference book scans (kept outside the repo; ignore if copied in)
 /reference-books/
 *.pdf
+
+# 教材原始 PDF 已获仓库所有者授权公开，放行 textbook/original
+!textbook/original/
+!textbook/original/*.pdf
