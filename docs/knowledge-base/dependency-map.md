@@ -90,7 +90,7 @@ graph TD
   S --> SUCC[后继型形式]
   S --> PRED[前驱型形式]
   SUCC --> LB[lower_bound 语义]
-  PRED --> UB[upper_bound 语义]
+  PRED --> UB[upper_bound−1 语义]
   M --> TRI[三分法]
   M --> BA[二分答案]
   BA --> CHECK[判定函数 check/valid]
@@ -99,7 +99,7 @@ graph TD
 | 关系 | 性质 | 依据 |
 | --- | --- | --- |
 | 单调性 → 闭区间二分 | 明确 | `[BOOK] p.25–26` |
-| 后继型 / 前驱型 → lower/upper_bound 语义 | 明确 | `[BOOK] p.27` 提及 STL 实现「后继」查找 |
+| 后继型 → `lower_bound`；前驱型 → `upper_bound−1`（需判边界） | 明确 | `[BOOK] p.27` 提及 STL 实现「后继」查找 |
 | 单调性 → 三分法 | 明确 | 三分要求严格单调 `[BOOK] p.28` |
 | 单调性 → 二分答案 | 明确 | 值域单调性是二分答案的前提 `[BOOK] p.28` |
 
