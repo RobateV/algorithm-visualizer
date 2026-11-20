@@ -61,7 +61,7 @@
 | SRC-008 | p.28 | 三分法、二分答案转判定 | 正文 | **目视核对**（PDF p38） |
 | SRC-009 | p.29 | 书复制例题与参考程序、Best Cow Fences 引入 | 例题/代码 | **目视核对**（PDF p39） |
 | SRC-010 | p.30 | 最大子段和、前缀和判定、最小前缀维护、实数二分参考程序 | 例题/代码 | **目视核对**（PDF p40） |
-| SRC-011 | p.31 | Best Cow Fences 结尾与输出格式、Innovative Business 归纳+二分插入 | 例题/正文 | **目视核对**（PDF p41） |
+| SRC-011 | p.31 | Best Cow Fences 结尾与 `int(r*1000)`、Innovative Business 归纳+二分插入 | 例题/正文 | **目视核对**（PDF p41）。注：`int(r*1000)` 存在**输出精度边界问题**（非 OCR 错误），已在 0x04 §4.7 给出 `[DERIVED]` 整数化修正 |
 | SRC-012 | p.2 | 补码定义、有符号/无符号表示、溢出取模 | 正文 | OCR（PDF p12） |
 | SRC-013 | p.3 | 十六进制常数、`0x3F3F3F3F`、memset 限制 | 正文 | OCR（PDF p13） |
 | SRC-014 | p.4 | 算术/逻辑右移、与 `/2` 的差异 | 正文 | OCR（PDF p14） |
