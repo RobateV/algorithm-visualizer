@@ -53,24 +53,33 @@
 **倍增做法** `[BOOK] p.40`：
 
 ```
-p = 1, k = 0, sum = 0
-while p > 0:
-    if k + p ≤ N 且 sum + S[k+p] − S[k] ≤ T:
-        sum += S[k+p] − S[k]
-        k += p
-        p *= 2
-    else:
-        p /= 2
-# 此时 k 就是答案
+预处理（只做一次，O(N)）：
+    S[0] = 0
+    for i = 1..N: S[i] = S[i−1] + A[i]
+
+查询(T)：
+    p = 1, k = 0
+    while p > 0:
+        if k + p ≤ N 且 S[k + p] ≤ T:      // 不变量 sum = S[k]，直接比前缀和
+            k += p
+            p *= 2
+        else:
+            p /= 2
+    return k
 ```
 
 - `p` 是当前试探的跨度（总是 2 的幂）；
 - `k` 是已确认可行的最远位置；
-- `sum` 是 `A[1..k]` 的和（即 `S[k]`），用 `sum + S[k+p] − S[k]` 常数时间判定 `[BOOK] p.40`。
-- **不变量** `[DERIVED]`：循环中始终有 `sum = S[k]` 且 `Σ_{i=1..k} A[i] ≤ T`；
-  `k` 单调不减，`p` 递减到 0 时 `k` 即为最大可行位置。
-- **复杂度** `[DERIVED]`：`p` 从 1 开始每次成功翻倍、失败折半，标准二进制计数器分析给出
-  `O(log k)` 次判定；**与答案位置的对数有关，与 N 无关**。书中表述为「时间复杂度的级别为答案的对数」`[BOOK] p.40`。
+- `sum` 就是 `S[k]`，因此判定可**直接写成 `S[k+p] ≤ T`** `[DERIVED]`，既避免
+  `sum + S[k+p]` 的中间加法溢出，也与不变量一致。书中原文用 `sum + S[k+p] − S[k]` `[BOOK] p.40`，
+  在 `S` 接近 `long long` 上限时会溢出。
+- **不变量** `[DERIVED]`：循环中始终 `S[k] ≤ T`；`k` 单调不减，`p` 到 0 时 `k` 即最大可行位置。
+- **预处理与查询分离** `[DERIVED]`：`S` 只在开始建一次 `O(N)`；每次查询只读 `S`，不得重建。
+- **复杂度** `[DERIVED]`：
+  - 预处理 `O(N)`，只做一次；
+  - 单次查询 `O(log k)` 次判定（`p` 成功翻倍、失败折半的二进制计数器分析），
+    与答案位置的对数有关、与 `N` 无关；`k = 0` 时一次失败判定即返回，为 `O(1)`。
+  - 书中表述为「时间复杂度的级别为答案的对数」`[BOOK] p.40`，这里补充预处理与单次查询的分工。
 
 **前提** `[DERIVED]`：
 
@@ -134,15 +143,31 @@ while p > 0:
 
 ### 4.3 校验值首尾配对的正确性
 
-设段内数升序 `x_1 ≤ … ≤ x_n`，取 `M` 对使 `Σ(a−b)²` 最大 `[DERIVED]`：
-平方对差值敏感，应让差值尽可能大；把最大与最小配对、次大与次小配对，
-任何交换配对都会让某一对的差值减小、且不会让另一对增大（交换论证），故首尾配对最优。
+设段内数升序 `x_1 ≤ … ≤ x_n`，要选 `M` 对使 `Σ(a−b)²` 最大 `[DERIVED]`。
+
+**引理 1（极值必可入配对）**：若最大数 `x_n` 未配对，取任一对 `(x_p, x_q)`，
+把 `x_q` 换成 `x_n`：新差值 `x_n − x_p ≥ x_q − x_p ≥ 0`，平方和不减。故存在最优配对含极值。
+
+**引理 2（首尾配对最优）**：设 `a ≥ c`、`b ≥ d` 且 `a ≥ b`、`c ≥ d`，则
+
+```
+(a−b)² + (c−d)² − [(a−d)² + (c−b)²] = 2(a−c)(d−b) ≤ 0
+```
+
+即「大配小」不小于「交叉配」。反复交换，可把任意配对调整为「最大配最小、次大配次小」，
+且平方和单调不减，故首尾配对最优。
+
+**引理 3（单调性）**：区间缩短后校验值不增大 `[DERIVED]`——缩短后的集合是原集合的子集，
+其任一合法配对也是原集合的合法配对，故原集合的最大值不小于它。这是 §4.4 贪心所需的前提。
 
 ### 4.4 贪心分段的最优性
 
 **引理**：若某方案的第一段右端点 `R' < R`（`R` 为从 1 开始的最远可行右端点），
-把它扩展到 `R` 不会使后续段数增加 `[DERIVED]`：剩余部分变短，任何对剩余部分的分段仍可行。
-故「每段尽量长」的贪心最优。
+把它扩展到 `R` 不会使后续段数增加 `[DERIVED]`。
+
+理由：由 §4.3 引理 3，区间缩短不会增大校验值。把第一段延长到 `R` 后，原方案中后续各段
+被「压缩」到更短的区间上，校验值只减不增，仍然可行；段数不变。故存在与贪心同样好的方案，
+「每段尽量长」最优。
 
 ### 4.5 ST 查询覆盖性
 
@@ -162,36 +187,43 @@ while p > 0:
 ### 5.1 序列倍增查找 `[DERIVED]`（书中只给流程，未给完整代码）
 
 ```cpp
-int doublingSearch(const vector<long long>& A, int n, long long T) {
-    vector<long long> S(n + 1, 0);
-    for (int i = 1; i <= n; i++) S[i] = S[i - 1] + A[i];
-    int p = 1, k = 0;
-    long long sum = 0;
-    while (p > 0) {
-        if (k + p <= n && sum + S[k + p] - S[k] <= T) {
-            sum += S[k + p] - S[k];
-            k += p;
-            p *= 2;
-        } else {
-            p /= 2;
-        }
+struct PrefixSum {
+    vector<long long> S;
+    void build(const vector<long long>& A, int n) {   // O(N)，只做一次
+        S.assign(n + 1, 0);
+        for (int i = 1; i <= n; i++) S[i] = S[i - 1] + A[i];
     }
-    return k;
-}
+    int query(int n, long long T) const {             // O(log k)
+        int p = 1, k = 0;
+        while (p > 0) {
+            // 不变量 S[k] <= T：直接比 S[k+p]，避免 sum + S[k+p] 的中间溢出
+            if (k + p <= n && S[k + p] <= T) { k += p; p *= 2; }
+            else p /= 2;
+        }
+        return k;
+    }
+};
 ```
+
+**溢出反例** `[DERIVED]`：`A = {5×10^18, 3×10^18}`、`T = 8×10^18`。
+旧写法在 `k = 1` 时算 `sum + S[2] − S[1]`，其中 `sum + S[2] = 5×10^18 + 8×10^18 = 1.3×10^19 > 2^63−1`，
+UBSan 下直接 trap；新写法只比较 `S[2] = 8×10^18 ≤ T`，结果 `k = 2` 正确。
 
 ### 5.2 Genius ACM `[DERIVED]`（书中未给完整代码）
 
 ```cpp
-long long checkValue(vector<long long> v, int M) {   // 首尾配对
-    sort(v.begin(), v.end());
-    int pairs = min<int>(M, v.size() / 2);
-    long long s = 0;
+// 返回该段校验值是否 <= T：__int128 累加，一旦超过 T 立即返回
+bool checkLE(const vector<long long>& v, int M, long long T) {
+    vector<long long> u = v;
+    sort(u.begin(), u.end());
+    int pairs = min<int>(M, u.size() / 2);
+    __int128 s = 0;
     for (int i = 0; i < pairs; i++) {
-        long long d = v[v.size() - 1 - i] - v[i];
+        __int128 d = (__int128)u[u.size() - 1 - i] - (__int128)u[i];
         s += d * d;
+        if (s > (__int128)T) return false;   // 提前退出
     }
-    return s;
+    return s <= (__int128)T;
 }
 
 int geniusACM(const vector<long long>& A, int n, int M, long long T) {
@@ -201,7 +233,7 @@ int geniusACM(const vector<long long>& A, int n, int M, long long T) {
         while (p > 0) {
             if (R + p <= n) {
                 vector<long long> v(A.begin() + L, A.begin() + R + p + 1);
-                if (checkValue(v, M) <= T) { R += p; p *= 2; continue; }
+                if (checkLE(v, M, T)) { R += p; p *= 2; continue; }
             }
             p /= 2;
         }
@@ -210,6 +242,10 @@ int geniusACM(const vector<long long>& A, int n, int M, long long T) {
     return segs;
 }
 ```
+
+**溢出反例** `[DERIVED]`：`A = {−10^9, −10^9, −10^9, 10^9, 10^9, 10^9, 10^9}`（`n = 7`）、
+`M = 3`、`T = 10^18`。整段校验值 `= 3 × (2×10^9)² = 1.2×10^19 > 2^63−1`；
+旧实现累加溢出后可能误判为可行而返回 1 段，安全实现返回正确的 **2 段**。
 
 ### 5.3 ST 表 `[BOOK] p.41`（已逐字符核对 p.51 图像）
 
@@ -233,10 +269,13 @@ int ST_query(int l, int r) {
 ### 5.4 整数 log 预处理 `[DERIVED]`
 
 ```cpp
-int lg[N + 1];
-lg[1] = 0;
-for (int i = 2; i <= n; i++) lg[i] = lg[i >> 1] + 1;
-// 查询：int k = lg[r - l + 1];
+vector<int> buildLog(int n) {                 // O(N)
+    vector<int> lg(n + 1, 0);
+    for (int i = 2; i <= n; i++) lg[i] = lg[i >> 1] + 1;
+    return lg;
+}
+
+// 查询：int k = lg[r - l + 1];   （lg 为 buildLog 的返回值）
 ```
 
 ## 6. 典型例题与练习
@@ -257,6 +296,8 @@ for (int i = 2; i <= n; i++) lg[i] = lg[i >> 1] + 1;
 - **ST 用于区间和**：重叠会重复计数，不成立 `[DERIVED]`。
 - **ST 查询 `k` 取错**：`k` 必须是 `⌊log₂ len⌋`，取大了会越界 `[DERIVED]`。
 - **浮点 `log` 误差**：长度恰为 2 的幂时可能少 1，建议预处理整数 log `[DERIVED]`。
+- **倍增查找用 `sum + S[k+p] − S[k]` 判定**：中间加法可能溢出，应直接比 `S[k+p]` `[DERIVED]`。
+- **校验值用 `long long` 累加**：多对大差值可达 `10^19`，应 `__int128` 或提前退出 `[DERIVED]`。
 - **倍增与二分混淆**：二分依赖单调性折半，倍增依赖「按 2 的幂可合并」`[EXTENSION]`。
 
 ## 8. 知识关联
@@ -309,6 +350,13 @@ g++ 11.5.0 `-O2 -std=c++17`，测试驱动在本地临时目录（未提交）�
 | 校验值溢出 | 差值 `2×10^9` 的平方和 | ✅ `4×10^18`，需 `long long` |
 | ST 表 | 1000 个随机数组 × 20 次随机区间，与暴力 RMQ 对比 | ✅ 0 失配 |
 | ST 边界 | 长度 1、长度 2、全相等 | ✅ 一致 |
+| 倍增溢出反例 | `A={5e18,3e18}`、`T=8e18`；旧实现 UBSan trap | ✅ 新实现 `k=2` |
+| 倍增随机对拍 | 2000 组（长度 ≤ 50，含 0） | ✅ 0 失配 |
+| 倍增 `k=0` | `T < A[1]` | ✅ 返回 0，`O(1)` |
+| Genius ACM 溢出反例 | `n=7, M=3, T=1e18`；旧实现返回 1 | ✅ 新实现返回 2 |
+| Genius ACM 随机对拍 | 800 组（`n ≤ 9`、`M ≤ 4`、含 `T=0`） | ✅ 0 失配 |
+| 校验值边界 | 单对差值平方恰为 `4×10^18`、比 `T` 小 1 | ✅ 判定正确 |
+| 重复元素 | 全相等且 `T=0` | ✅ 1 段 |
 
 > `Genius ACM` 的暴力对照用 DP 枚举所有合法分段（`dp[i] = min(dp[j]+1)`），
 > 对每段直接计算校验值，不是复用同一套贪心。
