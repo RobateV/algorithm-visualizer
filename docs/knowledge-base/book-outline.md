@@ -28,7 +28,7 @@
 | 0x03 | 前缀和与差分 | 21 | 31 | `chapters/0x00-basic-algorithms/0x03-prefix-sum-difference.md` | 草稿 |
 | 0x04 | 二分 | 25 | 35 | `chapters/0x00-basic-algorithms/0x04-binary-search.md` | 已核验 |
 | 0x05 | 排序 | 32 | 42 | `chapters/0x00-basic-algorithms/0x05-sorting.md` | 草稿 |
-| 0x06 | 倍增 | 39 | 49 | `chapters/0x00-basic-algorithms/0x06-binary-lifting.md` | 未开始 |
+| 0x06 | 倍增 | 39 | 49 | `chapters/0x00-basic-algorithms/0x06-binary-lifting.md` | 草稿 |
 | 0x07 | 贪心 | 42 | 52 | `chapters/0x00-basic-algorithms/0x07-greedy.md` | 未开始 |
 | 0x08 | 总结与练习 | 46 | 56 | `chapters/0x00-basic-algorithms/0x08-summary-exercises.md` | 未开始 |
 
@@ -165,11 +165,11 @@
 | ├ 正文章节 | 65 |
 | ├ 总结与练习 | 7 |
 | └ 附录 | 1 |
-| 已建文档 | 5（0x01–0x05） |
+| 已建文档 | 6（0x01–0x06） |
 | 已核验文档 | 1（0x04） |
 | 已整理文档 | 2（0x01、0x02） |
-| 草稿文档 | 2（0x03、0x05） |
-| 未开始章节 | 70 |
+| 草稿文档 | 3（0x03、0x05、0x06） |
+| 未开始章节 | 67 |
 
 各一级块下的章节数（合计 73）：
 
